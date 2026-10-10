@@ -35,7 +35,13 @@ def main() -> None:
 
     with ZipFile(wheel_path) as wheel:
         names = wheel.namelist()
-        for required in ("fernz/__init__.py", "fernz/py.typed"):
+        for required in (
+            "fernz/__init__.py",
+            "fernz/_env.py",
+            "fernz/_cli.py",
+            "fernz/__main__.py",
+            "fernz/py.typed",
+        ):
             assert required in names, f"Missing from wheel: {required}"
         metadata_name = next(name for name in names if name.endswith(".dist-info/METADATA"))
         metadata = email.message_from_bytes(wheel.read(metadata_name))
@@ -46,7 +52,14 @@ def main() -> None:
     with tarfile.open(sdists[0], "r:gz") as sdist:
         names = sdist.getnames()
         relative_names = {"/".join(PurePosixPath(name).parts[1:]) for name in names}
-        for required in ("pyproject.toml", "src/fernz/__init__.py", "src/fernz/py.typed"):
+        for required in (
+            "pyproject.toml",
+            "src/fernz/__init__.py",
+            "src/fernz/_env.py",
+            "src/fernz/_cli.py",
+            "src/fernz/__main__.py",
+            "src/fernz/py.typed",
+        ):
             assert required in relative_names, f"Missing from source distribution: {required}"
         check_no_games(names)
 
@@ -80,7 +93,29 @@ def main() -> None:
             check=True,
             timeout=15,
         )
-    print("Validated wheel and source distribution; isolated wheel import passed.")
+        command = environment / ("Scripts/fernz.exe" if os.name == "nt" else "bin/fernz")
+        game = Path(tmp) / "test game.z3"
+        game.write_bytes(b"synthetic test input")
+        # Exercise both installed entry points outside the checkout, including
+        # path validation and the deliberate lack of an interpreter.
+        for entry_point in ([str(command)], [str(python), "-I", "-m", "fernz"]):
+            for args, code, message in (
+                (["--help"], 0, "usage: fernz"),
+                ([str(Path(tmp) / "missing.z3")], 2, "fernz:"),
+                ([str(game)], 1, "story execution is not implemented"),
+            ):
+                result = subprocess.run(
+                    [*entry_point, *args],
+                    cwd=tmp,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                )
+                assert result.returncode == code, result
+                output = result.stdout if code == 0 else result.stderr
+                assert message in output, result
+                assert "Traceback" not in result.stderr, result
+    print("Validated distributions; isolated wheel import and CLI checks passed.")
 
 
 if __name__ == "__main__":
