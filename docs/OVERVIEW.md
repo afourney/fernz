@@ -136,7 +136,47 @@ interpreter conformance and gameplay tests will be added with the interpreter.
 
 ## Current scope
 
-Work so far has been limited to preparing test data, adding the test-data fixture
-and CI checks, and documenting the intended direction. No interpreter,
-Jericho-compatible API, or interactive CLI has been implemented as part of this work. The precise
-supported story versions and API coverage remain to be decided.
+Work includes test-data fixtures, CI checks, and a minimal packaged CLI and
+library contract. No interpreter execution is implemented. The precise supported
+story versions and broader API coverage remain to be decided.
+
+## CLI and library scaffold
+
+After `uv sync --dev`, run `uv run fernz --help` or
+`uv run python -m fernz --help`. The installed `fernz` command targets
+`fernz._cli:main` inside `src/fernz/`. The implementation modules `_cli.py` and
+`_env.py` are private; use `from fernz import FernzEnv` for the public library
+interface and `fernz` or `python -m fernz` for the public CLI.
+`fernz GAME` accepts a path to an existing regular file. Help exits with 0,
+missing/invalid arguments or paths exit with 2, and an existing file produces a
+clear not-implemented message on stderr and exits with 1. There is no interactive
+prompt or VM execution yet. The CLI delegates to the public library.
+
+The deliberately small public contract is:
+
+| Interface | Contract |
+| --- | --- |
+| `from fernz import FernzEnv` | Public environment class; no Jericho runtime dependency. |
+| `FernzEnv(game_path)` | Accepts a string or text path-like object. Validates a regular file and stores a `Path` in `game_path`. Missing/inaccessible paths raise `OSError` subclasses; non-regular paths raise `ValueError`. Does not read or validate story bytes. |
+| `env.reset()` | Planned result: `(observation: str, info: dict[str, object])`. Currently raises `NotImplementedError`. |
+| `env.step(action: str)` | Planned result: `(observation: str, reward: int, done: bool, info: dict[str, object])`. Currently raises `NotImplementedError`. |
+| `env.close()` | Idempotent resource cleanup; currently a no-op because no resources are held. |
+
+The tuple shapes follow the permitted
+[Jericho public quickstart](https://jericho-py.readthedocs.io/en/latest/tutorial_quick.html).
+Future metadata may include score and move count; the scaffold returns no
+invented observations, rewards, or metadata. This is an interface outline, not a
+claim of drop-in Jericho compatibility. The original `hello()` helper remains
+available for compatibility with the initial package scaffold.
+
+Caller-side context was limited to the root
+[`play_jericho.py` in cabin-fever-x86](https://github.com/afourney/cabin-fever-x86/blob/b4933c8b167635c9ffbd7cd8ffd1307fc0b3d52e/play_jericho.py).
+That consumer uses construction, reset, text steps, and cleanup. Its additional
+save restoration, location lookup, score/move queries, and game-over/victory
+queries are deferred. Its direct `frotz_lib` access is outside this public
+contract; binary saves and interpreter internals are not supported. No Frotz or
+Jericho implementation source was inspected or copied.
+
+Scaffold tests use temporary synthetic files without requesting the game fixture
+or downloading ROMs. Package validation also exercises the installed command and
+module entry point from a temporary directory outside the checkout.
