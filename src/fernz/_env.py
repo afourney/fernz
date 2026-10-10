@@ -7,6 +7,7 @@ from pathlib import Path
 from ._errors import ExecutionError
 from ._machine import Machine, signed
 from ._memory import Memory
+from ._state import GameState
 from ._story import Story
 
 
@@ -52,6 +53,29 @@ class FernzEnv:
             info = {"score": signed(second), "moves": third}
         return info
 
+    def get_state(self) -> GameState:
+        """Return an immutable, independent checkpoint after reset() or step().
+
+        Capture RAM, routine frames, PC, pending input, output selection, and
+        RNG state. A checkpoint can be reused in any FernzEnv for the same story.
+        After an execution failure, reset or restore before taking a snapshot.
+        """
+        if self._machine is None:
+            raise RuntimeError("Call reset() or set_state() before get_state()")
+        return self._machine.get_state()
+
+    def set_state(self, state: GameState) -> None:
+        """Restore a checkpoint without executing instructions or emitting output.
+
+        Restore the host seed as well as the active random sequence. Accept a
+        snapshot before reset, after quit, or after execution failure. Invalid
+        states raise TypeError or ValueError without changing the environment.
+        This is a host API checkpoint, not the Z-machine restore opcode.
+        """
+        machine = Machine.from_state(self.memory, state)
+        self._machine = machine
+        self._seed = state.rng.host_seed
+
     @property
     def done(self) -> bool:
         """Whether the current episode has executed quit (not a victory detector)."""
@@ -63,12 +87,15 @@ class FernzEnv:
         """Submit one line and run to the next input request or quit.
 
         Return new output, score delta (zero for time games), quit status, and
-        status globals. Call reset first and after quit or execution failure.
+        status globals. Reset or restore a checkpoint before starting play and
+        after quit or execution failure.
         The action excludes its newline; unsupported characters raise ValueError.
         """
         machine = self._machine
         if machine is None or machine.halted:
-            raise RuntimeError("Call reset() before step() or after the episode ends or fails")
+            raise RuntimeError(
+                "Call reset() or set_state() before step() or after the episode ends or fails"
+            )
         max_steps = index(max_steps)
         if max_steps <= 0:
             raise ValueError("max_steps must be positive")

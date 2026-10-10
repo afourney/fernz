@@ -66,7 +66,7 @@ jobs:
           /usr/games/dfrotz -v
       # This job downloads the ROM fixture. Do not upload or cache it.
       - run: uv run --no-sync poe test-roms
-      # Require the entire seeded Zork walkthrough through victory, including reset.
+      # Require the full seeded Zork walkthrough, reset, and checkpoint replay at every turn.
       - run: uv run --no-sync poe test-reference
 
   build:

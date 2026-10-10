@@ -200,6 +200,12 @@ with seed 12**. The reference must report `victory()` and a score equal to
 after reset. Commands and transcripts stay in memory during the test; neither is
 vendored into the repository. A failure identifies the episode, turn, and command.
 
+A second full-walkthrough comparison checkpoints both interpreters before every
+command, advances once, restores, and repeats the command. Both results must
+match their first execution exactly, including the final quit. Jericho snapshots
+are obtained and restored only through its documented public methods; their
+representation is not used to implement Fernz's checkpoints.
+
 Every turn compares text, reward, quit status, score, and move count. Fernz
 retains the Enter newline and story prompt that Jericho omits; tests assert and
 remove exactly those characters before comparing the remaining response.
@@ -242,7 +248,7 @@ play. This validates one complete route with a fixed seed; other routes and full
 V3 conformance remain to be tested.
 
 Deferred work includes additional V3 opcodes and I/O features, other execution
-versions, Blorb extraction, VM restart, and save/restore formats.
+versions, Blorb extraction, VM restart, and in-game save/restore formats.
 
 ## Execution foundation
 
@@ -309,6 +315,54 @@ behavior; Jericho treats that constructor value as automatic seeding. With
 `seed=None`, Fernz uses system entropy. The RNG component is shared across
 versions; see [RNG compatibility](RNG.md).
 
+## Host-side state checkpoints
+
+`env.get_state()` returns a detached, immutable `GameState` after a successful
+`reset()` or `step()`, including after `quit`. `env.set_state(state)` restores
+it without executing any instructions or returning an observation; its return
+value is `None`. A checkpoint can be reused, restored after reset or execution
+failure, or loaded into a fresh environment for the same story before any reset.
+The current `env.memory` object keeps its identity during restore.
+
+| Field | Meaning |
+| --- | --- |
+| `ram` | Immutable bytes from address zero up to the static-memory boundary, including the current header, globals, objects, and input buffers. Static story bytes are not duplicated. |
+| `pc`, `frames` | Next instruction address and immutable routine records with locals, evaluation stacks, return addresses, and store destinations. |
+| `input_request` | Resolved text/parse buffer addresses for a suspended read, or `None` after quit. |
+| `rng` | Generator state, counting period/position, and host seed policy. Restore consumes no entropy or random draw. |
+| `screen_enabled`, `halted` | Output selection and whether the VM has executed quit. Earlier observations have already been drained and are not replayed. |
+| `story_sha256`, `format_version` | Identity of the original addressable story image, excluding file padding, and the Fernz snapshot schema version (currently 1). |
+
+Memory alone is insufficient: local variables, stacks, and the execution
+continuation live outside story RAM. Returned checkpoints own immutable bytes
+and tuples and share no mutable execution state with the environment. Restore
+checks story identity, schema version, component types and bounds, frame/input
+consistency, and protected header fields before committing any change. Invalid
+states raise `TypeError` or `ValueError` and leave the current episode intact.
+These checks establish structural validity, not that arbitrary edited RAM is a
+meaningful game position. Obtain checkpoints through `get_state()`.
+
+Host checkpoints include RNG and output settings for reproducible exploration.
+The restored host seed also controls subsequent `reset()` and `random 0` calls.
+With host seed `None`, restoring preserves the current random sequence, but a
+later reset or `random 0` still obtains fresh entropy. Use an explicit seed for
+replays that include reseeding.
+
+This API follows Jericho's public save/restore workflow using Fernz's own state
+representation. Jericho's API page documents a seven-entry tuple; black-box
+inspection of the returned value in 3.3.1 shows nine entries. Its first entry is
+an unsigned-byte array containing 11,859 bytes for our Zork I story, matching the
+dynamic-memory boundary. Fernz exposes those bytes as `state.ram`; it does not
+accept or generate Jericho's tuple format.
+
+These checkpoints currently support V3. They do not implement story-level
+`save`, `restore`, `save_undo`, or Quetzal files. Standard
+[§6.1](https://inform-fiction.org/zmachine/standards/z1point1/sect06.html)
+defines the VM's saved state and special header-restoration rules; its remarks
+exclude RNG and I/O settings from that state. Host checkpoints instead restore
+the complete captured environment, including Flags 2, and must stay distinct
+from future opcode and portable-file implementations.
+
 ## Story loading and memory
 
 ```python
@@ -360,8 +414,9 @@ leave all bytes unchanged. Errors raise `MemoryAccessError` (a `ValueError`).
 
 `memory.copy()` copies current contents independently. `memory.reset()` restores
 the original image exactly. This low-level reset is not VM restart or save
-restoration. `FernzEnv.reset()` also manages CPU and interpreter state; VM
-restart and saved-game restoration are deferred. No writable memory views are exposed.
+restoration. `FernzEnv.reset()` and `set_state()` also manage CPU and interpreter
+state; VM restart and saved-game file restoration are deferred. No writable memory
+views are exposed.
 
 Implementation references are Standard 1.1
 [memory and addressing](https://inform-fiction.org/zmachine/standards/z1point1/sect01.html),
@@ -378,7 +433,7 @@ After `uv sync --dev`, run `uv run fernz --help` or
 `uv run python -m fernz --help`. The installed `fernz` command targets
 `fernz._cli:main` inside `src/fernz/`. Modules prefixed with `_` are private;
 import `Story`, `StoryHeader`, `Memory`, `StoryFormatError`, `MemoryAccessError`,
-`ExecutionError`, `UnsupportedOpcodeError`, and `FernzEnv` from `fernz` for the public library
+`ExecutionError`, `UnsupportedOpcodeError`, `GameState`, and `FernzEnv` from `fernz` for the public library
 interface and `fernz` or `python -m fernz` for the public CLI.
 `fernz --inspect GAME` prints JSON metadata and exits with 0. It reports both
 physical file size and logical story size, plus checksum validity (null when
@@ -399,6 +454,8 @@ The deliberately small public contract is:
 | `env.story`, `env.memory` | Immutable story image and independent protected memory instance. |
 | `env.reset(*, max_steps=250_000)` | Run fresh V3 startup through input or quit and return `(observation: str, info: dict[str, object])`. The observation retains all story text, including title and prompt. Score games expose integer `score` and `moves`; time games expose `hours` and `minutes`. |
 | `env.step(action: str, *, max_steps=250_000)` | Complete a pending V3 read and return `(observation: str, reward: int, done: bool, info: dict[str, object])`. Reward is the signed score delta, or zero for time games. The observation contains new output, including the Enter newline and any story prompt. |
+| `env.get_state()` | Return an immutable `GameState` after reset, step, or a successful restore. Raises `RuntimeError` before initialization or after execution failure. |
+| `env.set_state(state)` | Validate and restore a Fernz checkpoint for the same story, including RNG and host seed; return `None`. May be called before reset, after quit, or after execution failure. Invalid input leaves the environment unchanged. |
 | `env.done` | True after the VM executes `quit`; false before reset. It does not infer death or victory while the story is still running. |
 | `env.close()` | Idempotent resource cleanup; currently a no-op because no resources are held. |
 
@@ -408,16 +465,16 @@ Unsupported execution versions raise `NotImplementedError`. Legal but unsupporte
 instructions raise `UnsupportedOpcodeError`, a `NotImplementedError` subclass,
 with the opcode and address. Invalid instructions, runtime errors, and budget
 exhaustion raise `ExecutionError`, a `RuntimeError` subclass. A failed episode
-should be reset before reuse. This is not a claim of drop-in Jericho
+should be reset or restored from a valid checkpoint before reuse. This is not a claim of drop-in Jericho
 compatibility. The original `hello()` helper remains
 available for compatibility with the initial package scaffold.
-Calling `step()` before a successful reset, after quit, or after execution fails
-raises `RuntimeError`; start a new episode with `reset()`.
+Calling `step()` before a successful reset or restore, after quit, or after
+execution fails raises `RuntimeError`; reset or restore a runnable checkpoint.
 
 Caller-side context was limited to the root
 [`play_jericho.py` in cabin-fever-x86](https://github.com/afourney/cabin-fever-x86/blob/b4933c8b167635c9ffbd7cd8ffd1307fc0b3d52e/play_jericho.py).
 That consumer uses construction, reset, text steps, and cleanup. Its additional
-save restoration, location lookup, score/move queries, and game-over/victory
+binary save restoration, location lookup, score/move queries, and game-over/victory
 queries are deferred. Private native-library access is outside this public
 contract; binary saves and interpreter internals are not supported.
 

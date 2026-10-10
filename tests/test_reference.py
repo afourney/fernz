@@ -97,6 +97,28 @@ def assert_zork_turn(actual, expected):
     assert_observation(actual.removeprefix("\n").removesuffix(">"), expected)
 
 
+def assert_zork_step(actual, expected, *, final):
+    observation, reward, done, info = actual
+    assert type(reward) is int
+    assert reward == expected[1]
+    assert type(done) is bool
+    assert done == expected[2]
+    if not final:
+        assert_zork_turn(observation, expected[0])
+        assert_info(info, expected[3])
+    else:
+        # This ending executes quit. Black-box Jericho adds one final newline
+        # and reports 395 moves; the story prints 394. Fernz stops at quit and
+        # returns the status global (394), as in the standalone Frotz ending.
+        # Assert these exact differences only on the final turn.
+        assert observation.startswith("\n")
+        assert observation.endswith("\n")
+        assert expected[0].endswith("\n\n")
+        assert_observation(observation.removeprefix("\n") + "\n", expected[0])
+        assert_info(info, {"score": 350, "moves": 394})
+        assert_info(expected[3], {"score": 350, "moves": 395})
+
+
 def test_jericho_reference_runs(reference_trace):
     """Fail independently if the reference cannot run the pinned Zork I story."""
     (observation, info), steps = reference_trace
@@ -184,29 +206,51 @@ def test_zork1_full_walkthrough_matches_jericho(zork1, walkthrough_trace):
             assert_info(info, initial[1])
             for turn, (action, expected) in enumerate(zip(actions, steps, strict=True), 1):
                 try:
-                    observation, reward, done, info = env.step(action)
-                    assert type(reward) is int
-                    assert reward == expected[1]
-                    assert type(done) is bool
-                    assert done == expected[2]
-                    if turn < len(actions):
-                        assert_zork_turn(observation, expected[0])
-                        assert_info(info, expected[3])
-                    else:
-                        # This ending executes quit. Black-box Jericho adds one
-                        # final newline and reports 395 moves; the story prints
-                        # 394. Fernz stops at quit and returns the status global
-                        # (394), consistent with the standalone Frotz ending.
-                        # Assert these exact differences only on the final turn.
-                        assert observation.startswith("\n")
-                        assert observation.endswith("\n")
-                        assert expected[0].endswith("\n\n")
-                        assert_observation(observation.removeprefix("\n") + "\n", expected[0])
-                        assert_info(info, {"score": 350, "moves": 394})
-                        assert_info(expected[3], {"score": 350, "moves": 395})
-                        assert env.done is True
+                    assert_zork_step(env.step(action), expected, final=turn == len(actions))
                 except (AssertionError, ExecutionError, NotImplementedError) as error:
                     error.add_note(f"Walkthrough episode {episode}, turn {turn}: {action!r}")
                     raise
+            assert env.done is True
     finally:
         env.close()
+
+
+def test_zork1_checkpoint_replay_matches_jericho(zork1, walkthrough_trace):
+    from jericho import FrotzEnv
+
+    seed, actions, initial, steps = walkthrough_trace
+    reference = FrotzEnv(str(zork1), seed=seed)
+    env = FernzEnv(zork1, seed=seed)
+    try:
+        assert reference.reset() == initial
+        observation, info = env.reset()
+        assert_zork_opening(observation, initial[0])
+        assert_info(info, initial[1])
+        for turn, (action, expected) in enumerate(zip(actions, steps, strict=True), 1):
+            try:
+                # Treat Jericho's returned snapshot as opaque: give it back only
+                # through set_state(). Fernz has its own immutable representation.
+                reference_state = reference.get_state()
+                state = env.get_state()
+                assert reference.step(action) == expected
+                actual = env.step(action)
+                assert_zork_step(actual, expected, final=turn == len(actions))
+                assert reference.set_state(reference_state) is None
+                assert env.set_state(state) is None
+                assert env.get_state() == state
+                assert reference.step(action) == expected, "Jericho restore changed the result"
+                assert env.step(action) == actual, "Fernz restore changed the result"
+            except (
+                AssertionError,
+                ExecutionError,
+                NotImplementedError,
+                TypeError,
+                ValueError,
+            ) as error:
+                error.add_note(f"Checkpoint replay at turn {turn}: {action!r}")
+                raise
+        assert reference.victory() is True
+        assert env.done is True
+    finally:
+        env.close()
+        reference.close()

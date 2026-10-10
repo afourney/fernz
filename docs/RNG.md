@@ -63,7 +63,14 @@ which does not rely on random encounters.
 This replaces Fernz's initial Python `random.Random` implementation, so seeded
 sequences change from that first execution milestone. The constructor's explicit
 zero remains reproducible. RNG instances belong to individual machines and do
-not share process-global state. Save, undo, and VM restart remain future work.
+not share process-global state. Story-level save, undo, and VM restart remain future work.
+
+Host-side `get_state()` / `set_state()` checkpoints capture both generator modes
+and the host seed policy. Restoring neither draws a value nor requests entropy;
+it resumes the saved sequence. The restored host seed also governs later
+`reset()` and `random 0` calls. If that seed is `None`, those later operations
+still request fresh entropy. This host API supports deterministic exploration;
+it has a different contract from the standard's story-level save/restore opcodes.
 
 ## Compatibility evidence
 
@@ -83,7 +90,8 @@ restoration.
 ## Tests and dependencies
 
 - Normal tests include fixed observed vectors, signed-word boundaries, per-machine
-  independence, controlled entropy, and V3 opcode/environment integration.
+  independence, controlled entropy, checkpoint restoration in both modes, and
+  V3 opcode/environment integration.
 - Required reference tests compare the shared RNG against both interpreters using
   V3/V5/V8 probes. V3 also runs through Fernz's complete execution path. These
   tests do not claim that Fernz can execute V5/V8 stories yet.
