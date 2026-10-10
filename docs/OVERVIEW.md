@@ -19,6 +19,10 @@ and testing work on Fernz.
   through their public interfaces to compare inputs, outputs, and observable
   behavior, and to support functional tests. Permission to run them does not
   permit inspecting their implementation.
+- **Jericho is a development-only reference dependency.** Installing or building
+  it through the package manager is allowed for these tests. Never browse the
+  installed source, use source inspection, or access its private/native internals
+  to guide Fernz. Fernz itself must not import or depend on Jericho at runtime.
 
 The Jericho repository link below identifies the upstream project only. It is
 **not permission to browse its source or use it as an implementation reference**.
@@ -46,6 +50,8 @@ requirement above.
   — a companion reference for explanations and implementation notes.
 - [Jericho quickstart documentation](https://jericho-py.readthedocs.io/en/latest/tutorial_quick.html)
   — examples of the library API and its use.
+- [Jericho public environment API](https://jericho-py.readthedocs.io/en/latest/frotz_env.html)
+  — the public calls used for black-box comparisons.
 - [Jericho upstream project](https://github.com/microsoft/jericho)
   — project identification only; **do not inspect its source code**. Running
   Jericho for black-box functional testing and comparison is allowed.
@@ -109,9 +115,10 @@ Run `uv sync --dev` to install the locked development tools, then use:
 | --- | --- |
 | `uv run poe check` | Check formatting, lint, and spelling. |
 | `uv run poe fix-all` | Apply formatting and automatic lint fixes. |
-| `uv run poe test` | Run pytest. |
+| `uv run poe test` | Run the normal tests without Jericho or reference ROM comparisons. |
+| `uv run --no-sync poe test-reference` | Run the opt-in Jericho reference tests after installing the reference group below. |
 | `uv run poe build-check` | Build the wheel and source distribution, validate their contents, and smoke-test an isolated wheel installation. |
-| `uv run poe check-all` | Run all of the above checks, tests, and build validation. |
+| `uv run poe check-all` | Run code checks, normal tests, and build validation; reference tests run separately. |
 
 Individual tasks include `format`, `format-fix`, `lint`, `lint-fix`, `spell`,
 `build`, and `check-dist`. Build validation expects one wheel and one source
@@ -124,6 +131,9 @@ dispatch. Separate jobs check code quality and lockfile consistency, run pytest
 on Python 3.11 through 3.14, and validate the built package. CI uses the same Poe
 tasks as local development, with frozen dependency installation. Superseded runs
 are cancelled and workflow permissions are limited to reading repository contents.
+A separate Linux/Python 3.11 job installs the optional reference group and runs
+the Jericho comparisons. Missing dependencies, download failures, and reference
+execution failures fail that job; it does not silently skip them.
 
 The package check verifies metadata, package files, the `py.typed` marker, and
 that neither distribution contains game ROMs. It then installs the wheel into a
@@ -131,14 +141,62 @@ temporary virtual environment and imports Fernz independently of the checkout.
 There is no publishing workflow.
 
 Tests may download the Jericho corpus through `jericho_games` when needed. CI
-does not cache or upload ROMs. The current tests exercise fixture management;
-interpreter conformance and gameplay tests will be added with the interpreter.
+does not cache or upload ROMs. Current tests cover fixture management, the public
+scaffold, and the reference setup described below. Interpreter conformance tests
+will be added with the interpreter.
+
+## Black-box reference tests
+
+Jericho 3.3.1 is pinned in the optional `reference` development dependency group
+and locked with its dependencies in `uv.lock`. That group uses Python 3.11 on
+Linux, keeping Jericho's native build and dependencies out of the normal Python
+test matrix and Fernz's runtime dependencies. Install it and run the tests with:
+
+```sh
+uv sync --frozen --python 3.11 --group reference
+uv run --no-sync poe test-reference
+```
+
+The installation requires C build tools such as `gcc` and `make`, already present
+on the Ubuntu CI runners. These tests need no additional spaCy language model.
+Normal pytest runs deselect the `reference` marker, so they neither import Jericho
+nor download games for these comparisons. To select them directly, use
+`uv run --no-sync pytest -m reference -ra --tb=short`.
+
+`tests/test_reference.py` uses only the documented `FrotzEnv` constructor,
+`reset()`, `step()`, and `close()` calls. It verifies the SHA-256 of our Zork I
+fixture (`zork1.z5`, whose header is V3), runs Jericho with seed 0, and records an
+opening followed by `look`, `open mailbox`, `take leaflet`, `read leaflet`, and
+`inventory`. A second episode verifies repeatability after reset. Reference
+observations are generated during the test, rather than committed as game text.
+
+Two explicit Fernz comparisons check the opening and the short sequence,
+including reset after play. They compare observation text, reward, completion,
+score, and move count. Text normalization is limited to CRLF versus LF; score
+and moves are compared individually to allow additional metadata keys.
+
+**These are targets, not passing interpreter coverage yet.** Both comparisons
+currently have strict expected-failure markers limited to `NotImplementedError`,
+because Fernz cannot execute stories. Assertion mismatches still fail. An
+unexpected pass also fails until its marker is removed, making progress an
+explicit change. A separate, unmarked Jericho smoke test must always pass, so a
+broken reference cannot be hidden by the expected failures.
+
+The sequence avoids random encounters. Equal numeric seeds alone do not guarantee
+equal random streams across interpreters. Expand comparisons as Fernz gains
+execution, state restoration, and other public APIs. The Z-machine standard
+remains authoritative when it and a reference interpreter disagree; investigate
+the discrepancy instead of copying reference behavior automatically. Loading and
+memory tests for all V1-V8 will also use independent specification-based fixtures,
+since these public Jericho calls execute the game as part of initialization.
 
 ## Current scope
 
 Work includes test-data fixtures, CI checks, and a minimal packaged CLI and
-library contract. No interpreter execution is implemented. The precise supported
-story versions and broader API coverage remain to be decided.
+library contract, plus black-box reference tests. No interpreter execution is
+implemented. The next milestone targets version-aware loading and protected
+memory for V1-V8; Zork I (V3) remains the first playable execution target. Broader
+API coverage remains to be decided.
 
 ## CLI and library scaffold
 

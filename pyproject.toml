@@ -19,6 +19,12 @@ dev = [
     "pytest>=8",
     "ruff",
 ]
+reference = [
+    "jericho==3.3.1",
+]
+
+[tool.uv.dependency-groups]
+reference = { requires-python = "==3.11.*" }
 
 [build-system]
 requires = ["uv_build>=0.10.2,<0.11.0"]
@@ -26,6 +32,10 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not reference'"
+markers = [
+    "reference: black-box comparisons requiring Jericho and downloaded ROMs",
+]
 
 [tool.ruff]
 line-length = 100
@@ -71,6 +81,7 @@ lint-fix = "ruff check --fix src tests scripts"
 # Keep downloaded ROMs and deliberately malformed test inputs out of spell checks.
 spell = "codespell --check-hidden src scripts docs README.md pyproject.toml .github"
 test = "pytest"
+test-reference = "pytest -m reference -ra --tb=short"
 build = "uv build --out-dir dist"
 check-dist = "python scripts/check_dist.py"
 build-check = ["build", "check-dist"]

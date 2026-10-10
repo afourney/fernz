@@ -46,6 +46,21 @@ jobs:
       # Do not upload or cache the games directory as a workflow artifact.
       - run: uv run --no-sync poe test
 
+  reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+          version: "0.12.23"
+      # Jericho is a development-only black-box reference, built by uv.
+      # Ubuntu runners provide gcc and make; no interpreter source is inspected.
+      - run: uv sync --frozen --group reference
+      # This job downloads the ROM fixture. Do not upload or cache it.
+      - run: uv run --no-sync poe test-reference
+
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
