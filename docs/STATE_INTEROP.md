@@ -105,6 +105,12 @@ opcode byte, before its operand types. Fernz has already decoded the whole
 instruction and resolved its text/parse operands. A variable-zero operand
 therefore remains on the reference stack but has already been popped in Fernz.
 
+Fernz deliberately keeps its current boundary, as recorded in the
+[execution design](OVERVIEW.md#execution-foundation). The Standard defines
+`read` behavior without prescribing a host API's suspension point; either
+convention can be correct. Interchange must preserve the pending read and
+account for operand evaluation so that input and stack pops occur exactly once.
+
 Import decodes the pending instruction and resolves its operands left to right,
 performing any pops once. Export uses the saved input instruction address and
 pushes those operands back in reverse order, so the reference resolves them

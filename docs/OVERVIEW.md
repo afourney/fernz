@@ -284,11 +284,28 @@ Frotz's screen output uses contextual spacing, so no universal tab-rendering
 equivalence between frontends is claimed.
 
 Execution runs until `sread` or `quit`, with an instruction budget to catch loops.
-At `sread`, the machine retains the text and parse buffer addresses without
-consuming input or altering those buffers. `step()` completes that pending read
-and resumes execution without evaluating its operands again. Output is drained
-after each run, so observations contain only new output. Output is a plain transcript without
-screen wrapping or status-line rendering. The header advertises no status line,
+At `sread`, the machine has decoded the instruction and evaluated its operands,
+including any stack pops. The PC points to the next instruction, and an explicit
+pending input request retains the read instruction address and resolved text and
+parse buffer addresses. No input has been consumed or written to those buffers.
+`step()` completes that pending read and resumes execution without evaluating
+its operands again.
+
+**Design decision: keep this suspension boundary.** The Standard specifies the
+behavior of `read`, but does not prescribe where a host API pauses while waiting
+for input. Pausing before or after operand evaluation can both be correct.
+Fernz's decoded input request separates instruction execution from input
+handling and can serve interactive, structured, or asynchronous frontends.
+Future V5/V8 support can extend the request with version-specific completion
+data while retaining this separation. A checkpoint must preserve both the
+post-evaluation stack and the pending request; resuming it must complete the
+read exactly once before continuing at the saved PC. The test-only
+[state bridge](STATE_INTEROP.md#suspended-input) translates the reference's
+earlier pause point into this convention.
+
+Output is drained after each run, so observations contain only new output.
+Output is a plain transcript without screen wrapping or status-line rendering.
+The header advertises no status line,
 split screen, or variable-pitch font; it does not claim full Standard conformance.
 Stream 1 can be enabled or disabled. Other streams, nonzero window operations,
 sound, save, restore, and restart currently fail explicitly if encountered.
