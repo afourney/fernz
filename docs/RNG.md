@@ -30,10 +30,12 @@ sample = state >> 16
 result = sample modulo range + 1
 ```
 
-Only the low 31 state bits affect these 15-bit samples. Tracking additional
-high state bits would not change any result; Fernz does not promise a particular
-native interpreter's internal state representation. The final remainder mapping
-preserves the observed modulo bias for ranges that do not divide 32768.
+This produces exactly the same outputs as the supplied 32-bit Frotz recurrence
+with `(state >> 16) & 0x7fff`. Only the low 31 state bits affect those samples:
+discarding bit 31 cannot affect the lower bits in subsequent multiply/add steps.
+The internal states differ, but every future output agrees for the same seed and
+operand sequence. The final remainder mapping also preserves the modulo bias for
+ranges that do not divide 32768.
 
 For example, opcode seed 1000 and range 6 produce
 `2, 5, 6, 6, 1, 1, 5, 5, 6, 3, ...` in all three tested references.
@@ -48,8 +50,10 @@ select the counting mode. For example, constructor seed 5 and opcode `random
 With an explicit host seed, both `env.reset()` and the opcode `random 0` restore
 that host-seeded sequence, discarding any counting cycle or opcode seed. With
 `seed=None`, both obtain fresh system entropy. Unseeded operation uses the same
-affine generator, with an automatically chosen initial state; reproducing a
-particular port's clock or entropy source is outside the compatibility contract.
+affine generator, seeded with `secrets.randbits(31)`. This differs from the
+supplied Unix Frotz example's clock-derived seed (`time(0) & 0x7fff`), so unseeded
+trajectories need not match. Reproducing a particular port's clock or entropy
+source is outside the compatibility contract.
 
 **Explicit host seed 0 differs between the references.** Frotz's `-s 0` gives a
 fixed sequence, whereas Jericho's constructor `seed=0` was observed to use
@@ -64,14 +68,18 @@ sequences change from that first execution milestone. The constructor's explicit
 zero remains reproducible. RNG instances belong to individual machines and do
 not share process-global state. Save, undo, and VM restart remain future work.
 
-## Evidence and clean-room procedure
+## RNG exception and compatibility evidence
 
-The clean-room requirement in [OVERVIEW.md](OVERVIEW.md#mandatory-clean-room-requirement)
-continues to apply. No Frotz or Jericho repository or installed implementation
-source was inspected for this change. A source-derived description was supplied
-in the conversation; its code was not copied or translated. The compatibility
-rules were checked through executable behavior using independently assembled
-synthetic stories.
+The project owner explicitly authorized an **RNG-only exception** to the
+[clean-room requirement](OVERVIEW.md#mandatory-clean-room-requirement), allowing
+the supplied Frotz algorithm, source excerpts, and source-derived details to guide
+RNG compatibility. Matching random-number trajectories is the goal. The exception
+does not apply to any other interpreter subsystem.
+
+No Frotz or Jericho repository or installed implementation source was fetched or
+inspected for this change. The source-derived material was supplied in the
+conversation. The compatibility rules were also checked through executable
+behavior using independently assembled synthetic stories.
 
 Each probe executes a list of `random` instructions, prints each result with
 `print_num`, and quits. It uses no compiler, commercial ROM, or game-specific

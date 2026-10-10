@@ -6,9 +6,19 @@ input request. Interactive command input is the next execution milestone.
 
 ## Mandatory clean-room requirement
 
-**Fernz must be a clean-room reimplementation. Do NOT read or inspect Frotz or
-Jericho source code.** This requirement applies to all implementation, debugging,
-and testing work on Fernz.
+**Fernz must be a clean-room reimplementation, with the sole RNG exception
+described below. Outside that exception, do NOT read or inspect Frotz or Jericho
+source code.** This requirement applies to implementation, debugging, and testing.
+
+**Explicitly authorized RNG-only exception:** the project owner permits using
+the supplied Frotz RNG algorithm, source excerpts, and source-derived details to
+match random-number trajectories exactly. This covers counting and LCG behavior,
+seed handling, and output mapping. See [RNG compatibility](RNG.md) for the
+implemented contract and executable comparisons. This exception does **not**
+extend to instruction execution, memory, objects, text, input/output, or any
+other interpreter subsystem.
+
+The following clean-room rules apply outside that narrow RNG exception:
 
 - **Implement independently from the specifications.** Use the Z-machine
   standard and its annotated companion for interpreter behavior, and Jericho's
@@ -27,8 +37,9 @@ and testing work on Fernz.
 
 The Jericho repository link below identifies the upstream project only. It is
 **not permission to browse its source or use it as an implementation reference**.
-This requirement supersedes the earlier proposal to use Jericho's source as a
-reference.
+The RNG exception authorizes the supplied RNG material; it does not grant general
+source access. These requirements supersede the earlier proposal to use Jericho's
+source as a reference. Fernz must not depend on either interpreter at runtime.
 
 ## Project goals
 

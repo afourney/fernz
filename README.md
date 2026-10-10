@@ -1,6 +1,6 @@
 # Fernz
 
-A clean-room Z-machine interpreter library in Python, working toward a
+A Z-machine interpreter library in Python, working toward a
 Jericho-like API and a minimal interactive player.
 
 Fernz loads **raw V1-V8 story files** and can **run Zork I (V3) to its first input
@@ -87,9 +87,12 @@ Fernz preserves a deterministic sequence for explicit zero, like Frotz. See
 [RNG compatibility](docs/RNG.md) for the contract and test setup, including
 `FERNZ_DFROTZ` for a separately installed binary. Fernz's execution support remains V3.
 
-**Do not inspect Frotz or Jericho implementation source.** Implement from the
-Z-machine specification and documented public APIs. Running Jericho through its
-public API for functional comparison is allowed. Fernz has no runtime dependencies.
+**Clean-room development is required, with one explicit RNG-only exception.**
+The project owner permits using the supplied Frotz RNG algorithm and source-derived
+details to match random-number trajectories. For all other interpreter behavior,
+**do not inspect Frotz or Jericho implementation source**; use the Z-machine
+specification and documented public APIs. Black-box functional comparison is
+allowed. Fernz has no runtime dependencies.
 
 See [the overview](docs/OVERVIEW.md) for the API contract, specification links,
 CI coverage, fixture setup, and full clean-room requirements.
