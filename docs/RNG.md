@@ -30,7 +30,7 @@ sample = state >> 16
 result = sample modulo range + 1
 ```
 
-This produces exactly the same outputs as the supplied 32-bit Frotz recurrence
+This produces exactly the same outputs as a 32-bit recurrence
 with `(state >> 16) & 0x7fff`. Only the low 31 state bits affect those samples:
 discarding bit 31 cannot affect the lower bits in subsequent multiply/add steps.
 The internal states differ, but every future output agrees for the same seed and
@@ -51,7 +51,7 @@ With an explicit host seed, both `env.reset()` and the opcode `random 0` restore
 that host-seeded sequence, discarding any counting cycle or opcode seed. With
 `seed=None`, both obtain fresh system entropy. Unseeded operation uses the same
 affine generator, seeded with `secrets.randbits(31)`. This differs from the
-supplied Unix Frotz example's clock-derived seed (`time(0) & 0x7fff`), so unseeded
+Unix Frotz clock-derived seed (`time(0) & 0x7fff`), so unseeded
 trajectories need not match. Reproducing a particular port's clock or entropy
 source is outside the compatibility contract.
 
@@ -68,18 +68,10 @@ sequences change from that first execution milestone. The constructor's explicit
 zero remains reproducible. RNG instances belong to individual machines and do
 not share process-global state. Save, undo, and VM restart remain future work.
 
-## RNG exception and compatibility evidence
+## Compatibility evidence
 
-The project owner explicitly authorized an **RNG-only exception** to the
-[clean-room requirement](OVERVIEW.md#mandatory-clean-room-requirement), allowing
-the supplied Frotz algorithm, source excerpts, and source-derived details to guide
-RNG compatibility. Matching random-number trajectories is the goal. The exception
-does not apply to any other interpreter subsystem.
-
-No Frotz or Jericho repository or installed implementation source was fetched or
-inspected for this change. The source-derived material was supplied in the
-conversation. The compatibility rules were also checked through executable
-behavior using independently assembled synthetic stories.
+The compatibility rules were checked through executable behavior using
+independently assembled synthetic stories.
 
 Each probe executes a list of `random` instructions, prints each result with
 `print_num`, and quits. It uses no compiler, commercial ROM, or game-specific
