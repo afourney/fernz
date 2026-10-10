@@ -1,6 +1,6 @@
 # Fernz
 
-A clean-room Z-machine interpreter library in Python, working toward a
+A Z-machine interpreter library in Python, working toward a
 Jericho-like API and a minimal interactive player.
 
 Fernz loads **raw V1-V8 story files** and can **run Zork I (V3) to its first input
@@ -66,9 +66,11 @@ uv run poe check-all    # Offline tests, quality checks, and package validation
 uv run poe test-roms    # All 56 loading checks, plus Zork startup and reset
 ```
 
-Black-box Jericho comparisons run in Linux CI. To run them locally on Linux:
+Black-box Jericho and Frotz comparisons run in Linux CI. To run them locally on
+Debian or Ubuntu:
 
 ```sh
+sudo apt-get install --no-install-recommends frotz
 uv sync --frozen --python 3.11 --group reference
 uv run --no-sync poe test-reference
 ```
@@ -78,9 +80,18 @@ preserves the title and prompt that Jericho omits; the test asserts those pieces
 separately and compares the remaining transcript exactly. The command sequence
 remains an explicit expected failure until input is implemented.
 
+Predictable RNG sequences are compared against both interpreters using synthetic
+V3/V5/V8 stories, including cycle rollover and reseeding. Use a positive constructor
+seed for shared reproducibility: Jericho treats host seed 0 as automatic, whereas
+Fernz preserves a deterministic sequence for explicit zero, like Frotz. See
+[RNG compatibility](docs/RNG.md) for the contract and test setup, including
+`FERNZ_DFROTZ` for a separately installed binary. Fernz's execution support remains V3.
+
 **Do not inspect Frotz or Jericho implementation source.** Implement from the
 Z-machine specification and documented public APIs. Running Jericho through its
-public API for functional comparison is allowed. Fernz has no runtime dependencies.
+public API for functional comparison is allowed. These clean-room requirements
+apply to every component, including random-number generation. Fernz has no runtime
+dependencies.
 
 See [the overview](docs/OVERVIEW.md) for the API contract, specification links,
 CI coverage, fixture setup, and full clean-room requirements.

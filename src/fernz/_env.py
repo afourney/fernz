@@ -13,6 +13,9 @@ class FernzEnv:
 
     Construction reads a raw V1-V8 story and creates independent memory.
     Successful loading does not establish that the story can be executed yet.
+    A host seed in 0..2**31-1 selects a reproducible sequence; None uses entropy.
+    Positive seeds match the tested Jericho/Frotz sequences. Explicit zero is
+    deterministic like Frotz's CLI, unlike Jericho's automatic host seed zero.
     """
 
     def __init__(self, game_path: str | PathLike[str], *, seed: int | None = None) -> None:

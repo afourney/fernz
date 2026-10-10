@@ -58,6 +58,12 @@ jobs:
       # Jericho is a development-only black-box reference, built by uv.
       # Ubuntu runners provide gcc and make; no interpreter source is inspected.
       - run: uv sync --frozen --group reference
+      # Use only the packaged Frotz executable for synthetic RNG comparisons.
+      - name: Install Frotz reference binary
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends frotz
+          /usr/games/dfrotz -v
       # This job downloads the ROM fixture. Do not upload or cache it.
       - run: uv run --no-sync poe test-roms
       # Zork startup/reset is required to pass; command input is the remaining target.
