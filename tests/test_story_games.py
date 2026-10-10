@@ -109,3 +109,20 @@ def test_zork1_metadata_through_environment(jericho_games):
         assert env.story.verify_checksum() is True
     finally:
         env.close()
+
+
+def test_zork1_runs_to_first_prompt_and_resets(jericho_games):
+    env = FernzEnv(jericho_games / "zork1.z5", seed=0)
+    try:
+        initial = env.reset()
+        observation, info = initial
+        assert observation.startswith("ZORK I:")
+        assert "West of House\n" in observation
+        assert observation.endswith("\n\n>")
+        assert info == {"score": 0, "moves": 0}
+        assert env._machine.input_request is not None
+        assert env._machine.halted is False
+        env.memory.write_word(env.story.header.globals_table + 2, 17)
+        assert env.reset() == initial
+    finally:
+        env.close()

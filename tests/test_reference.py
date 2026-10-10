@@ -51,6 +51,16 @@ def assert_info(actual, expected):
         assert actual[key] == expected[key], key
 
 
+def assert_zork_opening(actual, expected):
+    # Black-box observation: Jericho 3.3.1 omits this recognized game's title
+    # and its final prompt. Preserve both in Fernz; compare every remaining byte.
+    # These explicit assertions keep a lost title or prompt from passing unnoticed.
+    title = "ZORK I: The Great Underground Empire\n"
+    assert actual.startswith(title)
+    assert actual.endswith("\n>")
+    assert_observation(actual.removeprefix(title).removesuffix(">"), expected)
+
+
 def test_jericho_reference_runs(reference_trace):
     """Fail independently if the reference cannot run the pinned Zork I story."""
     (observation, info), steps = reference_trace
@@ -67,18 +77,15 @@ def test_jericho_reference_runs(reference_trace):
     assert steps[-1][3]["moves"] > 0
 
 
-@pytest.mark.xfail(
-    raises=NotImplementedError,
-    strict=True,
-    reason="Fernz story execution is not implemented; remove once reset matches",
-)
 def test_zork1_reset_matches_jericho(zork1, reference_trace):
     expected, _ = reference_trace
     env = FernzEnv(zork1)
     try:
-        observation, info = env.reset()
-        assert_observation(observation, expected[0])
-        assert_info(info, expected[1])
+        for _ in range(2):
+            observation, info = env.reset()
+            assert_zork_opening(observation, expected[0])
+            assert_info(info, expected[1])
+            env.memory.write_word(env.story.header.globals_table + 2, 0xFFFF)
     finally:
         env.close()
 
@@ -86,7 +93,7 @@ def test_zork1_reset_matches_jericho(zork1, reference_trace):
 @pytest.mark.xfail(
     raises=NotImplementedError,
     strict=True,
-    reason="Fernz story execution is not implemented; remove once the sequence matches",
+    reason="Command input and tokenization are not implemented; remove once the sequence matches",
 )
 def test_zork1_short_sequence_matches_jericho(zork1, reference_trace):
     initial, expected_steps = reference_trace
@@ -95,7 +102,7 @@ def test_zork1_short_sequence_matches_jericho(zork1, reference_trace):
         # Compare two episodes to exercise reset after play as well as fresh reset.
         for _ in range(2):
             observation, info = env.reset()
-            assert_observation(observation, initial[0])
+            assert_zork_opening(observation, initial[0])
             assert_info(info, initial[1])
             for action, expected in zip(ACTIONS, expected_steps, strict=True):
                 observation, reward, done, info = env.step(action)

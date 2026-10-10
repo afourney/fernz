@@ -40,6 +40,12 @@ def main() -> None:
             "fernz/_env.py",
             "fernz/_story.py",
             "fernz/_memory.py",
+            "fernz/_errors.py",
+            "fernz/_instruction.py",
+            "fernz/_opcodes.py",
+            "fernz/_text.py",
+            "fernz/_objects.py",
+            "fernz/_machine.py",
             "fernz/_cli.py",
             "fernz/__main__.py",
             "fernz/py.typed",
@@ -60,6 +66,12 @@ def main() -> None:
             "src/fernz/_env.py",
             "src/fernz/_story.py",
             "src/fernz/_memory.py",
+            "src/fernz/_errors.py",
+            "src/fernz/_instruction.py",
+            "src/fernz/_opcodes.py",
+            "src/fernz/_text.py",
+            "src/fernz/_objects.py",
+            "src/fernz/_machine.py",
             "src/fernz/_cli.py",
             "src/fernz/__main__.py",
             "src/fernz/py.typed",
@@ -99,7 +111,7 @@ def main() -> None:
         )
         command = environment / ("Scripts/fernz.exe" if os.name == "nt" else "bin/fernz")
         game = Path(tmp) / "test game.z3"
-        # An independent structural V3 fixture; no compiler or game text needed.
+        # An independent executable V3 fixture; no compiler or game text needed.
         data = bytearray(4096)
         data[0] = 3
         for address, value in (
@@ -112,15 +124,20 @@ def main() -> None:
             (0x1A, 2048),
         ):
             data[address : address + 2] = value.to_bytes(2, "big")
+        # print_char 'A'; new_line; print_char '>'; sread 0x280 0x2a0.
+        code = bytes.fromhex("e5 7f 41 bb e5 7f 3e e4 0f 02 80 02 a0")
+        data[0x401 : 0x401 + len(code)] = code
+        data[0x280], data[0x2A0] = 20, 4
+        data[0x1C:0x1E] = (sum(data[64:]) & 0xFFFF).to_bytes(2, "big")
         game.write_bytes(data)
         # Exercise both installed entry points outside the checkout, including
-        # path validation and the deliberate lack of an interpreter.
+        # path validation, inspection, and startup through the first input request.
         for entry_point in ([str(command)], [str(python), "-I", "-m", "fernz"]):
             for args, code, message in (
                 (["--help"], 0, "usage: fernz"),
                 ([str(Path(tmp) / "missing.z3")], 2, "fernz:"),
                 (["--inspect", str(game)], 0, '"version": 3'),
-                ([str(game)], 1, "story execution is not implemented"),
+                ([str(game)], 0, "A\n>"),
             ):
                 result = subprocess.run(
                     [*entry_point, *args],

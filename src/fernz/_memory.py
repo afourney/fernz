@@ -101,6 +101,13 @@ class Memory:
         """
         self._data[:] = self.story.data[: self.story.size]
 
+    def _configure_v3_header(self) -> None:
+        # Interpreter-only writes (§11), deliberately unavailable to game opcodes.
+        # Plain transcript output: no status line, split screen, or variable font.
+        self._data[1] = (self._data[1] & ~0x70) | 0x10
+        self._data[0x11] &= ~1  # No file transcript is open.
+        self._data[0x32:0x34] = b"\x00\x00"  # Do not claim full Standard conformance.
+
     def copy(self) -> "Memory":
         """Copy current memory while sharing only the immutable original Story."""
         result = Memory(self.story)
