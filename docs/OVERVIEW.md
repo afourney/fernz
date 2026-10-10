@@ -8,7 +8,8 @@ input request. Interactive command input is the next execution milestone.
 
 **Fernz must be a clean-room reimplementation. Do NOT read or inspect Frotz or
 Jericho source code.** This requirement applies to all implementation, debugging,
-and testing work on Fernz.
+and testing work on Fernz, including random-number generation. Use specifications,
+documented public APIs, and black-box observations to guide development.
 
 - **Implement independently from the specifications.** Use the Z-machine
   standard and its annotated companion for interpreter behavior, and Jericho's
@@ -27,8 +28,6 @@ and testing work on Fernz.
 
 The Jericho repository link below identifies the upstream project only. It is
 **not permission to browse its source or use it as an implementation reference**.
-This requirement supersedes the earlier proposal to use Jericho's source as a
-reference.
 
 ## Project goals
 
@@ -362,9 +361,8 @@ Caller-side context was limited to the root
 [`play_jericho.py` in cabin-fever-x86](https://github.com/afourney/cabin-fever-x86/blob/b4933c8b167635c9ffbd7cd8ffd1307fc0b3d52e/play_jericho.py).
 That consumer uses construction, reset, text steps, and cleanup. Its additional
 save restoration, location lookup, score/move queries, and game-over/victory
-queries are deferred. Its direct `frotz_lib` access is outside this public
-contract; binary saves and interpreter internals are not supported. No Frotz or
-Jericho implementation source was inspected or copied.
+queries are deferred. Private native-library access is outside this public
+contract; binary saves and interpreter internals are not supported.
 
 API tests use temporary synthetic files without requesting the game fixture
 or downloading ROMs. Package validation also exercises the installed command and

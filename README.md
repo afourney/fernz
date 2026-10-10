@@ -89,7 +89,9 @@ Fernz preserves a deterministic sequence for explicit zero, like Frotz. See
 
 **Do not inspect Frotz or Jericho implementation source.** Implement from the
 Z-machine specification and documented public APIs. Running Jericho through its
-public API for functional comparison is allowed. Fernz has no runtime dependencies.
+public API for functional comparison is allowed. These clean-room requirements
+apply to every component, including random-number generation. Fernz has no runtime
+dependencies.
 
 See [the overview](docs/OVERVIEW.md) for the API contract, specification links,
 CI coverage, fixture setup, and full clean-room requirements.

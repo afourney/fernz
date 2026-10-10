@@ -10,7 +10,7 @@ class RandomGenerator:
     Opcode seeds 1-999 select a counting cycle; larger seeds select an affine
     generator. An explicit host seed always selects the affine generator,
     including zero. None requests system entropy. See docs/RNG.md for the
-    compatibility boundary, observations, and mathematical parameter check.
+    compatibility contract and black-box reference tests.
     """
 
     def __init__(self, seed: int | None = None) -> None:
@@ -47,8 +47,7 @@ class RandomGenerator:
             sample = self._position
             self._position = (self._position + 1) % self._period
         else:
-            # Recovered from printed outputs of independently assembled probes.
-            # Only the low 31 state bits affect the observed 15-bit samples.
+            # Keep a 31-bit state and extract its upper 15 bits for each sample.
             self._state = (22695477 * self._state + 1) % (2**31)
             sample = self._state >> 16
         return sample % operand + 1
