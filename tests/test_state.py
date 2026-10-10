@@ -36,8 +36,10 @@ def test_snapshot_is_detached_immutable_and_contains_dynamic_memory(game):
     assert state.ram == env.memory.read_bytes(0, 0x300)
     assert [f.stack for f in state.frames] == [(11,), (22,), (33,)]
     assert [f.locals for f in state.frames] == [(), (7,), (9,)]
+    assert [f.argument_count for f in state.frames] == [0, 1, 0]
     assert state.input_request.text == 0x280
     assert state.input_request.parse == 0x2A0
+    assert state.input_request.instruction_address == state.pc - len(READ)
     assert env.get_state() == state
     with pytest.raises(FrozenInstanceError):
         state.pc = 0
@@ -131,6 +133,7 @@ def test_different_story_is_rejected_without_changing_current_game(game, tmp_pat
         lambda s: replace(s, frames=(s.frames[0], replace(s.frames[1], stack=[1]))),
         lambda s: replace(s, frames=(s.frames[0], replace(s.frames[1], return_address=None))),
         lambda s: replace(s, frames=(s.frames[0], replace(s.frames[1], store=256))),
+        lambda s: replace(s, frames=(s.frames[0], replace(s.frames[1], argument_count=4))),
         lambda s: replace(s, rng=replace(s.rng, host_seed=-1)),
         lambda s: replace(s, rng=replace(s.rng, state=2**31)),
         lambda s: replace(s, rng=replace(s.rng, period=1000)),
@@ -140,6 +143,7 @@ def test_different_story_is_rejected_without_changing_current_game(game, tmp_pat
         lambda s: replace(s, halted=True),
         lambda s: replace(s, input_request=None),
         lambda s: replace(s, input_request=replace(s.input_request, text=-1)),
+        lambda s: replace(s, input_request=replace(s.input_request, instruction_address=-1)),
     ],
 )
 def test_invalid_restore_is_atomic(game, corrupt):

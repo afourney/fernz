@@ -21,6 +21,7 @@ class FrameState:
     stack: tuple[int, ...]
     return_address: int | None
     store: int | None
+    argument_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +30,7 @@ class InputRequest:
 
     text: int
     parse: int
+    instruction_address: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,8 +95,14 @@ class GameState:
                     _integer(value, 0, 0xFFFF, "Frame value")
             if len(frame.locals) > 15:
                 raise ValueError("A frame cannot have more than 15 locals")
+            _integer(frame.argument_count, 0, 3, "V3 argument count")
             if number == 0:
-                if frame.locals or frame.return_address is not None or frame.store is not None:
+                if (
+                    frame.locals
+                    or frame.return_address is not None
+                    or frame.store is not None
+                    or frame.argument_count
+                ):
                     raise ValueError("Invalid initial V3 execution frame")
             else:
                 _integer(frame.return_address, 0, story.size, "Return address")
@@ -112,3 +120,9 @@ class GameState:
                 raise TypeError("A running snapshot must have a pending input request")
             _integer(self.input_request.text, 0, 0xFFFF, "Text buffer address")
             _integer(self.input_request.parse, 0, 0xFFFF, "Parse buffer address")
+            _integer(
+                self.input_request.instruction_address,
+                0,
+                story.size - 1,
+                "Input instruction address",
+            )

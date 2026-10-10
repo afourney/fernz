@@ -254,3 +254,45 @@ def test_zork1_checkpoint_replay_matches_jericho(zork1, walkthrough_trace):
     finally:
         env.close()
         reference.close()
+
+
+@pytest.mark.parametrize("direction", ("jericho_to_fernz", "fernz_to_jericho"))
+@pytest.mark.parametrize("checkpoint", (35, 214, 350))
+def test_zork1_cross_interpreter_continuation(zork1, walkthrough_trace, direction, checkpoint):
+    from jericho import FrotzEnv
+
+    from .state_bridge import StateBridge
+
+    seed, actions, initial, steps = walkthrough_trace
+    reference = FrotzEnv(str(zork1), seed=seed)
+    env = FernzEnv(zork1, seed=seed)
+    try:
+        assert reference.reset() == initial
+        bridge = StateBridge(env.story, reference.get_state(), seed=seed)
+        # Only the donor plays the prefix. The recipient starts from an imported
+        # snapshot; it then plays the entire remaining route without another import.
+        if direction == "jericho_to_fernz":
+            for action, expected in zip(actions[:checkpoint], steps[:checkpoint], strict=True):
+                assert reference.step(action) == expected
+            env.set_state(bridge.from_jericho(reference.get_state()))
+        else:
+            env.reset()
+            for action, expected in zip(actions[:checkpoint], steps[:checkpoint], strict=True):
+                assert_zork_step(env.step(action), expected, final=False)
+            reference.set_state(bridge.to_jericho(env.get_state()))
+        for turn in range(checkpoint, len(actions)):
+            try:
+                assert reference.step(actions[turn]) == steps[turn]
+                assert_zork_step(
+                    env.step(actions[turn]), steps[turn], final=turn == len(actions) - 1
+                )
+            except (AssertionError, ExecutionError, NotImplementedError) as error:
+                error.add_note(
+                    f"{direction}, checkpoint {checkpoint}, turn {turn + 1}: {actions[turn]!r}"
+                )
+                raise
+        assert env.done
+        assert reference.victory() is True
+    finally:
+        env.close()
+        reference.close()

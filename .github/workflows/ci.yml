@@ -67,6 +67,7 @@ jobs:
       # This job downloads the ROM fixture. Do not upload or cache it.
       - run: uv run --no-sync poe test-roms
       # Require the full seeded Zork walkthrough, reset, and checkpoint replay at every turn.
+      # Include state transfers in both directions and continuation through the ending.
       - run: uv run --no-sync poe test-reference
 
   build:

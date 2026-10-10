@@ -86,7 +86,9 @@ The immutable `GameState` includes memory, call frames, PC, pending input, outpu
 selection, and RNG state. It can also initialize another environment for the
 same story. Restore validates the checkpoint before changing the live game and
 returns `None`, with no execution or output. Fernz uses its own named fields;
-Jericho tuples and saved-game files are not interchangeable with these checkpoints.
+Jericho tuples require conversion, and saved-game files use a separate format.
+The test suite includes a [V3 state converter](docs/STATE_INTEROP.md) for the
+pinned Linux Jericho reference. It is not part of the installed package.
 
 ## Development
 
@@ -110,6 +112,9 @@ and its seed through Jericho's documented `get_walkthrough()` and `seed()` calls
 and generate reference observations at runtime. Every turn compares the
 transcript, reward, quit status, score, and moves. A checkpoint comparison also
 saves, advances, restores, and replays every command in both interpreters.
+Six additional runs transfer state between interpreters after commands 35,
+214, and 350, in both directions, then compare every remaining command through
+the 350-point ending. The recipient does not replay the prefix.
 
 Fernz preserves the title, input newline, and prompt that Jericho omits; tests
 assert these separately. At the final quit, Jericho adds one newline and reports

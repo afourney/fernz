@@ -27,6 +27,7 @@ class Frame:
     stack: list[int] = field(default_factory=list)
     return_address: int | None = None
     store: int | None = None
+    argument_count: int = 0
 
 
 class Machine:
@@ -57,7 +58,9 @@ class Machine:
             ram=self.memory.read_bytes(0, story.header.static_memory),
             pc=self.pc,
             frames=tuple(
-                FrameState(tuple(f.locals), tuple(f.stack), f.return_address, f.store)
+                FrameState(
+                    tuple(f.locals), tuple(f.stack), f.return_address, f.store, f.argument_count
+                )
                 for f in self.frames
             ),
             rng=self.rng.get_state(),
@@ -79,7 +82,8 @@ class Machine:
         result.memory = memory
         result.pc = state.pc
         result.frames = [
-            Frame(list(f.locals), list(f.stack), f.return_address, f.store) for f in state.frames
+            Frame(list(f.locals), list(f.stack), f.return_address, f.store, f.argument_count)
+            for f in state.frames
         ]
         result.text = Text(memory)
         result.objects = Objects(memory)
@@ -148,7 +152,11 @@ class Machine:
         locals_ = [self.memory.read_word(address + 1 + 2 * i) for i in range(count)]
         for i, value in enumerate(arguments[:count]):
             locals_[i] = value
-        self.frames.append(Frame(locals=locals_, return_address=self.pc, store=store))
+        self.frames.append(
+            Frame(
+                locals=locals_, return_address=self.pc, store=store, argument_count=len(arguments)
+            )
+        )
         self.pc = address + 1 + 2 * count
 
     def _branch(self, instruction: Instruction, condition: bool) -> None:
@@ -344,7 +352,7 @@ class Machine:
             case "random":
                 store(self.rng.random(signed(args[0])))
             case "sread":
-                self.input_request = InputRequest(*args)
+                self.input_request = InputRequest(*args, instruction_address=instruction.address)
             case "quit":
                 self.halted = True
             case "nop" | "show_status":

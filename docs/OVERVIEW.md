@@ -203,8 +203,14 @@ vendored into the repository. A failure identifies the episode, turn, and comman
 A second full-walkthrough comparison checkpoints both interpreters before every
 command, advances once, restores, and repeats the command. Both results must
 match their first execution exactly, including the final quit. Jericho snapshots
-are obtained and restored only through its documented public methods; their
-representation is not used to implement Fernz's checkpoints.
+are obtained and restored only through its documented public methods.
+
+Cross-interpreter tests also transfer state after commands 35, 214, and 350,
+in both directions. Only the donor plays the prefix; each recipient resumes
+from converted state and completes the remaining walkthrough to 350 points.
+The [test-only converter](STATE_INTEROP.md) translates the public snapshot
+representation measured with independent synthetic stories. Fernz's runtime
+keeps its own immutable checkpoint format and has no reference dependency.
 
 Every turn compares text, reward, quit status, score, and move count. Fernz
 retains the Enter newline and story prompt that Jericho omits; tests assert and
@@ -327,8 +333,8 @@ The current `env.memory` object keeps its identity during restore.
 | Field | Meaning |
 | --- | --- |
 | `ram` | Immutable bytes from address zero up to the static-memory boundary, including the current header, globals, objects, and input buffers. Static story bytes are not duplicated. |
-| `pc`, `frames` | Next instruction address and immutable routine records with locals, evaluation stacks, return addresses, and store destinations. |
-| `input_request` | Resolved text/parse buffer addresses for a suspended read, or `None` after quit. |
+| `pc`, `frames` | Next instruction address and immutable routine records with locals, evaluation stacks, return addresses, store destinations, and supplied argument counts. |
+| `input_request` | Resolved text/parse buffer addresses and instruction address for a suspended read, or `None` after quit. |
 | `rng` | Generator state, counting period/position, and host seed policy. Restore consumes no entropy or random draw. |
 | `screen_enabled`, `halted` | Output selection and whether the VM has executed quit. Earlier observations have already been drained and are not replayed. |
 | `story_sha256`, `format_version` | Identity of the original addressable story image, excluding file padding, and the Fernz snapshot schema version (currently 1). |
@@ -353,7 +359,10 @@ representation. Jericho's API page documents a seven-entry tuple; black-box
 inspection of the returned value in 3.3.1 shows nine entries. Its first entry is
 an unsigned-byte array containing 11,859 bytes for our Zork I story, matching the
 dynamic-memory boundary. Fernz exposes those bytes as `state.ram`; it does not
-accept or generate Jericho's tuple format.
+accept Jericho tuples directly. The [test-only state bridge](STATE_INTEROP.md)
+converts V3 input-boundary snapshots in both directions for the pinned Linux
+reference, including memory, frames, input continuation, and RNG state. It
+supplies a placeholder for the missing prior observation on export.
 
 These checkpoints currently support V3. They do not implement story-level
 `save`, `restore`, `save_undo`, or Quetzal files. Standard
