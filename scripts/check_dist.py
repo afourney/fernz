@@ -38,6 +38,8 @@ def main() -> None:
         for required in (
             "fernz/__init__.py",
             "fernz/_env.py",
+            "fernz/_story.py",
+            "fernz/_memory.py",
             "fernz/_cli.py",
             "fernz/__main__.py",
             "fernz/py.typed",
@@ -56,6 +58,8 @@ def main() -> None:
             "pyproject.toml",
             "src/fernz/__init__.py",
             "src/fernz/_env.py",
+            "src/fernz/_story.py",
+            "src/fernz/_memory.py",
             "src/fernz/_cli.py",
             "src/fernz/__main__.py",
             "src/fernz/py.typed",
@@ -95,13 +99,27 @@ def main() -> None:
         )
         command = environment / ("Scripts/fernz.exe" if os.name == "nt" else "bin/fernz")
         game = Path(tmp) / "test game.z3"
-        game.write_bytes(b"synthetic test input")
+        # An independent structural V3 fixture; no compiler or game text needed.
+        data = bytearray(4096)
+        data[0] = 3
+        for address, value in (
+            (4, 0x400),
+            (6, 0x401),
+            (8, 0x300),
+            (10, 0x40),
+            (12, 0x100),
+            (14, 0x300),
+            (0x1A, 2048),
+        ):
+            data[address : address + 2] = value.to_bytes(2, "big")
+        game.write_bytes(data)
         # Exercise both installed entry points outside the checkout, including
         # path validation and the deliberate lack of an interpreter.
         for entry_point in ([str(command)], [str(python), "-I", "-m", "fernz"]):
             for args, code, message in (
                 (["--help"], 0, "usage: fernz"),
                 ([str(Path(tmp) / "missing.z3")], 2, "fernz:"),
+                (["--inspect", str(game)], 0, '"version": 3'),
                 ([str(game)], 1, "story execution is not implemented"),
             ):
                 result = subprocess.run(

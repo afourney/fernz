@@ -59,6 +59,7 @@ jobs:
       # Ubuntu runners provide gcc and make; no interpreter source is inspected.
       - run: uv sync --frozen --group reference
       # This job downloads the ROM fixture. Do not upload or cache it.
+      - run: uv run --no-sync poe test-roms
       - run: uv run --no-sync poe test-reference
 
   build:
