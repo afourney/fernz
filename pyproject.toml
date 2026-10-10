@@ -1,0 +1,14 @@
+[project]
+name = "fernz"
+version = "0.0.0a1"
+description = "Fernz"
+readme = "README.md"
+authors = [
+    { name = "Adam Fourney", email = "adam.fourney@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = []
+
+[build-system]
+requires = ["uv_build>=0.10.2,<0.11.0"]
+build-backend = "uv_build"
