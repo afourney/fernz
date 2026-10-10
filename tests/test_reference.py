@@ -27,7 +27,7 @@ def reference_trace(zork1):
     # Use documented public calls only; no reflection or native-library access.
     from jericho import FrotzEnv
 
-    env = FrotzEnv(str(zork1), seed=0)
+    env = FrotzEnv(str(zork1), seed=42)
     try:
         initial = env.reset()
         steps = [env.step(action) for action in ACTIONS]
@@ -61,6 +61,14 @@ def assert_zork_opening(actual, expected):
     assert_observation(actual.removeprefix(title).removesuffix(">"), expected)
 
 
+def assert_zork_turn(actual, expected):
+    # Jericho omits the input Enter newline and the story's prompt. Assert both
+    # explicitly before comparing the complete remaining response.
+    assert actual.startswith("\n")
+    assert actual.endswith("\n>")
+    assert_observation(actual.removeprefix("\n").removesuffix(">"), expected)
+
+
 def test_jericho_reference_runs(reference_trace):
     """Fail independently if the reference cannot run the pinned Zork I story."""
     (observation, info), steps = reference_trace
@@ -79,7 +87,7 @@ def test_jericho_reference_runs(reference_trace):
 
 def test_zork1_reset_matches_jericho(zork1, reference_trace):
     expected, _ = reference_trace
-    env = FernzEnv(zork1)
+    env = FernzEnv(zork1, seed=42)
     try:
         for _ in range(2):
             observation, info = env.reset()
@@ -90,14 +98,9 @@ def test_zork1_reset_matches_jericho(zork1, reference_trace):
         env.close()
 
 
-@pytest.mark.xfail(
-    raises=NotImplementedError,
-    strict=True,
-    reason="Command input and tokenization are not implemented; remove once the sequence matches",
-)
 def test_zork1_short_sequence_matches_jericho(zork1, reference_trace):
     initial, expected_steps = reference_trace
-    env = FernzEnv(zork1)
+    env = FernzEnv(zork1, seed=42)
     try:
         # Compare two episodes to exercise reset after play as well as fresh reset.
         for _ in range(2):
@@ -106,7 +109,7 @@ def test_zork1_short_sequence_matches_jericho(zork1, reference_trace):
             assert_info(info, initial[1])
             for action, expected in zip(ACTIONS, expected_steps, strict=True):
                 observation, reward, done, info = env.step(action)
-                assert_observation(observation, expected[0])
+                assert_zork_turn(observation, expected[0])
                 assert type(reward) is int
                 assert reward == expected[1], action
                 assert type(done) is bool
@@ -114,3 +117,30 @@ def test_zork1_short_sequence_matches_jericho(zork1, reference_trace):
                 assert_info(info, expected[3])
     finally:
         env.close()
+
+
+def test_zork1_command_parsing_matches_jericho(zork1):
+    from jericho import FrotzEnv
+
+    reference = FrotzEnv(str(zork1), seed=42)
+    env = FernzEnv(zork1, seed=42)
+    try:
+        reference.reset()
+        env.reset()
+        for action in (
+            "LoOk",
+            "  OPEN   MAILBOX  ",
+            "take leaflets",
+            "read leaflet",
+            "xyzzy",
+            "look,look",
+            "inventory",
+        ):
+            actual = env.step(action)
+            expected = reference.step(action)
+            assert_zork_turn(actual[0], expected[0])
+            assert actual[1:3] == expected[1:3]
+            assert_info(actual[3], expected[3])
+    finally:
+        env.close()
+        reference.close()

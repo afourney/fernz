@@ -1,8 +1,10 @@
-"""Public story environment with V3 execution through the first input request."""
+"""Public story environment with V3 text interaction."""
 
+from operator import index
 from os import PathLike
 from pathlib import Path
 
+from ._errors import ExecutionError
 from ._machine import Machine, signed
 from ._memory import Memory
 from ._story import Story
@@ -34,22 +36,53 @@ class FernzEnv:
         Other versions and unimplemented opcodes raise NotImplementedError.
         Invalid execution or an exhausted instruction budget raises ExecutionError.
         """
-        self._machine = Machine(self.memory, seed=self._seed)
-        observation = self._machine.run(max_steps=max_steps)
+        self._machine = None
+        machine = Machine(self.memory, seed=self._seed)
+        observation = machine.run(max_steps=max_steps)
+        self._machine = machine
+        return observation, self._info()
+
+    def _info(self) -> dict[str, int]:
+        assert self._machine is not None
         second = self._machine.read_variable(17)
         third = self._machine.read_variable(18)
         if self.story.header.flags1 & 2:
             info = {"hours": second, "minutes": third}
         else:
             info = {"score": signed(second), "moves": third}
-        return observation, info
+        return info
 
-    def step(self, action: str) -> tuple[str, int, bool, dict[str, object]]:
-        """Return text, reward, done, and metadata for a future text action.
+    @property
+    def done(self) -> bool:
+        """Whether the current episode has executed quit (not a victory detector)."""
+        return self._machine is not None and self._machine.halted
 
-        Currently always raises NotImplementedError; no action is executed.
+    def step(
+        self, action: str, *, max_steps: int = 250_000
+    ) -> tuple[str, int, bool, dict[str, object]]:
+        """Submit one line and run to the next input request or quit.
+
+        Return new output, score delta (zero for time games), quit status, and
+        status globals. Call reset first and after quit or execution failure.
+        The action excludes its newline; unsupported characters raise ValueError.
         """
-        raise NotImplementedError("Command input and tokenization are not implemented yet.")
+        machine = self._machine
+        if machine is None or machine.halted:
+            raise RuntimeError("Call reset() before step() or after the episode ends or fails")
+        max_steps = index(max_steps)
+        if max_steps <= 0:
+            raise ValueError("max_steps must be positive")
+        before = self._info().get("score", 0)
+        try:
+            machine.accept_input(action)
+        except ExecutionError:
+            self._machine = None
+            raise
+        self._machine = None  # Execution failure requires a fresh episode.
+        observation = machine.run(max_steps=max_steps)
+        self._machine = machine
+        info = self._info()
+        return observation, info.get("score", 0) - before, self.done, info
 
     def close(self) -> None:
         """Release resources; currently an idempotent no-op with no open resources."""

@@ -42,6 +42,7 @@ def main() -> None:
             "fernz/_memory.py",
             "fernz/_errors.py",
             "fernz/_instruction.py",
+            "fernz/_input.py",
             "fernz/_opcodes.py",
             "fernz/_text.py",
             "fernz/_objects.py",
@@ -69,6 +70,7 @@ def main() -> None:
             "src/fernz/_memory.py",
             "src/fernz/_errors.py",
             "src/fernz/_instruction.py",
+            "src/fernz/_input.py",
             "src/fernz/_opcodes.py",
             "src/fernz/_text.py",
             "src/fernz/_objects.py",
@@ -126,26 +128,28 @@ def main() -> None:
             (0x1A, 2048),
         ):
             data[address : address + 2] = value.to_bytes(2, "big")
-        # print_char 'A'; new_line; print_char '>'; sread 0x280 0x2a0.
-        code = bytes.fromhex("e5 7f 41 bb e5 7f 3e e4 0f 02 80 02 a0")
+        # Print the opening, read a command, print its first character, then quit.
+        code = bytes.fromhex("e5 7f 41 bb e5 7f 3e e4 0f 02 80 02 a0 d0 1f 02 80 01 10 e5 bf 10 ba")
         data[0x401 : 0x401 + len(code)] = code
         data[0x280], data[0x2A0] = 20, 4
+        data[0x301] = 4  # Empty dictionary.
         data[0x1C:0x1E] = (sum(data[64:]) & 0xFFFF).to_bytes(2, "big")
         game.write_bytes(data)
         # Exercise both installed entry points outside the checkout, including
-        # path validation, inspection, and startup through the first input request.
+        # path validation, inspection, and an interactive input/quit cycle.
         for entry_point in ([str(command)], [str(python), "-I", "-m", "fernz"]):
             for args, code, message in (
                 (["--help"], 0, "usage: fernz"),
                 ([str(Path(tmp) / "missing.z3")], 2, "fernz:"),
                 (["--inspect", str(game)], 0, '"version": 3'),
-                ([str(game)], 0, "A\n>"),
+                ([str(game)], 0, "A\n>\nl"),
             ):
                 result = subprocess.run(
                     [*entry_point, *args],
                     cwd=tmp,
                     capture_output=True,
                     text=True,
+                    input="LOOK\n",
                     timeout=15,
                 )
                 assert result.returncode == code, result

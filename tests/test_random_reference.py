@@ -1,10 +1,7 @@
 """Compare synthetic RNG probes through public APIs and a Frotz executable only."""
 
-import os
-import shutil
 import subprocess
 import warnings
-from pathlib import Path
 
 import pytest
 
@@ -17,14 +14,6 @@ pytestmark = pytest.mark.reference
 
 VERSIONS = (3, 5, 8)
 RANGES = [1, 2, 3, 6, 10, 255, 256, 1000, 32766, 32767]
-
-
-@pytest.fixture(scope="module")
-def dfrotz():
-    executable = os.environ.get("FERNZ_DFROTZ") or shutil.which("dfrotz") or "/usr/games/dfrotz"
-    if not Path(executable).is_file() or not os.access(executable, os.X_OK):
-        pytest.fail("Install the frotz binary package or set FERNZ_DFROTZ to the dfrotz executable")
-    return executable
 
 
 def frotz_results(executable, story, operands, seed):

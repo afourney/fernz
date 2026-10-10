@@ -1,4 +1,4 @@
-"""Inspect stories or display their opening transcript."""
+"""Inspect stories or play through a minimal text terminal."""
 
 import argparse
 import json
@@ -10,14 +10,14 @@ from fernz import ExecutionError, FernzEnv
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Inspect a story or run its opening, without accepting commands yet.
+    """Inspect a story or play it until quit, EOF, or an execution error.
 
     Return 1 for execution errors, or 2 for an invalid story/path. Argument
     parsing exits with 0 for help and 2 for invalid command-line arguments.
     """
     parser = argparse.ArgumentParser(
         prog="fernz",
-        description="Inspect V1-V8 stories or display a V3 opening. Command input is not implemented yet.",
+        description="Inspect V1-V8 stories or play supported V3 games. Use EOF to exit.",
     )
     parser.add_argument("game", type=Path, help="Path to a raw Z-machine story file.")
     parser.add_argument(
@@ -54,8 +54,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 0
         observation, _ = env.reset()
-        print(observation, end="")
-    except (NotImplementedError, ExecutionError) as exc:
+        print(observation, end="", flush=True)
+        while not env.done:
+            line = sys.stdin.readline()
+            if not line:
+                break
+            observation, _, _, _ = env.step(line.removesuffix("\n").removesuffix("\r"))
+            print(observation, end="", flush=True)
+    except KeyboardInterrupt:
+        print()
+        return 130
+    except (NotImplementedError, ExecutionError, ValueError) as exc:
         print(f"fernz: {exc}", file=sys.stderr)
         return 1
     finally:

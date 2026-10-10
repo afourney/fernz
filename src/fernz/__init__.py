@@ -1,4 +1,4 @@
-"""A clean-room Z-machine library with V1-V8 loading and V3 startup execution."""
+"""A clean-room Z-machine library with V1-V8 loading and V3 text interaction."""
 
 from ._env import FernzEnv
 from ._errors import ExecutionError, UnsupportedOpcodeError

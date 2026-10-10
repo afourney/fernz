@@ -126,3 +126,31 @@ def test_zork1_runs_to_first_prompt_and_resets(jericho_games):
         assert env.reset() == initial
     finally:
         env.close()
+
+
+def test_zork1_mailbox_leaflet_and_quit(jericho_games):
+    env = FernzEnv(jericho_games / "zork1.z5", seed=42)
+    try:
+        for _ in range(2):
+            env.reset()
+            for move, (action, text) in enumerate(
+                (
+                    ("look", "West of House"),
+                    ("open mailbox", "Opening the small mailbox reveals a leaflet."),
+                    ("take leaflet", "Taken."),
+                    ("read leaflet", '"WELCOME TO ZORK!'),
+                    ("inventory", "You are carrying:\n  A leaflet"),
+                ),
+                start=1,
+            ):
+                observation, reward, done, info = env.step(action)
+                assert text in observation
+                assert observation.startswith("\n")
+                assert observation.endswith("\n>")
+                assert reward == 0
+                assert done is False
+                assert info == {"score": 0, "moves": move}
+            assert "Do you wish to leave" in env.step("quit")[0]
+            assert env.step("yes")[2] is True
+    finally:
+        env.close()

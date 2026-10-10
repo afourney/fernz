@@ -1,3 +1,4 @@
+import io
 import json
 import subprocess
 import sys
@@ -15,7 +16,7 @@ def test_help(capsys):
     assert exc.value.code == 0
     captured = capsys.readouterr()
     assert "game" in captured.out
-    assert "not implemented" in " ".join(captured.out.split())
+    assert "play supported V3" in " ".join(captured.out.split())
     assert captured.err == ""
 
 
@@ -49,13 +50,56 @@ def test_existing_game_reports_unimplemented(tmp_path, capsys):
     assert game.read_bytes() == story_bytes(5)
 
 
-def test_cli_prints_the_complete_opening_without_reading_input(tmp_path, capsys):
+def test_cli_prints_the_complete_opening_and_exits_at_eof(tmp_path, capsys, monkeypatch):
     game = tmp_path / "opening.z3"
     game.write_bytes(program_bytes(bytes.fromhex("e5 7f 41 bb e5 7f 3e") + READ))
+    monkeypatch.setattr(sys, "stdin", io.StringIO(""))
     assert _cli.main([str(game)]) == 0
     captured = capsys.readouterr()
     assert captured.out == "A\n>"
     assert captured.err == ""
+
+
+def test_cli_reads_commands_until_story_quits(tmp_path, capsys, monkeypatch):
+    game = tmp_path / "interactive.z3"
+    # Echo the first byte of the accepted line, then quit.
+    game.write_bytes(program_bytes(READ + bytes.fromhex("d0 1f 02 80 01 10 e5 bf 10 ba")))
+    stream = io.StringIO("LOOK\r\nunused\n")
+    monkeypatch.setattr(sys, "stdin", stream)
+    assert _cli.main([str(game)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == "\nl"
+    assert captured.err == ""
+    assert stream.readline() == "unused\n"
+
+
+def test_cli_quit_during_startup_needs_no_input(tmp_path, capsys):
+    game = tmp_path / "quit.z3"
+    game.write_bytes(program_bytes(b"\xba"))
+    assert _cli.main([str(game)]) == 0
+    assert capsys.readouterr().err == ""
+
+
+def test_cli_keyboard_interrupt_closes_without_traceback(tmp_path, capsys, monkeypatch):
+    class InterruptedInput:
+        def readline(self):
+            raise KeyboardInterrupt
+
+    game = tmp_path / "input.z3"
+    game.write_bytes(program_bytes(READ))
+    monkeypatch.setattr(sys, "stdin", InterruptedInput())
+    assert _cli.main([str(game)]) == 130
+    assert capsys.readouterr().err == ""
+
+
+def test_cli_reports_execution_error_after_input(tmp_path, capsys, monkeypatch):
+    game = tmp_path / "input.z3"
+    game.write_bytes(program_bytes(READ + b"\xb0"))
+    monkeypatch.setattr(sys, "stdin", io.StringIO("look\n"))
+    assert _cli.main([str(game)]) == 1
+    error = capsys.readouterr().err
+    assert "initial execution context" in error
+    assert "Traceback" not in error
 
 
 def test_cli_execution_error_has_no_traceback(tmp_path, capsys):
