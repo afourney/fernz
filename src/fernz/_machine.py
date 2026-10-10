@@ -1,9 +1,10 @@
-"""A V3 execution core that suspends at the first line-input request."""
+"""A V3 execution core that suspends and resumes at line-input requests."""
 
 from dataclasses import dataclass, field
 from operator import index
 
 from ._errors import ExecutionError, UnsupportedOpcodeError
+from ._input import read_line
 from ._instruction import Instruction, OperandType, decode
 from ._memory import Memory, MemoryAccessError
 from ._objects import Objects
@@ -35,7 +36,7 @@ class InputRequest:
 
 
 class Machine:
-    """Execute V3 startup with a bounded instruction budget and captured output."""
+    """Execute V3 with a bounded instruction budget and captured output."""
 
     def __init__(self, memory: Memory, *, seed: int | None = None) -> None:
         """Start a fresh episode, resetting memory, frames, output, and randomness."""
@@ -135,7 +136,7 @@ class Machine:
         return address
 
     def run(self, *, max_steps: int = 250_000) -> str:
-        """Run until input or quit; raise instead of looping beyond max_steps."""
+        """Run until input or quit and drain output; enforce an instruction budget."""
         max_steps = index(max_steps)
         if max_steps <= 0:
             raise ValueError("max_steps must be positive")
@@ -152,7 +153,21 @@ class Machine:
                 ) from exc
         if self.input_request is None and not self.halted:
             raise ExecutionError(f"Instruction budget ({max_steps}) exhausted at {self.pc:#x}")
-        return "".join(self.output)
+        output = "".join(self.output)
+        self.output.clear()
+        return output
+
+    def accept_input(self, line: str) -> None:
+        """Complete the pending read without re-evaluating its operands."""
+        request = self.input_request
+        if request is None or self.halted:
+            raise ExecutionError("The machine is not waiting for line input")
+        try:
+            read_line(self.memory, request.text, request.parse, line)
+        except MemoryAccessError as exc:
+            raise ExecutionError(f"Invalid input buffer or dictionary: {exc}") from exc
+        self.input_request = None
+        self._emit("\n")  # The read opcode prints the Enter terminator (§15).
 
     def _execute(self, instruction: Instruction) -> None:
         name = instruction.opcode.name

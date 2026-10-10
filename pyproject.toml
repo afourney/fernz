@@ -35,7 +35,7 @@ testpaths = ["tests"]
 addopts = "-m 'not reference and not rom'"
 markers = [
     "reference: black-box comparisons requiring Jericho and downloaded ROMs",
-    "rom: loading, memory, and startup tests using downloaded story files",
+    "rom: loading, memory, and gameplay tests using downloaded story files",
 ]
 
 [tool.ruff]

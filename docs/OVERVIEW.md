@@ -1,8 +1,8 @@
 # Fernz overview
 
 Fernz is intended to become a Z-machine interpreter for common Z-machine story
-formats. It loads V1-V8 stories and now executes Zork I (V3) through its first
-input request. Interactive command input is the next execution milestone.
+formats. It loads V1-V8 stories and now executes Zork I (V3) through the mailbox
+and leaflet sequence, using the library or a minimal interactive CLI.
 
 ## Mandatory clean-room requirement
 
@@ -81,7 +81,7 @@ requirement above.
    setup history.
 
 All 56 retained games are used for loading, checksum, and memory tests. Zork I
-also has startup and reset execution tests. Version detection uses the header: for example,
+also has startup, mailbox play, quit, and reset tests. Version detection uses the header: for example,
 `zork1.z5` contains a V3 story, release 88, serial `840726`.
 
 ## Test fixture setup
@@ -116,7 +116,7 @@ Run `uv sync --dev` to install the locked development tools, then use:
 | `uv run poe check` | Check formatting, lint, and spelling. |
 | `uv run poe fix-all` | Apply formatting and automatic lint fixes. |
 | `uv run poe test` | Run synthetic and API tests without Jericho or ROM downloads. |
-| `uv run poe test-roms` | Load all 56 retained ROMs, check checksums and memory, and run Zork I startup/reset. |
+| `uv run poe test-roms` | Load all 56 retained ROMs, check checksums and memory, and run Zork I startup, mailbox play, quit, and reset. |
 | `uv run --no-sync poe test-reference` | Run the opt-in Jericho reference tests after installing the reference group below. |
 | `uv run poe build-check` | Build the wheel and source distribution, validate their contents, and smoke-test an isolated wheel installation. |
 | `uv run poe check-all` | Run code checks, synthetic/API tests, and build validation; ROM and reference tests run separately. |
@@ -145,10 +145,10 @@ There is no publishing workflow.
 Tests may download the Jericho corpus through `jericho_games` when needed. CI
 does not cache or upload ROMs. Synthetic tests cover all eight story versions.
 Real-ROM tests have a separate case for each retained game, covering V3 (16),
-V4 (1), V5 (33), and V8 (6), plus Zork I metadata and startup/reset checks through
+V4 (1), V5 (33), and V8 (6), plus Zork I metadata and mailbox/reset checks through
 `FernzEnv`. V1, V2, V6, and V7 currently have synthetic coverage only. Synthetic
 execution tests cover V3 arithmetic, variables, routine frames, branches,
-objects, text, input suspension, and failure diagnostics.
+objects, text, input suspension/resumption, dictionary parsing, and failure diagnostics.
 
 ## Black-box reference tests
 
@@ -174,12 +174,12 @@ import Jericho nor download games. To select comparisons directly, use
 
 `tests/test_reference.py` uses only the documented `FrotzEnv` constructor,
 `reset()`, `step()`, and `close()` calls. It verifies the SHA-256 of our Zork I
-fixture (`zork1.z5`, whose header is V3), runs Jericho with seed 0, and records an
+fixture (`zork1.z5`, whose header is V3), runs Jericho with seed 42, and records an
 opening followed by `look`, `open mailbox`, `take leaflet`, `read leaflet`, and
 `inventory`. A second episode verifies repeatability after reset. Reference
 observations are generated during the test, rather than committed as game text.
 
-**The opening comparison is now required to pass.** It checks Zork I startup
+**The opening and mailbox comparisons are required to pass.** They check Zork I startup
 twice, with a memory mutation between resets, and compares the transcript, score,
 and move count. Black-box probes of Jericho 3.3.1 showed that its observation
 omits this recognized game's title line and the final prompt. Fernz retains
@@ -189,11 +189,16 @@ and compares the remaining text exactly, apart from CRLF versus LF. There is
 no title filtering, game-specific output substitution, or reference dependency
 in Fernz's runtime.
 
-The short command sequence remains a strict expected failure limited to
-`NotImplementedError`, because command input and tokenization are deferred.
-Assertion mismatches still fail, and an unexpected pass fails until its marker
-is removed. A separate, unmarked Jericho smoke test must always pass. Score and
-moves are compared individually to permit additional metadata keys.
+Every step compares its text, reward, quit status, score, and move count. Fernz
+retains the Enter newline and story prompt that Jericho omits; tests assert and
+remove exactly those characters before comparing the remaining response. There
+are no expected failures. A separate command-parsing comparison covers uppercase,
+extra spaces, dictionary truncation, unknown words, and punctuation. Synthetic
+input probes use the standalone Frotz executable, with a subprocess timeout, to
+compare accepted input bytes and parse records. Overlong input and malformed
+buffers are checked against the specification in the normal tests. A separate
+Jericho smoke test must always pass. Score and moves are compared individually
+to permit additional metadata keys.
 
 The sequence avoids random encounters. Separate synthetic tests now require
 predictable RNG sequences to match Jericho and Frotz, including counting and
@@ -211,14 +216,13 @@ since these public Jericho calls execute the game as part of initialization.
 
 Work includes version-aware loading and protected memory for raw V1-V8 stories,
 instruction decoding across those versions, and a V3 execution engine sufficient
-to run Zork I to its first prompt. The CLI can inspect any supported raw story
-or display a V3 opening transcript. Required ROM and Jericho tests cover Zork's
-opening and reset; this is not full V3 conformance or a playable interpreter yet.
+to play Zork I through the mailbox and leaflet sequence. The CLI can inspect any
+supported raw story or accept V3 commands interactively. Required ROM and Jericho
+tests cover Zork's opening, mailbox sequence, and reset after play. This is an
+initial playable milestone, not full V3 conformance or a complete-game guarantee.
 
-Deferred work includes command input and dictionary tokenization, additional V3
-opcodes and I/O features, other execution versions, Blorb extraction, VM restart,
-and save/restore formats. The next observable target is the existing mailbox and
-leaflet command sequence through `step()`.
+Deferred work includes additional V3 opcodes and I/O features, other execution
+versions, Blorb extraction, VM restart, and save/restore formats.
 
 ## Execution foundation
 
@@ -237,13 +241,33 @@ offsets 0 and 1 return from the current routine. Routine defaults and arguments,
 object links and properties, Z-strings, abbreviations, and default ZSCII output
 characters are implemented independently from the standard.
 
-Startup runs until `sread` or `quit`, with an instruction budget to catch loops.
+Execution runs until `sread` or `quit`, with an instruction budget to catch loops.
 At `sread`, the machine retains the text and parse buffer addresses without
-consuming input or altering those buffers. Output is a plain transcript without
+consuming input or altering those buffers. `step()` completes that pending read
+and resumes execution without evaluating its operands again. Output is drained
+after each run, so observations contain only new output. Output is a plain transcript without
 screen wrapping or status-line rendering. The header advertises no status line,
 split screen, or variable-pitch font; it does not claim full Standard conformance.
 Stream 1 can be enabled or disabled. Other streams, nonzero window operations,
 sound, save, restore, and restart currently fail explicitly if encountered.
+
+Line input follows Standard [§3.7](https://inform-fiction.org/zmachine/standards/z1point1/sect03.html),
+[§13](https://inform-fiction.org/zmachine/standards/z1point1/sect13.html), and
+[read](https://inform-fiction.org/zmachine/standards/z1point1/sect15.html#read).
+An action is one edited line without a newline. It is lowercased and translated
+to default ZSCII; unrepresentable characters and control characters raise
+`ValueError` before input is consumed. A non-string raises `TypeError`. V3 accepts
+at most `text[0] - 1` characters, writes them from byte 1, and appends a zero.
+Spaces separate words; dictionary separators are tokens themselves. Dictionary
+keys use six Z-characters, with truncation and padding defined by the standard.
+Parse records retain full token lengths and byte offsets, including unknown words.
+Both writes are checked before either buffer changes. Invalid host input or a
+nonpositive step budget can be corrected and retried at the same pending read.
+
+Character encoding, dictionary lookup, input-buffer layout, and execution are
+separate components. V5's counted input, different token offsets, longer keys,
+custom alphabets, and terminating-character result remain future version-specific
+work. The current input path explicitly supports V3 only.
 
 `reset()` starts a fresh episode: it restores story memory and reinitializes the
 interpreter header, routine state, output, and random generator. This differs
@@ -330,11 +354,11 @@ interface and `fernz` or `python -m fernz` for the public CLI.
 physical file size and logical story size, plus checksum validity (null when
 unavailable). A checksum mismatch is reported as false without rejecting the
 inspection. Help exits with 0; missing/invalid arguments, paths, or story formats
-exit with 2. `fernz GAME` runs V3 startup, writes the complete transcript, and
-exits with 0 at the first input request or quit. It displays any game prompt but
-does not read commands. Unsupported execution versions, unimplemented opcodes,
-invalid execution, and budget exhaustion report an error on stderr and exit
-with 1. The CLI delegates to the public library.
+exit with 2. `fernz GAME` writes the complete transcript and reads one command per
+line until quit or EOF, then exits with 0. Ctrl-C exits with 130. Unsupported
+execution versions, unimplemented opcodes, invalid input or execution, and budget
+exhaustion report an error on stderr and exit with 1. The CLI delegates to the
+public library and also accepts piped commands.
 
 The deliberately small public contract is:
 
@@ -344,7 +368,8 @@ The deliberately small public contract is:
 | `FernzEnv(game_path, *, seed=None)` | Accepts a string or text path-like object, stores a `Path` in `game_path`, and loads a raw V1-V8 story without executing it. Missing/inaccessible paths raise `OSError` subclasses; non-regular paths raise `ValueError`; invalid story data raises `StoryFormatError`. |
 | `env.story`, `env.memory` | Immutable story image and independent protected memory instance. |
 | `env.reset(*, max_steps=250_000)` | Run fresh V3 startup through input or quit and return `(observation: str, info: dict[str, object])`. The observation retains all story text, including title and prompt. Score games expose integer `score` and `moves`; time games expose `hours` and `minutes`. |
-| `env.step(action: str)` | Planned result: `(observation: str, reward: int, done: bool, info: dict[str, object])`. Currently raises `NotImplementedError`. |
+| `env.step(action: str, *, max_steps=250_000)` | Complete a pending V3 read and return `(observation: str, reward: int, done: bool, info: dict[str, object])`. Reward is the signed score delta, or zero for time games. The observation contains new output, including the Enter newline and any story prompt. |
+| `env.done` | True after the VM executes `quit`; false before reset. It does not infer death or victory while the story is still running. |
 | `env.close()` | Idempotent resource cleanup; currently a no-op because no resources are held. |
 
 The tuple shapes follow the permitted
@@ -356,6 +381,8 @@ exhaustion raise `ExecutionError`, a `RuntimeError` subclass. A failed episode
 should be reset before reuse. This is not a claim of drop-in Jericho
 compatibility. The original `hello()` helper remains
 available for compatibility with the initial package scaffold.
+Calling `step()` before a successful reset, after quit, or after execution fails
+raises `RuntimeError`; start a new episode with `reset()`.
 
 Caller-side context was limited to the root
 [`play_jericho.py` in cabin-fever-x86](https://github.com/afourney/cabin-fever-x86/blob/b4933c8b167635c9ffbd7cd8ffd1307fc0b3d52e/play_jericho.py).

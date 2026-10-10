@@ -3,10 +3,10 @@
 A Z-machine interpreter library in Python, working toward a
 Jericho-like API and a minimal interactive player.
 
-Fernz loads **raw V1-V8 story files** and can **run Zork I (V3) to its first input
-prompt**. It provides header metadata, checksums, protected memory, instruction
-decoding, and a V3 execution foundation. Command input, full-game execution,
-other execution versions, and Blorb containers are still ahead.
+Fernz loads **raw V1-V8 story files** and can **play Zork I (V3) through the
+mailbox and leaflet sequence**. It provides header metadata, checksums, protected
+memory, instruction decoding, and V3 command input. Full-game execution, other
+execution versions, and Blorb containers are still ahead.
 
 ## Try it
 
@@ -22,6 +22,8 @@ uv run fernz games/jericho-game-suite/zork1.z5
 The ROM tests download the retained Jericho game suite when `games/` is absent.
 The inspection reports Z-machine **V3**, release **88**, serial **840726**, and
 a valid checksum for this Zork I file, despite its `.z5` extension.
+The player accepts commands until the story quits or you send EOF (Ctrl-D on
+Unix). Try `look`, `open mailbox`, `take leaflet`, `read leaflet`, and `inventory`.
 
 ```python
 from fernz import Memory, Story
@@ -44,26 +46,33 @@ status information:
 ```python
 from fernz import FernzEnv
 
-env = FernzEnv("games/jericho-game-suite/zork1.z5", seed=0)
+env = FernzEnv("games/jericho-game-suite/zork1.z5", seed=42)
 try:
     observation, info = env.reset()
     print(observation, end="")
     print(info)  # {"score": 0, "moves": 0}
+    for action in ("look", "open mailbox", "take leaflet", "read leaflet", "inventory"):
+        observation, reward, done, info = env.step(action)
+        print(observation, end="")
+        if done:
+            break
 finally:
     env.close()
 ```
 
-The CLI displays that transcript and exits; it does not accept commands yet.
-`step()` still raises `NotImplementedError`. Startup has a default budget of
-250,000 instructions, adjustable with `reset(max_steps=...)`. Unsupported
-opcodes fail with their name and address. A successful Zork opening is not a
-claim of complete V3 execution support.
+`step()` returns only the new output, including the input newline and story
+prompt, a score delta, quit status, and status globals. Call `reset()` before
+playing and after quit or an execution failure. Each reset and step has a default
+budget of 250,000 instructions, adjustable with `max_steps=...`. Unsupported
+opcodes fail with their name and address. Save/restore, VM restart, and full V3
+execution support remain future work; `done` detects the `quit` opcode, not victory
+or death that leaves the story running.
 
 ## Development
 
 ```sh
 uv run poe check-all    # Offline tests, quality checks, and package validation
-uv run poe test-roms    # All 56 loading checks, plus Zork startup and reset
+uv run poe test-roms    # All 56 loading checks, plus Zork mailbox play and reset
 ```
 
 Black-box Jericho and Frotz comparisons run in Linux CI. To run them locally on
@@ -75,10 +84,11 @@ uv sync --frozen --python 3.11 --group reference
 uv run --no-sync poe test-reference
 ```
 
-The Zork opening comparison is required to pass, including after reset. Fernz
-preserves the title and prompt that Jericho omits; the test asserts those pieces
-separately and compares the remaining transcript exactly. The command sequence
-remains an explicit expected failure until input is implemented.
+The Zork opening and mailbox comparisons are required to pass, including after
+reset. Fernz preserves the title, input newline, and prompt that Jericho omits;
+the tests assert those pieces separately and compare the remaining transcript,
+rewards, scores, and move counts exactly. Synthetic input probes also compare
+accepted text and parse records with the standalone Frotz executable.
 
 Predictable RNG sequences are compared against both interpreters using synthetic
 V3/V5/V8 stories, including cycle rollover and reseeding. Use a positive constructor

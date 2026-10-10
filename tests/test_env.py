@@ -49,7 +49,7 @@ def test_execution_of_other_versions_is_explicitly_unimplemented(tmp_path, versi
     env = FernzEnv(game)
     with pytest.raises(NotImplementedError, match="supports V3 only"):
         env.reset()
-    with pytest.raises(NotImplementedError, match="Command input"):
+    with pytest.raises(RuntimeError, match="reset"):
         env.step("look")
     env.close()
     assert game.read_bytes() == story_bytes(version)
@@ -90,10 +90,69 @@ def test_reset_after_execution_failure(tmp_path):
         assert env.memory.read_word(0x102) == 5
 
 
-def test_step_is_explicitly_deferred(tmp_path):
+def test_step_returns_new_output_score_delta_moves_and_quit(tmp_path):
     game = tmp_path / "input.z3"
-    game.write_bytes(program_bytes(READ))
+    game.write_bytes(
+        program_bytes(
+            b"\xe5\x7f\x41" + READ + bytes.fromhex("95 11 95 12 e5 7f 42") + READ + b"\xba"
+        )
+    )
+    env = FernzEnv(game)
+    with pytest.raises(RuntimeError, match="reset"):
+        env.step("look")
+    for _ in range(2):
+        assert env.reset() == ("A", {"score": 0, "moves": 0})
+        assert not env.done
+        assert env.step("look") == ("\nB", 1, False, {"score": 1, "moves": 1})
+        assert env.step("quit") == ("\n", 0, True, {"score": 1, "moves": 1})
+        assert env.done
+        with pytest.raises(RuntimeError, match="reset"):
+            env.step("look")
+
+
+def test_time_game_has_zero_reward(tmp_path):
+    data = bytearray(program_bytes(READ + bytes.fromhex("95 11 95 12 ba")))
+    data[1] |= 2
+    game = tmp_path / "time.z3"
+    game.write_bytes(data)
     env = FernzEnv(game)
     env.reset()
-    with pytest.raises(NotImplementedError, match="Command input"):
+    assert env.step("wait") == ("\n", 0, True, {"hours": 1, "minutes": 1})
+
+
+def test_score_delta_uses_signed_words(tmp_path):
+    game = tmp_path / "score.z3"
+    game.write_bytes(program_bytes(READ + bytes.fromhex("95 11 ba"), (0x102, b"\xff\xff")))
+    env = FernzEnv(game)
+    assert env.reset()[1]["score"] == -1
+    assert env.step("act")[1] == 1
+
+
+@pytest.mark.parametrize(
+    "action, error", [(None, TypeError), ("a\nb", ValueError), ("🙂", ValueError)]
+)
+def test_invalid_action_leaves_input_pending(tmp_path, action, error):
+    game = tmp_path / "input.z3"
+    game.write_bytes(program_bytes(READ + b"\xba"))
+    env = FernzEnv(game)
+    env.reset()
+    before = env.memory.read_bytes(0, len(env.memory))
+    with pytest.raises(error):
+        env.step(action)
+    assert env.memory.read_bytes(0, len(env.memory)) == before
+    assert env.step("look")[2] is True
+
+
+def test_step_budget_validation_and_failure_requirements(tmp_path):
+    game = tmp_path / "input.z3"
+    game.write_bytes(program_bytes(READ + bytes.fromhex("8c ff ff")))
+    env = FernzEnv(game)
+    env.reset()
+    with pytest.raises(ValueError, match="positive"):
+        env.step("look", max_steps=0)
+    assert env._machine.input_request is not None
+    with pytest.raises(ExecutionError, match="budget"):
+        env.step("look", max_steps=5)
+    with pytest.raises(RuntimeError, match="reset"):
         env.step("look")
+    assert env.reset() == ("", {"score": 0, "moves": 0})

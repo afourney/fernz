@@ -1,4 +1,4 @@
-"""V3 Z-string and ZSCII output decoding (Standard §3)."""
+"""V3 Z-string, ZSCII, and dictionary encoding (Standard §3)."""
 
 from ._errors import ExecutionError
 from ._memory import Memory
@@ -32,6 +32,48 @@ class Text:
         if memory.story.header.version != 3:
             raise NotImplementedError("Text decoding currently supports V3 only")
         self.memory = memory
+
+    def encode_input(self, line: str) -> bytes:
+        """Lowercase one command line and encode it with the default ZSCII table.
+
+        The host supplies an edited line without a newline. Unsupported Unicode
+        and control characters are rejected instead of silently losing input.
+        """
+        if not isinstance(line, str):
+            raise TypeError("An action must be a string")
+        result = bytearray()
+        for char in line.lower():
+            if 32 <= ord(char) <= 126:
+                result.append(ord(char))
+            elif char in _EXTRA:
+                result.append(155 + _EXTRA.index(char))
+            else:
+                raise ValueError(f"Unsupported V3 input character: {char!r}")
+        return bytes(result)
+
+    def encode_dictionary(self, word: bytes) -> bytes:
+        """Encode a V3 dictionary key, truncating to six Z-characters (§3.7)."""
+        chars: list[int] = []
+        for code in word:
+            char = chr(code)
+            if code == 32:
+                chars.append(0)
+            elif char in _ALPHABETS[0]:
+                chars.append(6 + _ALPHABETS[0].index(char))
+            elif char in _ALPHABETS[1]:
+                chars.extend((4, 6 + _ALPHABETS[1].index(char)))
+            elif code == 13:
+                chars.extend((5, 7))
+            elif char in _ALPHABETS[2][2:]:
+                chars.extend((5, 6 + _ALPHABETS[2].index(char)))
+            else:
+                chars.extend((5, 6, code >> 5, code & 31))
+            if len(chars) >= 6:
+                break
+        chars = (chars + [5] * 6)[:6]
+        first = (chars[0] << 10) | (chars[1] << 5) | chars[2]
+        last = 0x8000 | (chars[3] << 10) | (chars[4] << 5) | chars[5]
+        return first.to_bytes(2, "big") + last.to_bytes(2, "big")
 
     def decode(self, address: int, *, words: int | None = None, abbreviation: bool = False) -> str:
         """Read a string, optionally bounded by an object's short-name length."""

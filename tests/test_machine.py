@@ -26,7 +26,30 @@ def test_input_suspends_without_reading_or_advancing_further():
     assert not m.halted
     assert m.pc == 0x40A
     assert m.memory.read_bytes(0x280, 64) == before
-    assert m.run() == "A"
+    assert m.run() == ""
+
+
+def test_input_resumes_once_with_resolved_operands_and_new_output():
+    # Read consumes two stack operands once; accept_input must not pop them again.
+    m = machine(bytes.fromhex("e8 3f 02 a0 e8 3f 02 80 e4 af 00 00 e5 7f 42") + READ)
+    assert m.run() == ""
+    assert m.frames[0].stack == []
+    pc = m.pc
+    m.accept_input("LOOK")
+    assert m.pc == pc
+    assert m.run() == "\nB"
+    assert m.memory.read_bytes(0x281, 5) == b"look\x00"
+    assert m.input_request is not None
+    assert m.run() == ""
+
+
+def test_input_requires_a_pending_request():
+    m = machine(b"\xba")
+    with pytest.raises(ExecutionError, match="not waiting"):
+        m.accept_input("look")
+    m.run()
+    with pytest.raises(ExecutionError, match="not waiting"):
+        m.accept_input("look")
 
 
 def test_quit_stops_before_the_next_instruction():
@@ -129,8 +152,8 @@ def test_branch_returns_and_false_branch(branch, expected):
 
 def test_signed_comparison_and_branch_address_base():
     # jl -1, 1 branches over printing 'X', then print 'Y'.
-    m = run_hex("c2 1f ff ff 01 c5 e5 7f 58 e5 7f 59")
-    assert "".join(m.output) == "Y"
+    m = machine(bytes.fromhex("c2 1f ff ff 01 c5 e5 7f 58 e5 7f 59") + READ)
+    assert m.run() == "Y"
 
 
 def test_backward_branch_and_inc_chk_wrap():
@@ -207,23 +230,30 @@ def test_execution_budget_and_exact_budget_boundary():
 
 
 def test_bitwise_and_multiple_equality_operands():
-    m = run_hex("08 aa 0f 10 29 f0 10 11 af 11 12 c1 55 02 01 02 03 c5 e5 7f 58")
+    m = machine(
+        bytes.fromhex("08 aa 0f 10 29 f0 10 11 af 11 12 c1 55 02 01 02 03 c5 e5 7f 58") + READ
+    )
+    assert m.run() == ""
     assert m.read_variable(16) == 0xAF
     assert m.read_variable(17) == 0xA0
     assert m.read_variable(18) == 0xFF5F
-    assert not m.output
 
 
 def test_test_and_decrement_branches():
     # test succeeds; dec_chk decrements 0 to -1 and branches below 0.
-    m = run_hex("07 07 03 c5 e5 7f 58 04 10 00 c5 e5 7f 59")
+    m = machine(bytes.fromhex("07 07 03 c5 e5 7f 58 04 10 00 c5 e5 7f 59") + READ)
+    assert m.run() == ""
     assert m.read_variable(16) == 0xFFFF
-    assert not m.output
 
 
 def test_screen_stream_selection_and_zero_window_operations():
-    m = run_hex("f3 3f ff ff e5 7f 58 f3 7f 00 f3 7f 01 ea 7f 00 eb 7f 00 f4 7f 00 bc b4 e5 7f 59")
-    assert "".join(m.output) == "Y"
+    m = machine(
+        bytes.fromhex(
+            "f3 3f ff ff e5 7f 58 f3 7f 00 f3 7f 01 ea 7f 00 eb 7f 00 f4 7f 00 bc b4 e5 7f 59"
+        )
+        + READ
+    )
+    assert m.run() == "Y"
 
 
 def test_unsigned_byte_array_index_and_address_wrap():
