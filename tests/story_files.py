@@ -27,9 +27,11 @@ def story_bytes(version: int = 3, size: int = 4096) -> bytes:
 READ = bytes.fromhex("e4 0f 02 80 02 a0")  # sread text=0x280, parse=0x2a0.
 
 
-def program_bytes(code: bytes, *chunks: tuple[int, bytes], version: int = 3) -> bytes:
+def program_bytes(
+    code: bytes, *chunks: tuple[int, bytes], version: int = 3, size: int = 4096
+) -> bytes:
     """Place hand-assembled instructions and data in an independent fixture."""
-    data = bytearray(story_bytes(version))
+    data = bytearray(story_bytes(version, size=size))
     data[0x401 : 0x401 + len(code)] = code
     data[0x280] = 20
     data[0x2A0] = 4

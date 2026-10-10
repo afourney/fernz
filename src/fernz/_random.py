@@ -3,6 +3,8 @@
 import secrets
 from operator import index
 
+from ._state import RandomState
+
 
 class RandomGenerator:
     """Generate the predictable sequences observed in Jericho and Frotz.
@@ -27,6 +29,23 @@ class RandomGenerator:
         self._state = self._host_seed if self._host_seed is not None else secrets.randbits(31)
         self._period = 0
         self._position = 0
+
+    def get_state(self) -> RandomState:
+        """Capture both generator modes without advancing or reseeding."""
+        return RandomState(self._host_seed, self._state, self._period, self._position)
+
+    @classmethod
+    def from_state(cls, state: RandomState) -> "RandomGenerator":
+        """Recreate a generator without requesting entropy or taking a draw."""
+        if type(state) is not RandomState:
+            raise TypeError("Expected a RandomState")
+        state._validate()
+        result = cls.__new__(cls)
+        result._host_seed = state.host_seed
+        result._state = state.state
+        result._period = state.period
+        result._position = state.position
+        return result
 
     def random(self, operand: int) -> int:
         """Execute random with a signed word; seeding operations return zero."""

@@ -62,12 +62,33 @@ finally:
 ```
 
 `step()` returns only the new output, including the input newline and story
-prompt, a score delta, quit status, and status globals. Call `reset()` before
-playing and after quit or an execution failure. Each reset and step has a default
+prompt, a score delta, quit status, and status globals. Start with `reset()` or
+restore a checkpoint with `set_state()`. Each reset and step has a default
 budget of 250,000 instructions, adjustable with `max_steps=...`. Unsupported
-opcodes fail with their name and address. Save/restore, VM restart, and full V3
+opcodes fail with their name and address. In-game save/restore, VM restart, and full V3
 execution support remain future work; `done` detects the `quit` opcode, not victory
 or death that leaves the story running.
+
+`get_state()` and `set_state()` support reusable in-memory checkpoints:
+
+```python
+env = FernzEnv("games/jericho-game-suite/zork1.z5", seed=12)
+env.reset()
+state = env.get_state()
+result = env.step("open mailbox")
+env.set_state(state)
+assert env.step("open mailbox") == result
+print(len(state.ram))  # 11859 bytes of dynamic memory for this Zork I story.
+env.close()
+```
+
+The immutable `GameState` includes memory, call frames, PC, pending input, output
+selection, and RNG state. It can also initialize another environment for the
+same story. Restore validates the checkpoint before changing the live game and
+returns `None`, with no execution or output. Fernz uses its own named fields;
+Jericho tuples require conversion, and saved-game files use a separate format.
+The test suite includes a [V3 state converter](docs/STATE_INTEROP.md) for the
+pinned Linux Jericho reference. It is not part of the installed package.
 
 ## Development
 
@@ -89,7 +110,11 @@ The Zork opening, mailbox, and full walkthrough comparisons are required to pass
 including a second complete episode after reset. Tests obtain the walkthrough
 and its seed through Jericho's documented `get_walkthrough()` and `seed()` calls
 and generate reference observations at runtime. Every turn compares the
-transcript, reward, quit status, score, and moves.
+transcript, reward, quit status, score, and moves. A checkpoint comparison also
+saves, advances, restores, and replays every command in both interpreters.
+Six additional runs transfer state between interpreters after commands 35,
+214, and 350, in both directions, then compare every remaining command through
+the 350-point ending. The recipient does not replay the prefix.
 
 Fernz preserves the title, input newline, and prompt that Jericho omits; tests
 assert these separately. At the final quit, Jericho adds one newline and reports

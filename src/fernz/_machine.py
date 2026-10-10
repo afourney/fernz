@@ -1,6 +1,7 @@
 """A V3 execution core that suspends and resumes at line-input requests."""
 
 from dataclasses import dataclass, field
+from hashlib import sha256
 from operator import index
 
 from ._errors import ExecutionError, UnsupportedOpcodeError
@@ -9,6 +10,7 @@ from ._instruction import Instruction, OperandType, decode
 from ._memory import Memory, MemoryAccessError
 from ._objects import Objects
 from ._random import RandomGenerator
+from ._state import FrameState, GameState, InputRequest
 from ._text import Text, zscii
 
 
@@ -25,14 +27,7 @@ class Frame:
     stack: list[int] = field(default_factory=list)
     return_address: int | None = None
     store: int | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class InputRequest:
-    """A suspended sread instruction; no input or tokenization has occurred."""
-
-    text: int
-    parse: int
+    argument_count: int = 0
 
 
 class Machine:
@@ -54,6 +49,51 @@ class Machine:
         self.screen_enabled = True
         self.input_request: InputRequest | None = None
         self.halted = False
+
+    def get_state(self) -> GameState:
+        """Capture a detached checkpoint at a public input or quit boundary."""
+        story = self.memory.story
+        return GameState(
+            story_sha256=sha256(story.data[: story.size]).hexdigest(),
+            ram=self.memory.read_bytes(0, story.header.static_memory),
+            pc=self.pc,
+            frames=tuple(
+                FrameState(
+                    tuple(f.locals), tuple(f.stack), f.return_address, f.store, f.argument_count
+                )
+                for f in self.frames
+            ),
+            rng=self.rng.get_state(),
+            input_request=self.input_request,
+            screen_enabled=self.screen_enabled,
+            halted=self.halted,
+        )
+
+    @classmethod
+    def from_state(cls, memory: Memory, state: GameState) -> "Machine":
+        """Restore a checkpoint, validating everything before changing memory."""
+        if memory.story.header.version != 3:
+            raise NotImplementedError("Story execution currently supports V3 only")
+        if type(state) is not GameState:
+            raise TypeError("Expected a GameState returned by get_state()")
+        state._validate(memory.story)
+        # Construct without the startup/reset side effects of __init__.
+        result = cls.__new__(cls)
+        result.memory = memory
+        result.pc = state.pc
+        result.frames = [
+            Frame(list(f.locals), list(f.stack), f.return_address, f.store, f.argument_count)
+            for f in state.frames
+        ]
+        result.text = Text(memory)
+        result.objects = Objects(memory)
+        result.rng = RandomGenerator.from_state(state.rng)
+        result.output = []  # Public calls already drained the previous observation.
+        result.screen_enabled = state.screen_enabled
+        result.input_request = state.input_request
+        result.halted = state.halted
+        memory._restore_v3_dynamic(state.ram)
+        return result
 
     def read_variable(self, number: int, *, indirect: bool = False) -> int:
         """Read a variable, popping sp only for direct reads."""
@@ -112,7 +152,11 @@ class Machine:
         locals_ = [self.memory.read_word(address + 1 + 2 * i) for i in range(count)]
         for i, value in enumerate(arguments[:count]):
             locals_[i] = value
-        self.frames.append(Frame(locals=locals_, return_address=self.pc, store=store))
+        self.frames.append(
+            Frame(
+                locals=locals_, return_address=self.pc, store=store, argument_count=len(arguments)
+            )
+        )
         self.pc = address + 1 + 2 * count
 
     def _branch(self, instruction: Instruction, condition: bool) -> None:
@@ -308,7 +352,7 @@ class Machine:
             case "random":
                 store(self.rng.random(signed(args[0])))
             case "sread":
-                self.input_request = InputRequest(*args)
+                self.input_request = InputRequest(*args, instruction_address=instruction.address)
             case "quit":
                 self.halted = True
             case "nop" | "show_status":

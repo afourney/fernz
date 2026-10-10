@@ -108,6 +108,18 @@ class Memory:
         self._data[0x11] &= ~1  # No file transcript is open.
         self._data[0x32:0x34] = b"\x00\x00"  # Do not claim full Standard conformance.
 
+    def _restore_v3_dynamic(self, data: bytes) -> None:
+        # Validate against the configured header before touching live memory.
+        # The snapshot includes interpreter-owned header fields; ordinary game
+        # writes still cannot change them. Flags 2 is restored with this host
+        # checkpoint, unlike the future story-level restore opcode (§6.1.2).
+        if type(data) is not bytes or len(data) != self.story.header.static_memory:
+            raise ValueError("Expected a complete immutable dynamic-memory snapshot")
+        candidate = Memory(self.story)
+        candidate._configure_v3_header()
+        candidate.write_bytes(0, data)
+        self._data[: len(data)] = data
+
     def copy(self) -> "Memory":
         """Copy current memory while sharing only the immutable original Story."""
         result = Memory(self.story)
