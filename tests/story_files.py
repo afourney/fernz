@@ -22,3 +22,30 @@ def story_bytes(version: int = 3, size: int = 4096) -> bytes:
         put_word(data, 0x1A, size // {3: 2, 4: 4, 5: 4, 6: 8, 7: 8, 8: 8}[version])
     # Body bytes are zero, so the checksum is zero as well.
     return bytes(data)
+
+
+READ = bytes.fromhex("e4 0f 02 80 02 a0")  # sread text=0x280, parse=0x2a0.
+
+
+def program_bytes(code: bytes, *chunks: tuple[int, bytes], version: int = 3) -> bytes:
+    """Place hand-assembled instructions and data in an independent fixture."""
+    data = bytearray(story_bytes(version))
+    data[0x401 : 0x401 + len(code)] = code
+    data[0x280] = 20
+    data[0x2A0] = 4
+    for address, chunk in chunks:
+        data[address : address + len(chunk)] = chunk
+    if version >= 3:
+        put_word(data, 0x1C, sum(data[64:]) & 0xFFFF)
+    return bytes(data)
+
+
+def zchars(*chars: int) -> bytes:
+    """Pack explicit Z-characters, padding with 5 and marking the last word."""
+    padded = [*chars, *([5] * (-len(chars) % 3))] or [5, 5, 5]
+    words = [
+        (a << 10) | (b << 5) | c
+        for a, b, c in zip(padded[::3], padded[1::3], padded[2::3], strict=True)
+    ]
+    words[-1] |= 0x8000
+    return b"".join(word.to_bytes(2, "big") for word in words)

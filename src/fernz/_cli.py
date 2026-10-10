@@ -1,4 +1,4 @@
-"""Packaged command-line entry point for the Fernz library scaffold."""
+"""Inspect stories or display their opening transcript."""
 
 import argparse
 import json
@@ -6,18 +6,18 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from fernz import FernzEnv
+from fernz import ExecutionError, FernzEnv
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Inspect a story or report the library's unimplemented execution.
+    """Inspect a story or run its opening, without accepting commands yet.
 
-    Return 1 for unimplemented execution, or 2 for an invalid story/path. Argument
+    Return 1 for execution errors, or 2 for an invalid story/path. Argument
     parsing exits with 0 for help and 2 for invalid command-line arguments.
     """
     parser = argparse.ArgumentParser(
         prog="fernz",
-        description="Load raw V1-V8 Z-machine stories. Story execution is not implemented yet.",
+        description="Inspect V1-V8 stories or display a V3 opening. Command input is not implemented yet.",
     )
     parser.add_argument("game", type=Path, help="Path to a raw Z-machine story file.")
     parser.add_argument(
@@ -53,8 +53,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             )
             return 0
-        env.reset()
-    except NotImplementedError as exc:
+        observation, _ = env.reset()
+        print(observation, end="")
+    except (NotImplementedError, ExecutionError) as exc:
         print(f"fernz: {exc}", file=sys.stderr)
         return 1
     finally:

@@ -3,9 +3,10 @@
 A clean-room Z-machine interpreter library in Python, working toward a
 Jericho-like API and a minimal interactive player.
 
-Fernz currently loads **raw V1-V8 story files**, exposes header metadata, checks
-checksums, and provides protected memory. Story execution is the next stage;
-Zork I is the first gameplay target. Blorb containers are not supported yet.
+Fernz loads **raw V1-V8 story files** and can **run Zork I (V3) to its first input
+prompt**. It provides header metadata, checksums, protected memory, instruction
+decoding, and a V3 execution foundation. Command input, full-game execution,
+other execution versions, and Blorb containers are still ahead.
 
 ## Try it
 
@@ -15,6 +16,7 @@ Requires Python 3.11 or later and [uv](https://docs.astral.sh/uv/).
 uv sync --dev
 uv run poe test-roms
 uv run fernz --inspect games/jericho-game-suite/zork1.z5
+uv run fernz games/jericho-game-suite/zork1.z5
 ```
 
 The ROM tests download the retained Jericho game suite when `games/` is absent.
@@ -36,13 +38,32 @@ memory.reset()
 
 `Story(data)` also accepts a byte buffer. `FernzEnv(path)` exposes the loaded
 image as `env.story` and an independent memory instance as `env.memory`.
-Its `reset()` and `step()` methods still raise `NotImplementedError`.
+Its `reset()` runs V3 startup and returns the complete opening transcript and
+status information:
+
+```python
+from fernz import FernzEnv
+
+env = FernzEnv("games/jericho-game-suite/zork1.z5", seed=0)
+try:
+    observation, info = env.reset()
+    print(observation, end="")
+    print(info)  # {"score": 0, "moves": 0}
+finally:
+    env.close()
+```
+
+The CLI displays that transcript and exits; it does not accept commands yet.
+`step()` still raises `NotImplementedError`. Startup has a default budget of
+250,000 instructions, adjustable with `reset(max_steps=...)`. Unsupported
+opcodes fail with their name and address. A successful Zork opening is not a
+claim of complete V3 execution support.
 
 ## Development
 
 ```sh
 uv run poe check-all    # Offline tests, quality checks, and package validation
-uv run poe test-roms    # Loading and memory checks for all 56 retained games
+uv run poe test-roms    # All 56 loading checks, plus Zork startup and reset
 ```
 
 Black-box Jericho comparisons run in Linux CI. To run them locally on Linux:
@@ -51,6 +72,11 @@ Black-box Jericho comparisons run in Linux CI. To run them locally on Linux:
 uv sync --frozen --python 3.11 --group reference
 uv run --no-sync poe test-reference
 ```
+
+The Zork opening comparison is required to pass, including after reset. Fernz
+preserves the title and prompt that Jericho omits; the test asserts those pieces
+separately and compares the remaining transcript exactly. The command sequence
+remains an explicit expected failure until input is implemented.
 
 **Do not inspect Frotz or Jericho implementation source.** Implement from the
 Z-machine specification and documented public APIs. Running Jericho through its

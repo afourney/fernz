@@ -6,7 +6,7 @@ import pytest
 
 from fernz import _cli
 
-from .story_files import story_bytes
+from .story_files import READ, program_bytes, story_bytes
 
 
 def test_help(capsys):
@@ -15,7 +15,7 @@ def test_help(capsys):
     assert exc.value.code == 0
     captured = capsys.readouterr()
     assert "game" in captured.out
-    assert "not implemented" in captured.out
+    assert "not implemented" in " ".join(captured.out.split())
     assert captured.err == ""
 
 
@@ -40,13 +40,31 @@ def test_invalid_path(tmp_path, capsys, directory):
 
 def test_existing_game_reports_unimplemented(tmp_path, capsys):
     game = tmp_path / "game with spaces.z3"
-    game.write_bytes(story_bytes())
+    game.write_bytes(story_bytes(5))
     assert _cli.main([str(game)]) == 1
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert "story execution is not implemented" in captured.err
+    assert "supports V3 only" in captured.err
     assert "Traceback" not in captured.err
-    assert game.read_bytes() == story_bytes()
+    assert game.read_bytes() == story_bytes(5)
+
+
+def test_cli_prints_the_complete_opening_without_reading_input(tmp_path, capsys):
+    game = tmp_path / "opening.z3"
+    game.write_bytes(program_bytes(bytes.fromhex("e5 7f 41 bb e5 7f 3e") + READ))
+    assert _cli.main([str(game)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == "A\n>"
+    assert captured.err == ""
+
+
+def test_cli_execution_error_has_no_traceback(tmp_path, capsys):
+    game = tmp_path / "bad-code.z3"
+    game.write_bytes(program_bytes(b"\xb0"))
+    assert _cli.main([str(game)]) == 1
+    captured = capsys.readouterr()
+    assert "rtrue at 0x401" in captured.err
+    assert "Traceback" not in captured.err
 
 
 def test_invalid_story_reports_error(tmp_path, capsys):

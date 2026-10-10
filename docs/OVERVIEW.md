@@ -1,8 +1,8 @@
 # Fernz overview
 
 Fernz is intended to become a Z-machine interpreter for common Z-machine story
-formats. The first implementation milestone provides story loading and memory;
-execution remains future work.
+formats. It loads V1-V8 stories and now executes Zork I (V3) through its first
+input request. Interactive command input is the next execution milestone.
 
 ## Mandatory clean-room requirement
 
@@ -81,8 +81,8 @@ requirement above.
 6. Created `docs/OVERVIEW.md` to record the project direction, references, and
    setup history.
 
-All 56 retained games are used for loading, checksum, and memory tests. They have
-not yet been executed with Fernz. Version detection uses the header: for example,
+All 56 retained games are used for loading, checksum, and memory tests. Zork I
+also has startup and reset execution tests. Version detection uses the header: for example,
 `zork1.z5` contains a V3 story, release 88, serial `840726`.
 
 ## Test fixture setup
@@ -117,7 +117,7 @@ Run `uv sync --dev` to install the locked development tools, then use:
 | `uv run poe check` | Check formatting, lint, and spelling. |
 | `uv run poe fix-all` | Apply formatting and automatic lint fixes. |
 | `uv run poe test` | Run synthetic and API tests without Jericho or ROM downloads. |
-| `uv run poe test-roms` | Load all 56 retained ROMs and check their checksums and memory. |
+| `uv run poe test-roms` | Load all 56 retained ROMs, check checksums and memory, and run Zork I startup/reset. |
 | `uv run --no-sync poe test-reference` | Run the opt-in Jericho reference tests after installing the reference group below. |
 | `uv run poe build-check` | Build the wheel and source distribution, validate their contents, and smoke-test an isolated wheel installation. |
 | `uv run poe check-all` | Run code checks, synthetic/API tests, and build validation; ROM and reference tests run separately. |
@@ -146,9 +146,10 @@ There is no publishing workflow.
 Tests may download the Jericho corpus through `jericho_games` when needed. CI
 does not cache or upload ROMs. Synthetic tests cover all eight story versions.
 Real-ROM tests have a separate case for each retained game, covering V3 (16),
-V4 (1), V5 (33), and V8 (6), plus a Zork I metadata check through `FernzEnv`.
-V1, V2, V6, and V7 currently have synthetic coverage only. Execution conformance
-tests will be added with the interpreter.
+V4 (1), V5 (33), and V8 (6), plus Zork I metadata and startup/reset checks through
+`FernzEnv`. V1, V2, V6, and V7 currently have synthetic coverage only. Synthetic
+execution tests cover V3 arithmetic, variables, routine frames, branches,
+objects, text, input suspension, and failure diagnostics.
 
 ## Black-box reference tests
 
@@ -175,17 +176,21 @@ opening followed by `look`, `open mailbox`, `take leaflet`, `read leaflet`, and
 `inventory`. A second episode verifies repeatability after reset. Reference
 observations are generated during the test, rather than committed as game text.
 
-Two explicit Fernz comparisons check the opening and the short sequence,
-including reset after play. They compare observation text, reward, completion,
-score, and move count. Text normalization is limited to CRLF versus LF; score
-and moves are compared individually to allow additional metadata keys.
+**The opening comparison is now required to pass.** It checks Zork I startup
+twice, with a memory mutation between resets, and compares the transcript, score,
+and move count. Black-box probes of Jericho 3.3.1 showed that its observation
+omits this recognized game's title line and the final prompt. Fernz retains
+the full story output. The Zork comparison explicitly asserts that Fernz prints
+the expected title and prompt, removes only those two pieces for comparison,
+and compares the remaining text exactly, apart from CRLF versus LF. There is
+no title filtering, game-specific output substitution, or reference dependency
+in Fernz's runtime.
 
-**These are targets, not passing interpreter coverage yet.** Both comparisons
-currently have strict expected-failure markers limited to `NotImplementedError`,
-because Fernz cannot execute stories. Assertion mismatches still fail. An
-unexpected pass also fails until its marker is removed, making progress an
-explicit change. A separate, unmarked Jericho smoke test must always pass, so a
-broken reference cannot be hidden by the expected failures.
+The short command sequence remains a strict expected failure limited to
+`NotImplementedError`, because command input and tokenization are deferred.
+Assertion mismatches still fail, and an unexpected pass fails until its marker
+is removed. A separate, unmarked Jericho smoke test must always pass. Score and
+moves are compared individually to permit additional metadata keys.
 
 The sequence avoids random encounters. Equal numeric seeds alone do not guarantee
 equal random streams across interpreters. Expand comparisons as Fernz gains
@@ -198,10 +203,46 @@ since these public Jericho calls execute the game as part of initialization.
 ## Current scope
 
 Work includes version-aware loading and protected memory for raw V1-V8 stories,
-an inspection CLI, test-data fixtures, CI checks, and black-box reference targets.
-No interpreter execution is implemented. Zork I (V3) remains the first playable
-execution target. Blorb extraction, text decoding, instruction execution, and
-save-game formats are outside this milestone.
+instruction decoding across those versions, and a V3 execution engine sufficient
+to run Zork I to its first prompt. The CLI can inspect any supported raw story
+or display a V3 opening transcript. Required ROM and Jericho tests cover Zork's
+opening and reset; this is not full V3 conformance or a playable interpreter yet.
+
+Deferred work includes command input and dictionary tokenization, additional V3
+opcodes and I/O features, other execution versions, Blorb extraction, VM restart,
+and save/restore formats. The next observable target is the existing mailbox and
+leaflet command sequence through `step()`.
+
+## Execution foundation
+
+Instruction decoding follows Standard §§4 and 14-15. It preserves operand types
+and variable numbers without evaluating them, consumes stores before branches,
+decodes signed branch offsets and inline strings, and distinguishes changing
+opcode layouts by version. V6-only layouts do not apply to V7/V8. Unknown
+extended opcodes in the reserved ignore range follow §14.2.1. Where §14's
+`output_stream` table omits V3/V4's table operand, §§7 and 15 supply the rule.
+
+The V3 machine uses separate routine frames with locals and evaluation stacks,
+evaluates operands left to right, implements indirect stack references, and
+wraps arithmetic to 16 bits. Division truncates toward zero. Array addresses
+use 16-bit arithmetic and may not straddle the 64 KiB address boundary. Branch
+offsets 0 and 1 return from the current routine. Routine defaults and arguments,
+object links and properties, Z-strings, abbreviations, and default ZSCII output
+characters are implemented independently from the standard.
+
+Startup runs until `sread` or `quit`, with an instruction budget to catch loops.
+At `sread`, the machine retains the text and parse buffer addresses without
+consuming input or altering those buffers. Output is a plain transcript without
+screen wrapping or status-line rendering. The header advertises no status line,
+split screen, or variable-pitch font; it does not claim full Standard conformance.
+Stream 1 can be enabled or disabled. Other streams, nonzero window operations,
+sound, save, restore, and restart currently fail explicitly if encountered.
+
+`reset()` starts a fresh episode: it restores story memory and reinitializes the
+interpreter header, routine state, output, and random generator. This differs
+from the future Z-machine `restart` opcode, which must preserve the specified
+Flags 2 bits. An optional constructor `seed` gives repeatable host-side random
+sequences; matching numeric seeds do not imply matching Jericho random streams.
 
 ## Story loading and memory
 
@@ -245,8 +286,8 @@ The static-memory base remains the enforced write boundary.
 
 `Memory(story)` creates an independent instance. Its `read_byte`, `read_word`,
 and `read_bytes` methods check bounds; words are unsigned, big-endian, and need
-not be aligned. Reads cover the whole logical image for future instruction and
-string access; opcode-specific addressing limits belong to the future CPU.
+not be aligned. Reads cover the whole logical image for instruction and string
+access; opcode-specific addressing limits belong to the execution layer.
 Corresponding write methods reject out-of-range values, writes outside dynamic
 memory, and changes to protected header bits or extension words. Only the
 game-writable Flags 2 bits are allowed in the header. Invalid multi-byte writes
@@ -254,8 +295,8 @@ leave all bytes unchanged. Errors raise `MemoryAccessError` (a `ValueError`).
 
 `memory.copy()` copies current contents independently. `memory.reset()` restores
 the original image exactly. This low-level reset is not VM restart or save
-restoration: managing CPU/stack state and preserving interpreter flags belongs
-to the later execution layer. No writable memory views are exposed.
+restoration. `FernzEnv.reset()` also manages CPU and interpreter state; VM
+restart and saved-game restoration are deferred. No writable memory views are exposed.
 
 Implementation references are Standard 1.1
 [memory and addressing](https://inform-fiction.org/zmachine/standards/z1point1/sect01.html),
@@ -272,32 +313,37 @@ After `uv sync --dev`, run `uv run fernz --help` or
 `uv run python -m fernz --help`. The installed `fernz` command targets
 `fernz._cli:main` inside `src/fernz/`. Modules prefixed with `_` are private;
 import `Story`, `StoryHeader`, `Memory`, `StoryFormatError`, `MemoryAccessError`,
-and `FernzEnv` from `fernz` for the public library
+`ExecutionError`, `UnsupportedOpcodeError`, and `FernzEnv` from `fernz` for the public library
 interface and `fernz` or `python -m fernz` for the public CLI.
 `fernz --inspect GAME` prints JSON metadata and exits with 0. It reports both
 physical file size and logical story size, plus checksum validity (null when
 unavailable). A checksum mismatch is reported as false without rejecting the
 inspection. Help exits with 0; missing/invalid arguments, paths, or story formats
-exit with 2. `fernz GAME` loads the story, then reports unimplemented execution
-on stderr and exits with 1. There is no interactive prompt or VM execution yet.
-The CLI delegates to the public library.
+exit with 2. `fernz GAME` runs V3 startup, writes the complete transcript, and
+exits with 0 at the first input request or quit. It displays any game prompt but
+does not read commands. Unsupported execution versions, unimplemented opcodes,
+invalid execution, and budget exhaustion report an error on stderr and exit
+with 1. The CLI delegates to the public library.
 
 The deliberately small public contract is:
 
 | Interface | Contract |
 | --- | --- |
 | `from fernz import FernzEnv` | Public environment class; no Jericho runtime dependency. |
-| `FernzEnv(game_path)` | Accepts a string or text path-like object, stores a `Path` in `game_path`, and loads a raw V1-V8 story. Missing/inaccessible paths raise `OSError` subclasses; non-regular paths raise `ValueError`; invalid story data raises `StoryFormatError`. |
+| `FernzEnv(game_path, *, seed=None)` | Accepts a string or text path-like object, stores a `Path` in `game_path`, and loads a raw V1-V8 story without executing it. Missing/inaccessible paths raise `OSError` subclasses; non-regular paths raise `ValueError`; invalid story data raises `StoryFormatError`. |
 | `env.story`, `env.memory` | Immutable story image and independent protected memory instance. |
-| `env.reset()` | Planned result: `(observation: str, info: dict[str, object])`. Currently raises `NotImplementedError`. |
+| `env.reset(*, max_steps=250_000)` | Run fresh V3 startup through input or quit and return `(observation: str, info: dict[str, object])`. The observation retains all story text, including title and prompt. Score games expose integer `score` and `moves`; time games expose `hours` and `minutes`. |
 | `env.step(action: str)` | Planned result: `(observation: str, reward: int, done: bool, info: dict[str, object])`. Currently raises `NotImplementedError`. |
 | `env.close()` | Idempotent resource cleanup; currently a no-op because no resources are held. |
 
 The tuple shapes follow the permitted
 [Jericho public quickstart](https://jericho-py.readthedocs.io/en/latest/tutorial_quick.html).
-Future metadata may include score and move count; the scaffold returns no
-invented observations, rewards, or metadata. This is an interface outline, not a
-claim of drop-in Jericho compatibility. The original `hello()` helper remains
+Unsupported execution versions raise `NotImplementedError`. Legal but unsupported
+instructions raise `UnsupportedOpcodeError`, a `NotImplementedError` subclass,
+with the opcode and address. Invalid instructions, runtime errors, and budget
+exhaustion raise `ExecutionError`, a `RuntimeError` subclass. A failed episode
+should be reset before reuse. This is not a claim of drop-in Jericho
+compatibility. The original `hello()` helper remains
 available for compatibility with the initial package scaffold.
 
 Caller-side context was limited to the root

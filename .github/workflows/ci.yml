@@ -60,6 +60,7 @@ jobs:
       - run: uv sync --frozen --group reference
       # This job downloads the ROM fixture. Do not upload or cache it.
       - run: uv run --no-sync poe test-roms
+      # Zork startup/reset is required to pass; command input is the remaining target.
       - run: uv run --no-sync poe test-reference
 
   build:
