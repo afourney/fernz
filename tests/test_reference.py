@@ -4,7 +4,7 @@ import hashlib
 
 import pytest
 
-from fernz import FernzEnv
+from fernz import ExecutionError, FernzEnv
 
 pytestmark = pytest.mark.reference
 
@@ -34,6 +34,34 @@ def reference_trace(zork1):
         assert env.reset() == initial, "Jericho reset did not restore the opening"
         assert [env.step(action) for action in ACTIONS] == steps, "Unstable reference trace"
         return initial, steps
+    finally:
+        env.close()
+
+
+@pytest.fixture(scope="module")
+def walkthrough_trace(zork1):
+    from jericho import FrotzEnv
+
+    # Both the walkthrough and its seed come from documented public calls.
+    # Pin their dimensions along with the ROM hash and Jericho version so
+    # upstream changes require investigation instead of weakening coverage.
+    env = FrotzEnv(str(zork1))
+    try:
+        seed = env.seed()
+        actions = env.get_walkthrough()
+        assert seed == 12
+        assert len(actions) == 396
+        initial = env.reset()  # Apply the seed before recording any output.
+        steps = [env.step(action) for action in actions]
+        assert all(step[2] is False for step in steps[:-1])
+        assert steps[-1][2] is True
+        assert env.victory() is True
+        assert env.get_score() == env.get_max_score() == 350
+        assert env.get_moves() == 395
+        assert env.reset() == initial, "Jericho reset did not restore the opening"
+        assert [env.step(action) for action in actions] == steps, "Unstable walkthrough trace"
+        assert env.victory() is True
+        return seed, actions, initial, steps
     finally:
         env.close()
 
@@ -144,3 +172,41 @@ def test_zork1_command_parsing_matches_jericho(zork1):
     finally:
         env.close()
         reference.close()
+
+
+def test_zork1_full_walkthrough_matches_jericho(zork1, walkthrough_trace):
+    seed, actions, initial, steps = walkthrough_trace
+    env = FernzEnv(zork1, seed=seed)
+    try:
+        for episode in range(1, 3):
+            observation, info = env.reset()
+            assert_zork_opening(observation, initial[0])
+            assert_info(info, initial[1])
+            for turn, (action, expected) in enumerate(zip(actions, steps, strict=True), 1):
+                try:
+                    observation, reward, done, info = env.step(action)
+                    assert type(reward) is int
+                    assert reward == expected[1]
+                    assert type(done) is bool
+                    assert done == expected[2]
+                    if turn < len(actions):
+                        assert_zork_turn(observation, expected[0])
+                        assert_info(info, expected[3])
+                    else:
+                        # This ending executes quit. Black-box Jericho adds one
+                        # final newline and reports 395 moves; the story prints
+                        # 394. Fernz stops at quit and returns the status global
+                        # (394), consistent with the standalone Frotz ending.
+                        # Assert these exact differences only on the final turn.
+                        assert observation.startswith("\n")
+                        assert observation.endswith("\n")
+                        assert expected[0].endswith("\n\n")
+                        assert_observation(observation.removeprefix("\n") + "\n", expected[0])
+                        assert_info(info, {"score": 350, "moves": 394})
+                        assert_info(expected[3], {"score": 350, "moves": 395})
+                        assert env.done is True
+                except (AssertionError, ExecutionError, NotImplementedError) as error:
+                    error.add_note(f"Walkthrough episode {episode}, turn {turn}: {action!r}")
+                    raise
+    finally:
+        env.close()

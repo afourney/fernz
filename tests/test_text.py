@@ -23,6 +23,7 @@ def test_specification_hello_example():
         ((4, 0, 6), " a"),
         ((5, 6, 2, 0, 6), "@a"),
         ((5, 6, 0, 0, 6), "a"),
+        ((5, 6, 0, 9, 6), "   a"),
         ((5, 6, 4, 27), "ä"),
         ((6, 5, 6), "a"),
         ((6, 7, 1), "ab"),
@@ -70,13 +71,23 @@ def test_abbreviation_cannot_end_mid_escape():
 
 @pytest.mark.parametrize(
     "code,expected",
-    [(0, ""), (13, "\n"), (32, " "), (126, "~"), (155, "ä"), (180, "Ý"), (220, "œ"), (223, "¿")],
+    [
+        (0, ""),
+        (9, "   "),
+        (13, "\n"),
+        (32, " "),
+        (126, "~"),
+        (155, "ä"),
+        (180, "Ý"),
+        (220, "œ"),
+        (223, "¿"),
+    ],
 )
 def test_zscii(code, expected):
     assert zscii(code) == expected
 
 
-@pytest.mark.parametrize("code", (-1, 1, 9, 11, 127, 129, 224, 255, 1023))
+@pytest.mark.parametrize("code", (-1, 1, 11, 127, 129, 224, 255, 1023))
 def test_undefined_or_input_only_zscii(code):
     with pytest.raises(ExecutionError, match="Invalid V3 output"):
         zscii(code)

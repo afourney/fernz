@@ -1,8 +1,9 @@
 # Fernz overview
 
 Fernz is intended to become a Z-machine interpreter for common Z-machine story
-formats. It loads V1-V8 stories and now executes Zork I (V3) through the mailbox
-and leaflet sequence, using the library or a minimal interactive CLI.
+formats. It loads V1-V8 stories and now completes Zork I (V3) using Jericho's
+396-command walkthrough with seed 12, reaching 350 points. The library and a
+minimal interactive CLI support V3 play.
 
 ## Mandatory clean-room requirement
 
@@ -81,8 +82,9 @@ requirement above.
    setup history.
 
 All 56 retained games are used for loading, checksum, and memory tests. Zork I
-also has startup, mailbox play, quit, and reset tests. Version detection uses the header: for example,
-`zork1.z5` contains a V3 story, release 88, serial `840726`.
+also has startup, mailbox play, quit, reset, and a full walkthrough comparison.
+Version detection uses the header: for example, `zork1.z5` contains a V3 story,
+release 88, serial `840726`.
 
 ## Test fixture setup
 
@@ -117,7 +119,7 @@ Run `uv sync --dev` to install the locked development tools, then use:
 | `uv run poe fix-all` | Apply formatting and automatic lint fixes. |
 | `uv run poe test` | Run synthetic and API tests without Jericho or ROM downloads. |
 | `uv run poe test-roms` | Load all 56 retained ROMs, check checksums and memory, and run Zork I startup, mailbox play, quit, and reset. |
-| `uv run --no-sync poe test-reference` | Run the opt-in Jericho reference tests after installing the reference group below. |
+| `uv run --no-sync poe test-reference` | Compare the complete seeded Zork walkthrough and synthetic probes with the references, after installing the reference group below. |
 | `uv run poe build-check` | Build the wheel and source distribution, validate their contents, and smoke-test an isolated wheel installation. |
 | `uv run poe check-all` | Run code checks, synthetic/API tests, and build validation; ROM and reference tests run separately. |
 
@@ -172,16 +174,17 @@ Normal pytest runs deselect the `reference` and `rom` markers, so they neither
 import Jericho nor download games. To select comparisons directly, use
 `uv run --no-sync pytest -m reference -ra --tb=short`.
 
-`tests/test_reference.py` uses only the documented `FrotzEnv` constructor,
-`reset()`, `step()`, and `close()` calls. It verifies the SHA-256 of our Zork I
-fixture (`zork1.z5`, whose header is V3), runs Jericho with seed 42, and records an
-opening followed by `look`, `open mailbox`, `take leaflet`, `read leaflet`, and
-`inventory`. A second episode verifies repeatability after reset. Reference
-observations are generated during the test, rather than committed as game text.
+`tests/test_reference.py` uses only documented public `FrotzEnv` calls. It verifies
+the SHA-256 of our Zork I fixture (`zork1.z5`, whose header is V3). The short
+comparison runs Jericho with seed 42 and records an opening followed by `look`,
+`open mailbox`, `take leaflet`, `read leaflet`, and `inventory`. A second episode
+verifies repeatability after reset. Reference observations are generated during
+the test, rather than committed as game text.
 
-**The opening and mailbox comparisons are required to pass.** They check Zork I startup
-twice, with a memory mutation between resets, and compares the transcript, score,
-and move count. Black-box probes of Jericho 3.3.1 showed that its observation
+**The opening, mailbox, and complete walkthrough comparisons are required to pass.**
+The startup comparison runs twice, with a memory mutation between resets, and
+compares the transcript, score, and move count. Black-box probes of Jericho 3.3.1
+showed that its observation
 omits this recognized game's title line and the final prompt. Fernz retains
 the full story output. The Zork comparison explicitly asserts that Fernz prints
 the expected title and prompt, removes only those two pieces for comparison,
@@ -189,10 +192,25 @@ and compares the remaining text exactly, apart from CRLF versus LF. There is
 no title filtering, game-specific output substitution, or reference dependency
 in Fernz's runtime.
 
-Every step compares its text, reward, quit status, score, and move count. Fernz
+The full walkthrough test calls `get_walkthrough()` and `seed()` to obtain the
+commands and their required seed, then calls `reset()` before recording the
+reference. With the pinned Jericho 3.3.1 and Zork I fixture, this is **396 commands
+with seed 12**. The reference must report `victory()` and a score equal to
+`get_max_score()` (**350**). Both Jericho and Fernz replay the complete sequence
+after reset. Commands and transcripts stay in memory during the test; neither is
+vendored into the repository. A failure identifies the episode, turn, and command.
+
+Every turn compares text, reward, quit status, score, and move count. Fernz
 retains the Enter newline and story prompt that Jericho omits; tests assert and
-remove exactly those characters before comparing the remaining response. There
-are no expected failures. A separate command-parsing comparison covers uppercase,
+remove exactly those characters before comparing the remaining response.
+The final turn executes `quit` and has no prompt. At that boundary only, tests
+assert two observed differences: Jericho adds one trailing newline and reports
+395 moves, whereas Fernz returns the story's status global of 394. Both endings
+print 394 moves, as does the standalone Frotz executable. The complete remaining
+ending text, reward, score, and quit status must match. The runtime stops at
+`quit`; it has no Zork-specific victory detection or move-count adjustment.
+
+There are no expected failures. A separate command-parsing comparison covers uppercase,
 extra spaces, dictionary truncation, unknown words, and punctuation. Synthetic
 input probes use the standalone Frotz executable, with a subprocess timeout, to
 compare accepted input bytes and parse records. Overlong input and malformed
@@ -200,7 +218,8 @@ buffers are checked against the specification in the normal tests. A separate
 Jericho smoke test must always pass. Score and moves are compared individually
 to permit additional metadata keys.
 
-The sequence avoids random encounters. Separate synthetic tests now require
+The short mailbox sequence avoids random encounters; the full walkthrough
+exercises them with its fixed seed. Separate synthetic tests require
 predictable RNG sequences to match Jericho and Frotz, including counting and
 large-seed modes. They run V3, V5, and V8 probes in the references; Fernz executes
 the V3 probes and tests its shared generator against all three formats. See
@@ -216,10 +235,11 @@ since these public Jericho calls execute the game as part of initialization.
 
 Work includes version-aware loading and protected memory for raw V1-V8 stories,
 instruction decoding across those versions, and a V3 execution engine sufficient
-to play Zork I through the mailbox and leaflet sequence. The CLI can inspect any
-supported raw story or accept V3 commands interactively. Required ROM and Jericho
-tests cover Zork's opening, mailbox sequence, and reset after play. This is an
-initial playable milestone, not full V3 conformance or a complete-game guarantee.
+to complete the tested Zork I walkthrough. The CLI can inspect any supported raw
+story or accept V3 commands interactively. Required ROM and Jericho tests cover
+Zork's opening, mailbox sequence, full 350-point walkthrough, and reset after
+play. This validates one complete route with a fixed seed; other routes and full
+V3 conformance remain to be tested.
 
 Deferred work includes additional V3 opcodes and I/O features, other execution
 versions, Blorb extraction, VM restart, and save/restore formats.
@@ -240,6 +260,16 @@ use 16-bit arithmetic and may not straddle the 64 KiB address boundary. Branch
 offsets 0 and 1 return from the current routine. Routine defaults and arguments,
 object links and properties, Z-strings, abbreviations, and default ZSCII output
 characters are implemented independently from the standard.
+
+Zork I's boat label emits ZSCII 9 even though Standard
+[§3.8.2.3](https://inform-fiction.org/zmachine/standards/z1point1/sect03.html)
+defines tabs only for V6. The V3 text path accepts this legacy character as three
+spaces, matching black-box Jericho transcript measurements for leading, middle,
+consecutive, and trailing tabs. An independently assembled story tests both
+`print_char` and encoded Z-string escapes. This compatibility extension is
+confined to V3 and does not prescribe future V6 screen-layout behavior. Standalone
+Frotz's screen output uses contextual spacing, so no universal tab-rendering
+equivalence between frontends is claimed.
 
 Execution runs until `sread` or `quit`, with an instruction budget to catch loops.
 At `sread`, the machine retains the text and parse buffer addresses without

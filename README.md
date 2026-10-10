@@ -3,10 +3,11 @@
 A Z-machine interpreter library in Python, working toward a
 Jericho-like API and a minimal interactive player.
 
-Fernz loads **raw V1-V8 story files** and can **play Zork I (V3) through the
-mailbox and leaflet sequence**. It provides header metadata, checksums, protected
-memory, instruction decoding, and V3 command input. Full-game execution, other
-execution versions, and Blorb containers are still ahead.
+Fernz loads **raw V1-V8 story files** and can **complete Zork I (V3)** using
+Jericho's 396-command walkthrough with seed 12, reaching 350 points. It provides
+header metadata, checksums, protected memory, instruction decoding, and V3
+command input. Full V3 conformance, other execution versions, and Blorb
+containers are still ahead.
 
 ## Try it
 
@@ -84,11 +85,18 @@ uv sync --frozen --python 3.11 --group reference
 uv run --no-sync poe test-reference
 ```
 
-The Zork opening and mailbox comparisons are required to pass, including after
-reset. Fernz preserves the title, input newline, and prompt that Jericho omits;
-the tests assert those pieces separately and compare the remaining transcript,
-rewards, scores, and move counts exactly. Synthetic input probes also compare
-accepted text and parse records with the standalone Frotz executable.
+The Zork opening, mailbox, and full walkthrough comparisons are required to pass,
+including a second complete episode after reset. Tests obtain the walkthrough
+and its seed through Jericho's documented `get_walkthrough()` and `seed()` calls
+and generate reference observations at runtime. Every turn compares the
+transcript, reward, quit status, score, and moves.
+
+Fernz preserves the title, input newline, and prompt that Jericho omits; tests
+assert these separately. At the final quit, Jericho adds one newline and reports
+395 moves; Fernz reports the story's 394 moves, also printed by standalone Frotz.
+The test asserts these exact final-turn differences. V3 output accepts legacy
+tabs as three spaces, matching Jericho's plain transcript. Synthetic input probes
+also compare accepted text and parse records with the standalone Frotz executable.
 
 Predictable RNG sequences are compared against both interpreters using synthetic
 V3/V5/V8 stories, including cycle rollover and reseeding. Use a positive constructor
