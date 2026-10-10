@@ -1,7 +1,8 @@
 # Fernz overview
 
 Fernz is intended to become a Z-machine interpreter for common Z-machine story
-formats. The project is in its initial setup and documentation stage.
+formats. The first implementation milestone provides story loading and memory;
+execution remains future work.
 
 ## Mandatory clean-room requirement
 
@@ -80,9 +81,9 @@ requirement above.
 6. Created `docs/OVERVIEW.md` to record the project direction, references, and
    setup history.
 
-The games are available as inputs for future testing. They have not yet been run
-with Fernz. Some story filename extensions differ from the version recorded in
-their headers, so future version detection should use the story header.
+All 56 retained games are used for loading, checksum, and memory tests. They have
+not yet been executed with Fernz. Version detection uses the header: for example,
+`zork1.z5` contains a V3 story, release 88, serial `840726`.
 
 ## Test fixture setup
 
@@ -115,10 +116,11 @@ Run `uv sync --dev` to install the locked development tools, then use:
 | --- | --- |
 | `uv run poe check` | Check formatting, lint, and spelling. |
 | `uv run poe fix-all` | Apply formatting and automatic lint fixes. |
-| `uv run poe test` | Run the normal tests without Jericho or reference ROM comparisons. |
+| `uv run poe test` | Run synthetic and API tests without Jericho or ROM downloads. |
+| `uv run poe test-roms` | Load all 56 retained ROMs and check their checksums and memory. |
 | `uv run --no-sync poe test-reference` | Run the opt-in Jericho reference tests after installing the reference group below. |
 | `uv run poe build-check` | Build the wheel and source distribution, validate their contents, and smoke-test an isolated wheel installation. |
-| `uv run poe check-all` | Run code checks, normal tests, and build validation; reference tests run separately. |
+| `uv run poe check-all` | Run code checks, synthetic/API tests, and build validation; ROM and reference tests run separately. |
 
 Individual tasks include `format`, `format-fix`, `lint`, `lint-fix`, `spell`,
 `build`, and `check-dist`. Build validation expects one wheel and one source
@@ -132,7 +134,8 @@ on Python 3.11 through 3.14, and validate the built package. CI uses the same Po
 tasks as local development, with frozen dependency installation. Superseded runs
 are cancelled and workflow permissions are limited to reading repository contents.
 A separate Linux/Python 3.11 job installs the optional reference group and runs
-the Jericho comparisons. Missing dependencies, download failures, and reference
+the ROM loading tests followed by the Jericho comparisons. Both use the same
+`jericho_games` fixture. Missing dependencies, download failures, and reference
 execution failures fail that job; it does not silently skip them.
 
 The package check verifies metadata, package files, the `py.typed` marker, and
@@ -141,9 +144,11 @@ temporary virtual environment and imports Fernz independently of the checkout.
 There is no publishing workflow.
 
 Tests may download the Jericho corpus through `jericho_games` when needed. CI
-does not cache or upload ROMs. Current tests cover fixture management, the public
-scaffold, and the reference setup described below. Interpreter conformance tests
-will be added with the interpreter.
+does not cache or upload ROMs. Synthetic tests cover all eight story versions.
+Real-ROM tests have a separate case for each retained game, covering V3 (16),
+V4 (1), V5 (33), and V8 (6), plus a Zork I metadata check through `FernzEnv`.
+V1, V2, V6, and V7 currently have synthetic coverage only. Execution conformance
+tests will be added with the interpreter.
 
 ## Black-box reference tests
 
@@ -159,8 +164,8 @@ uv run --no-sync poe test-reference
 
 The installation requires C build tools such as `gcc` and `make`, already present
 on the Ubuntu CI runners. These tests need no additional spaCy language model.
-Normal pytest runs deselect the `reference` marker, so they neither import Jericho
-nor download games for these comparisons. To select them directly, use
+Normal pytest runs deselect the `reference` and `rom` markers, so they neither
+import Jericho nor download games. To select comparisons directly, use
 `uv run --no-sync pytest -m reference -ra --tb=short`.
 
 `tests/test_reference.py` uses only the documented `FrotzEnv` constructor,
@@ -187,35 +192,103 @@ equal random streams across interpreters. Expand comparisons as Fernz gains
 execution, state restoration, and other public APIs. The Z-machine standard
 remains authoritative when it and a reference interpreter disagree; investigate
 the discrepancy instead of copying reference behavior automatically. Loading and
-memory tests for all V1-V8 will also use independent specification-based fixtures,
+memory tests for all V1-V8 use independent specification-based fixtures,
 since these public Jericho calls execute the game as part of initialization.
 
 ## Current scope
 
-Work includes test-data fixtures, CI checks, and a minimal packaged CLI and
-library contract, plus black-box reference tests. No interpreter execution is
-implemented. The next milestone targets version-aware loading and protected
-memory for V1-V8; Zork I (V3) remains the first playable execution target. Broader
-API coverage remains to be decided.
+Work includes version-aware loading and protected memory for raw V1-V8 stories,
+an inspection CLI, test-data fixtures, CI checks, and black-box reference targets.
+No interpreter execution is implemented. Zork I (V3) remains the first playable
+execution target. Blorb extraction, text decoding, instruction execution, and
+save-game formats are outside this milestone.
 
-## CLI and library scaffold
+## Story loading and memory
+
+```python
+from fernz import Memory, Story
+
+story = Story.from_file("games/jericho-game-suite/zork1.z5")
+assert story.header.version == 3
+assert story.verify_checksum() is True
+memory = Memory(story)
+initial_global = memory.read_word(story.header.globals_table)
+```
+
+`Story(data)` accepts bytes, a bytearray, or a memoryview and retains immutable
+bytes. `Story.from_file(path)` reads a regular file and preserves normal I/O
+exceptions. Malformed or unsupported raw images raise `StoryFormatError`, a
+`ValueError` subclass. Both the story and its initial `StoryHeader` are immutable.
+This header is a snapshot, not a live view of changing memory.
+
+The loader validates header length, version, declared size, entry address, memory
+bounds, and the extents of globals, object defaults, abbreviations, alphabets,
+and header extensions when present. It does not validate every table entry or
+instruction. Addresses and offsets exposed by the header are byte addresses;
+`initial_value` retains the raw startup word. `entry_address` resolves V6's main
+routine address; `entry_is_routine` distinguishes it from the initial instruction
+address used by the other versions. Routine and string unpacking use the
+version-specific rules, including separate offsets in V6/V7.
+
+`story.data` retains the full file, including padding. `story.size` and memory
+length exclude padding when a length is declared. `verify_checksum()` returns
+True or False using the original image, or None for V1/V2 and early V3 files
+without length/checksum fields. A mismatch does not prevent inspection or
+loading. V4-V8 require a nonzero declared length. A stored zero checksum with a
+known length is verified normally. Later header fields are ignored in earlier
+versions; a missing extension word reads as zero.
+
+Historic high-memory markers are retained as metadata, without imposing an
+ordering between that marker, the entry point, and static memory. This permits
+the retained Trinity, Sherlock, Seastalker, and Plundered Hearts images to load.
+The static-memory base remains the enforced write boundary.
+
+`Memory(story)` creates an independent instance. Its `read_byte`, `read_word`,
+and `read_bytes` methods check bounds; words are unsigned, big-endian, and need
+not be aligned. Reads cover the whole logical image for future instruction and
+string access; opcode-specific addressing limits belong to the future CPU.
+Corresponding write methods reject out-of-range values, writes outside dynamic
+memory, and changes to protected header bits or extension words. Only the
+game-writable Flags 2 bits are allowed in the header. Invalid multi-byte writes
+leave all bytes unchanged. Errors raise `MemoryAccessError` (a `ValueError`).
+
+`memory.copy()` copies current contents independently. `memory.reset()` restores
+the original image exactly. This low-level reset is not VM restart or save
+restoration: managing CPU/stack state and preserving interpreter flags belongs
+to the later execution layer. No writable memory views are exposed.
+
+Implementation references are Standard 1.1
+[memory and addressing](https://inform-fiction.org/zmachine/standards/z1point1/sect01.html),
+[headers](https://inform-fiction.org/zmachine/standards/z1point1/sect11.html),
+[text tables](https://inform-fiction.org/zmachine/standards/z1point1/sect03.html),
+[globals](https://inform-fiction.org/zmachine/standards/z1point1/sect06.html),
+[object defaults](https://inform-fiction.org/zmachine/standards/z1point1/sect12.html),
+[verify](https://inform-fiction.org/zmachine/standards/z1point1/sect15.html#verify),
+and [conventional metadata](https://inform-fiction.org/zmachine/standards/z1point1/appb.html).
+
+## CLI and environment API
 
 After `uv sync --dev`, run `uv run fernz --help` or
 `uv run python -m fernz --help`. The installed `fernz` command targets
-`fernz._cli:main` inside `src/fernz/`. The implementation modules `_cli.py` and
-`_env.py` are private; use `from fernz import FernzEnv` for the public library
+`fernz._cli:main` inside `src/fernz/`. Modules prefixed with `_` are private;
+import `Story`, `StoryHeader`, `Memory`, `StoryFormatError`, `MemoryAccessError`,
+and `FernzEnv` from `fernz` for the public library
 interface and `fernz` or `python -m fernz` for the public CLI.
-`fernz GAME` accepts a path to an existing regular file. Help exits with 0,
-missing/invalid arguments or paths exit with 2, and an existing file produces a
-clear not-implemented message on stderr and exits with 1. There is no interactive
-prompt or VM execution yet. The CLI delegates to the public library.
+`fernz --inspect GAME` prints JSON metadata and exits with 0. It reports both
+physical file size and logical story size, plus checksum validity (null when
+unavailable). A checksum mismatch is reported as false without rejecting the
+inspection. Help exits with 0; missing/invalid arguments, paths, or story formats
+exit with 2. `fernz GAME` loads the story, then reports unimplemented execution
+on stderr and exits with 1. There is no interactive prompt or VM execution yet.
+The CLI delegates to the public library.
 
 The deliberately small public contract is:
 
 | Interface | Contract |
 | --- | --- |
 | `from fernz import FernzEnv` | Public environment class; no Jericho runtime dependency. |
-| `FernzEnv(game_path)` | Accepts a string or text path-like object. Validates a regular file and stores a `Path` in `game_path`. Missing/inaccessible paths raise `OSError` subclasses; non-regular paths raise `ValueError`. Does not read or validate story bytes. |
+| `FernzEnv(game_path)` | Accepts a string or text path-like object, stores a `Path` in `game_path`, and loads a raw V1-V8 story. Missing/inaccessible paths raise `OSError` subclasses; non-regular paths raise `ValueError`; invalid story data raises `StoryFormatError`. |
+| `env.story`, `env.memory` | Immutable story image and independent protected memory instance. |
 | `env.reset()` | Planned result: `(observation: str, info: dict[str, object])`. Currently raises `NotImplementedError`. |
 | `env.step(action: str)` | Planned result: `(observation: str, reward: int, done: bool, info: dict[str, object])`. Currently raises `NotImplementedError`. |
 | `env.close()` | Idempotent resource cleanup; currently a no-op because no resources are held. |
@@ -235,6 +308,6 @@ queries are deferred. Its direct `frotz_lib` access is outside this public
 contract; binary saves and interpreter internals are not supported. No Frotz or
 Jericho implementation source was inspected or copied.
 
-Scaffold tests use temporary synthetic files without requesting the game fixture
+API tests use temporary synthetic files without requesting the game fixture
 or downloading ROMs. Package validation also exercises the installed command and
 module entry point from a temporary directory outside the checkout.

@@ -1,9 +1,12 @@
+import json
 import subprocess
 import sys
 
 import pytest
 
 from fernz import _cli
+
+from .story_files import story_bytes
 
 
 def test_help(capsys):
@@ -37,13 +40,38 @@ def test_invalid_path(tmp_path, capsys, directory):
 
 def test_existing_game_reports_unimplemented(tmp_path, capsys):
     game = tmp_path / "game with spaces.z3"
-    game.write_bytes(b"synthetic test input")
+    game.write_bytes(story_bytes())
     assert _cli.main([str(game)]) == 1
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "story execution is not implemented" in captured.err
     assert "Traceback" not in captured.err
-    assert game.read_bytes() == b"synthetic test input"
+    assert game.read_bytes() == story_bytes()
+
+
+def test_invalid_story_reports_error(tmp_path, capsys):
+    game = tmp_path / "invalid.z3"
+    game.write_bytes(b"invalid")
+    assert _cli.main(["--inspect", str(game)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "64-byte header" in captured.err
+    assert "Traceback" not in captured.err
+
+
+@pytest.mark.parametrize("version", range(1, 9))
+def test_inspect_metadata(tmp_path, capsys, version):
+    game = tmp_path / "misleading.z5"
+    game.write_bytes(story_bytes(version))
+    assert _cli.main(["--inspect", str(game)]) == 0
+    captured = capsys.readouterr()
+    metadata = json.loads(captured.out)
+    assert metadata["version"] == version
+    assert metadata["release"] == 42
+    assert metadata["file_size"] == metadata["story_size"] == 4096
+    assert metadata["entry_kind"] == ("routine" if version == 6 else "instruction")
+    assert metadata["checksum_valid"] is (True if version >= 3 else None)
+    assert captured.err == ""
 
 
 def test_cli_delegates_to_library_and_closes(tmp_path, monkeypatch, capsys):
