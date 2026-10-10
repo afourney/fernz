@@ -159,12 +159,16 @@ Linux, keeping Jericho's native build and dependencies out of the normal Python
 test matrix and Fernz's runtime dependencies. Install it and run the tests with:
 
 ```sh
+sudo apt-get install --no-install-recommends frotz
 uv sync --frozen --python 3.11 --group reference
 uv run --no-sync poe test-reference
 ```
 
 The installation requires C build tools such as `gcc` and `make`, already present
 on the Ubuntu CI runners. These tests need no additional spaCy language model.
+RNG comparisons also require the distribution's `dfrotz` executable; set
+`FERNZ_DFROTZ` to use a separately installed binary. The reference CI job installs
+the binary package and reports its version. No interpreter source is inspected.
 Normal pytest runs deselect the `reference` and `rom` markers, so they neither
 import Jericho nor download games. To select comparisons directly, use
 `uv run --no-sync pytest -m reference -ra --tb=short`.
@@ -192,8 +196,12 @@ Assertion mismatches still fail, and an unexpected pass fails until its marker
 is removed. A separate, unmarked Jericho smoke test must always pass. Score and
 moves are compared individually to permit additional metadata keys.
 
-The sequence avoids random encounters. Equal numeric seeds alone do not guarantee
-equal random streams across interpreters. Expand comparisons as Fernz gains
+The sequence avoids random encounters. Separate synthetic tests now require
+predictable RNG sequences to match Jericho and Frotz, including counting and
+large-seed modes. They run V3, V5, and V8 probes in the references; Fernz executes
+the V3 probes and tests its shared generator against all three formats. See
+[RNG compatibility](RNG.md) for the measured rules, evidence, and the host-seed-0
+difference between the references. Expand comparisons as Fernz gains
 execution, state restoration, and other public APIs. The Z-machine standard
 remains authoritative when it and a reference interpreter disagree; investigate
 the discrepancy instead of copying reference behavior automatically. Loading and
@@ -242,7 +250,11 @@ sound, save, restore, and restart currently fail explicitly if encountered.
 interpreter header, routine state, output, and random generator. This differs
 from the future Z-machine `restart` opcode, which must preserve the specified
 Flags 2 bits. An optional constructor `seed` gives repeatable host-side random
-sequences; matching numeric seeds do not imply matching Jericho random streams.
+sequences. Positive host seeds and predictable opcode seeds match the tested
+Jericho/Frotz sequences. Explicit host seed 0 follows Frotz's deterministic
+behavior; Jericho treats that constructor value as automatic seeding. With
+`seed=None`, Fernz uses system entropy. The RNG component is shared across
+versions; see [RNG compatibility](RNG.md).
 
 ## Story loading and memory
 

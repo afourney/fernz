@@ -1,6 +1,5 @@
 """A V3 execution core that suspends at the first line-input request."""
 
-import random
 from dataclasses import dataclass, field
 from operator import index
 
@@ -8,6 +7,7 @@ from ._errors import ExecutionError, UnsupportedOpcodeError
 from ._instruction import Instruction, OperandType, decode
 from ._memory import Memory, MemoryAccessError
 from ._objects import Objects
+from ._random import RandomGenerator
 from ._text import Text, zscii
 
 
@@ -48,7 +48,7 @@ class Machine:
         self.frames = [Frame()]
         self.text = Text(memory)
         self.objects = Objects(memory)
-        self.random = random.Random(seed)
+        self.rng = RandomGenerator(seed)
         self.output: list[str] = []
         self.screen_enabled = True
         self.input_request: InputRequest | None = None
@@ -291,12 +291,7 @@ class Machine:
             case "new_line":
                 self._emit("\n")
             case "random":
-                value = signed(args[0])
-                if value > 0:
-                    store(self.random.randint(1, value))
-                else:
-                    self.random.seed(-value if value else None)
-                    store(0)
+                store(self.rng.random(signed(args[0])))
             case "sread":
                 self.input_request = InputRequest(*args)
             case "quit":
