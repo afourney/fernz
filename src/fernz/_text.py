@@ -12,9 +12,14 @@ _EXTRA = "äöüÄÖÜß»«ëïÿËÏáéíóúýÁÉÍÓÚÝàèìòùÀÈÌÒ
 
 
 def zscii(code: int) -> str:
-    """Translate a V3 output code; reject undefined or input-only characters."""
+    """Translate V3 output, with a legacy tab extension for plain transcripts."""
     if code == 0:
         return ""
+    if code == 9:
+        # Zork I uses tabs although §3.8.2.3 only defines them for V6.
+        # Three spaces match black-box Jericho transcript observations. This
+        # V3 compatibility rule does not implement V6's contextual indentation.
+        return "   "
     if code == 13:
         return "\n"
     if 32 <= code <= 126:
