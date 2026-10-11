@@ -13,6 +13,10 @@ or preserve the nine-field tuple layout for that purpose. Existing usage below
 identifies capabilities to provide, rather than a requirement for an unchanged
 consumer to run against Fernz.
 
+Implementation in this thread is limited to the Fernz repository. Cabin Fever
+consumer changes are work for a separate thread; its usage guides Fernz's API
+requirements and tests here.
+
 The [mandatory clean-room requirement](OVERVIEW.md#mandatory-clean-room-requirement)
 continues to apply. Only Cabin Fever's own caller code was inspected for this
 audit. Foreign interpreter implementations, including installed and vendored
@@ -37,7 +41,8 @@ All links below identify the audited revision, rather than a moving branch:
 ## API coverage
 
 Status here includes the environment helpers introduced in
-[PR #12](https://github.com/afourney/fernz/pull/12). Fernz still executes V3 only.
+[PR #12](https://github.com/afourney/fernz/pull/12) and the
+[story queries](STORY_QUERIES.md). Fernz still executes V3 only.
 Matching a method name is insufficient when the data or behavior differs.
 
 | Consumer call | Audited consumer behavior | Fernz coverage / remaining work |
@@ -48,9 +53,9 @@ Matching a method name is insufficient when the data or behavior differs.
 | `close()` | Cleanup on reboot, console exit, and failed console initialization. | Available and idempotent. |
 | `get_state()`, `set_state(state)` | Autosave each turn; restore without advancing the game or emitting output. The existing save codec requires a nine-field tuple. | Deterministic checkpoints are available, using immutable named fields. Update the consumer to persist Fernz snapshots in a new format; legacy tuple conversion is out of scope for this integration. |
 | `get_score()`, `get_moves()` | Read actual restored values, instead of trusting save-file metadata. | Available for V3 score-based games, including after quit. Time-based games need additional metadata; the final Zork move count has a documented difference. |
-| `get_max_score()` | Render `Score current/maximum` whenever info includes a score. | Missing. This blocks the server's initial screen for Zork even before its first command. Requires story-specific metadata. |
-| `get_player_location()` | Return an object with integer `.num` and string `.name`, or no supported location. Both form the map key. | Missing. The caller tolerates `None`, `AttributeError`, or `RuntimeError`, but room mapping then disappears. Needs a public result type and validated player/location identification. |
-| `game_over()`, `victory()` | Recompute terminal status after restoring; the console also queries it after loading a ROM. | Missing. VM quit alone does not distinguish loss from victory or detect either while the story still accepts input. |
+| `get_max_score()` | Render `Score current/maximum` whenever info includes a score. | Available for the exact profiled Zork I build: 350. Unknown builds raise `NotImplementedError`. |
+| `get_player_location()` | Return an object with integer `.num` and string `.name`, or no supported location. Both form the map key. | Available as immutable `Location`, using the profiled player's immediate parent or the V3 status fallback. Full names can differ from the reference's shortened names. |
+| `game_over()`, `victory()` | Recompute terminal status after restoring; the console also queries it after loading a ROM. | Available for the profiled Zork I build as latest-response flags, preserved in checkpoints. VM quit remains separate; unknown builds raise `NotImplementedError`. |
 | `env.frotz_lib.getRAMSize()` | Check the saved RAM length against the loaded story before restoring. | Consumer migration: use `env.story.header.static_memory` or `len(env.get_state().ram)`, plus story identity validation. No native compatibility object is needed. |
 | `env.frotz_lib.setRng(a, interval, counter)` | After server restore, replace the RNG state when the saved interval is zero. | Consumer migration: an explicit RNG policy outside deterministic `set_state()` is needed. Deferred `seed()` is not equivalent. |
 
@@ -149,20 +154,23 @@ execution and reference coverage focus on Zork I (V3), even though the fixture
 is named `zork1.z5`. Expand execution by header version and test each supported
 game profile. Retain Fernz's existing excluded-game policy when selecting ROMs.
 
-## Next compatibility milestone and CI acceptance
+## Implementation progress and remaining CI acceptance
 
-1. Add public location results and a story metadata layer, initially validated
-   for the retained Zork I build. Implement `get_player_location()` and
-   `get_max_score()` without game-specific logic in opcode execution. Compare
-   room numbers/names and score limits through public reference calls.
-2. Add independently measured `game_over()` and `victory()` behavior, with an
-   explicit consumer done policy and documented behavior for unsupported games.
-   Exercise a normal turn, a loss, victory, and quit; repeat queries after
-   snapshots, copies, reset, restart, and restoration.
-3. Add versioned Fernz snapshot persistence and update Cabin Fever's save layer
-   to use it, retaining screen/map metadata in new saves. Test fresh-process
-   resume, wrong story, malformed data, unsupported schema versions, terminal
-   state, and deterministic continuation. No old-file import tests are required.
+1. Implemented: immutable locations and exact-image story profiles, initially
+   validated for the retained Zork I build. `get_player_location()` and
+   `get_max_score()` have no game-specific logic in opcode execution. Required
+   reference tests compare room/container numbers and score limits throughout
+   the winning walkthrough, including the boat and explicit name differences.
+2. Implemented: independently measured `game_over()` and `victory()` behavior,
+   with a documented distinction from VM quit and errors for unsupported games.
+   Required tests cover ordinary turns, recoverable and terminal loss, victory,
+   voluntary quit, snapshots, copies, reset, restart, and Quetzal restoration.
+3. Next persistence work: add versioned Fernz snapshot serialization and document
+   its public storage contract. Test fresh-process resume, wrong story, malformed
+   data, unsupported schema versions, terminal state, and deterministic
+   continuation. Consumers can store screen/map metadata alongside new saves;
+   updating Cabin Fever's save layer belongs in a separate thread. No old-file
+   import tests are required.
 4. Add the optional immediate RNG reload policy at the integration boundary,
    while retaining exact default checkpoint restoration. Test both counting and
    non-counting states, a supplied replacement seed, and subsequent reseeding.
@@ -173,8 +181,7 @@ game profile. Retain Fernz's existing excluded-game policy when selecting ROMs.
    Exercise worker-thread handoff and two independent sessions. Expand to later
    story versions as execution support arrives.
 
-These are tracked requirements, not implemented features or passing integration
-tests. Existing CI already verifies the four environment helpers and deterministic
-state transfer. Future Cabin Fever integration requires the work above and
-consumer changes. Backward compatibility with its current save files is not an
-acceptance criterion.
+Items 3-5 remain planned. CI verifies the environment helpers, story queries,
+and deterministic state transfer; it does not yet test persistent consumer
+sessions. Future Cabin Fever integration requires separate consumer changes.
+Backward compatibility with its current save files is not an acceptance criterion.

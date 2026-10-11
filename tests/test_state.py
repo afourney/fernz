@@ -119,7 +119,8 @@ def test_different_story_is_rejected_without_changing_current_game(game, tmp_pat
     [
         lambda s: None,
         lambda s: (s.ram, s.frames, s.pc),
-        lambda s: replace(s, format_version=2),
+        lambda s: replace(s, format_version=1),
+        lambda s: replace(s, format_version=3),
         lambda s: replace(s, ram=s.ram[:-1]),
         lambda s: replace(s, ram=bytearray(s.ram)),
         lambda s: replace(s, ram=s.ram[:14] + b"\x03\x01" + s.ram[16:]),
@@ -141,6 +142,8 @@ def test_different_story_is_rejected_without_changing_current_game(game, tmp_pat
         lambda s: replace(s, rng=replace(s.rng, position=1)),
         lambda s: replace(s, screen_enabled=1),
         lambda s: replace(s, halted=True),
+        lambda s: replace(s, game_over=1),
+        lambda s: replace(s, victory=None),
         lambda s: replace(s, input_request=None),
         lambda s: replace(s, input_request=replace(s.input_request, text=-1)),
         lambda s: replace(s, input_request=replace(s.input_request, instruction_address=-1)),

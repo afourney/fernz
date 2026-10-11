@@ -1,0 +1,206 @@
+"""Story metadata, detached locations, and checkpointed response outcomes."""
+
+from dataclasses import FrozenInstanceError, replace
+from hashlib import sha256
+
+import pytest
+
+from fernz import ExecutionError, FernzEnv, Location, _profiles
+from fernz._profiles import StoryProfile
+
+from .story_files import READ, program_bytes, zchars
+
+
+def printed(text):
+    return b"".join(b"\xe5\x7f" + bytes((13 if c == "\n" else ord(c),)) for c in text)
+
+
+@pytest.fixture
+def profiled_story(tmp_path, monkeypatch):
+    # Independent story and profile: no game ROM or reference installation.
+    # Lose at startup, take an ordinary turn, then win and halt.
+    data = program_bytes(
+        printed("lost\n") + READ + printed("ordinary\n") + READ + printed("won\n") + b"\xba",
+        (0x100, b"\x00\x01"),
+        (0x85, b"\x02\x00"),
+        (0x200, b"\x01" + zchars(6, 7, 8)),
+    )
+    path = tmp_path / "profile.z3"
+    path.write_bytes(data)
+    monkeypatch.setitem(
+        _profiles._PROFILES,
+        sha256(data).hexdigest(),
+        StoryProfile(77, frozenset({"lost"}), frozenset({"won"})),
+    )
+    return path
+
+
+def outcomes(env):
+    return env.game_over(), env.victory()
+
+
+def test_queries_are_detached_and_do_not_execute_or_change_rng(profiled_story):
+    output = []
+    env = FernzEnv(profiled_story, seed=42, output_handler=output.append)
+    assert env.get_max_score() == 77  # Metadata is available before reset.
+    for query in (env.get_player_location, env.game_over, env.victory):
+        with pytest.raises(RuntimeError, match="reset"):
+            query()
+    env.reset()
+    saved = env.get_state()
+    output.clear()
+    for _ in range(2):
+        room = env.get_player_location()
+        assert room == Location(1, "abc")
+        assert outcomes(env) == (True, False)
+        assert env.get_max_score() == 77
+        assert env.get_state() == saved
+    assert output == []
+    with pytest.raises(FrozenInstanceError):
+        room.name = "edited"
+    env.memory.write_bytes(0x201, zchars(29, 30, 31))
+    assert env.get_player_location() == Location(1, "xyz")
+    assert room == Location(1, "abc")
+
+
+def test_outcomes_copy_restore_reset_and_failed_input(profiled_story, monkeypatch):
+    env = FernzEnv(profiled_story, seed=42)
+    env.reset()
+    lost = env.get_state()
+    assert lost.format_version == 2 and lost.game_over and not lost.victory
+    assert not env.done  # A reported loss is independent of VM quit.
+    other = env.copy()
+    with pytest.raises(ValueError):
+        other.step("two\nlines")
+    assert other.get_state() == lost
+    other.step("look")
+    assert outcomes(other) == (False, False)
+    assert outcomes(env) == (True, False)
+    other.step("finish")
+    won = other.get_state()
+    assert other.done and outcomes(other) == (False, True)
+    assert outcomes(other.copy()) == (False, True)
+    fresh = FernzEnv(profiled_story)
+
+    def forbidden(bits):
+        pytest.fail("Restoring must not draw entropy")
+
+    monkeypatch.setattr("fernz._random.secrets.randbits", forbidden)
+    for candidate in (env, other, fresh):
+        candidate.set_state(won)
+        assert candidate.get_state() == won
+        assert candidate.done and outcomes(candidate) == (False, True)
+        candidate.set_state(lost)
+        assert not candidate.done and outcomes(candidate) == (True, False)
+        candidate.reset()
+        assert candidate.get_state() == lost
+
+
+def test_failure_requires_recovery_and_invalid_outcomes_restore_atomically(profiled_story):
+    env = FernzEnv(profiled_story, seed=42)
+    env.reset()
+    before = env.get_state()
+    for field in ("game_over", "victory"):
+        with pytest.raises(TypeError, match="outcome"):
+            env.set_state(replace(before, **{field: 1}))
+        assert env.get_state() == before
+    with pytest.raises(ExecutionError, match="budget"):
+        env.step("look", max_steps=1)
+    assert env.get_max_score() == 77
+    for query in (env.game_over, env.victory, env.get_player_location):
+        with pytest.raises(RuntimeError, match="reset"):
+            query()
+    env.set_state(before)
+    assert outcomes(env) == (True, False)
+
+
+def test_profile_identifies_addressable_bytes_not_filename_or_header(profiled_story, tmp_path):
+    padded = tmp_path / "renamed.z8"
+    padded.write_bytes(profiled_story.read_bytes() + b"padding")
+    assert FernzEnv(padded).get_max_score() == 77
+    changed = bytearray(profiled_story.read_bytes())
+    changed[-1] ^= 1  # Retain release, serial, checksum, and original filename.
+    profiled_story.write_bytes(changed)
+    env = FernzEnv(profiled_story)
+    env.reset()
+    for query in (env.get_max_score, env.game_over, env.victory):
+        with pytest.raises(NotImplementedError, match="story profile"):
+            query()
+    assert env.get_player_location() == Location(1, "abc")
+
+
+def test_known_player_location_is_its_immediate_container(profiled_story, monkeypatch):
+    digest = sha256(profiled_story.read_bytes()).hexdigest()
+    monkeypatch.setitem(
+        _profiles._PROFILES, digest, replace(_profiles._PROFILES[digest], player_object=2)
+    )
+    env = FernzEnv(profiled_story)
+    env.reset()
+    env.memory.write_word(0x100, 255)  # Status room differs from the container.
+    env.memory.write_byte(0x87 + 4, 1)  # Player 2 is inside object 1.
+    assert env.get_player_location() == Location(1, "abc")
+    env.memory.write_byte(0x87 + 4, 0)
+    assert env.get_player_location() is None
+
+
+@pytest.mark.parametrize("time_game", [False, True])
+def test_unprofiled_location_uses_v3_status_and_handles_absent_or_invalid_data(tmp_path, time_game):
+    data = bytearray(program_bytes(READ + b"\xba", (0x85, b"\x02\x00")))
+    data[1] |= 2 if time_game else 0
+    path = tmp_path / "unknown.z3"
+    path.write_bytes(data)
+    env = FernzEnv(path)
+    env.reset()
+    assert env.get_player_location() is None
+    env.memory.write_word(0x100, 1)
+    assert env.get_player_location() == Location(1, "")
+    env.memory.write_word(0x100, 256)
+    before = env.get_state()
+    with pytest.raises(ExecutionError, match="object number"):
+        env.get_player_location()
+    assert env.get_state() == before
+    env.memory.write_word(0x100, 1)
+    env.memory.write_word(0x85, 0x2FF)
+    env.memory.write_byte(0x2FF, 1)
+    with pytest.raises(ExecutionError, match="outside dynamic"):
+        env.get_player_location()
+
+
+def test_restart_and_quetzal_restore_classify_the_new_response(tmp_path, monkeypatch):
+    from .test_save_restore import Storage
+
+    # SAVE resumes just before 'ready'. READ, print 'lost', READ, RESTORE.
+    data = program_bytes(
+        b"\xb5\xc2" + printed("ready\n") + READ + printed("lost\n") + READ + b"\xb6\xc2\xba"
+    )
+    profile = StoryProfile(77, frozenset({"lost"}), frozenset({"won"}))
+    monkeypatch.setitem(_profiles._PROFILES, sha256(data).hexdigest(), profile)
+    path = tmp_path / "restore.z3"
+    path.write_bytes(data)
+    storage = Storage()
+    env = FernzEnv(path, save_handler=storage.save, restore_handler=storage.restore)
+    env.reset()
+    assert outcomes(env) == (False, False)
+    env.step("lose")
+    assert outcomes(env) == (True, False)
+    env.step("restore")
+    assert outcomes(env) == (False, False)
+
+    # Startup prints 'ready', a turn prints 'lost', then RESTART prints 'ready'.
+    data = program_bytes(printed("ready\n") + READ + printed("lost\n") + READ + b"\xb7")
+    monkeypatch.setitem(_profiles._PROFILES, sha256(data).hexdigest(), profile)
+    path.write_bytes(data)
+    env = FernzEnv(path)
+    env.reset()
+    env.step("lose")
+    assert outcomes(env) == (True, False)
+    env.step("restart")
+    assert outcomes(env) == (False, False)
+
+
+def test_profile_matches_complete_lines_with_flexible_whitespace():
+    profile = StoryProfile(77, frozenset({"loss marker"}), frozenset({"win marker"}))
+    assert profile.outcomes("\r\n  loss  marker \r\n") == (True, False)
+    assert profile.outcomes("Someone said win marker.\n") == (False, False)
+    assert profile.outcomes("win marker\n") == (False, True)
+    assert profile.outcomes("ordinary\n") == (False, False)

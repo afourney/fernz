@@ -56,8 +56,9 @@ class GameState:
 
     RAM contains dynamic memory only, including its current header. Static
     memory comes from the matching story image, identified without file padding.
-    Frames, pending input, output selection, and randomness complete the snapshot.
-    This versioned Fernz representation is independent of Jericho's tuple layout
+    Frames, pending input, output selection, randomness, and the most recent
+    response's outcome flags complete the schema-2 snapshot. This versioned
+    Fernz representation is independent of Jericho's tuple layout
     and of saved-game file formats. Obtain snapshots through the environment.
     """
 
@@ -69,10 +70,12 @@ class GameState:
     input_request: InputRequest | None
     screen_enabled: bool
     halted: bool
-    format_version: int = 1
+    format_version: int = 2
+    game_over: bool = False
+    victory: bool = False
 
     def _validate(self, story: Story) -> None:
-        _integer(self.format_version, 1, 1, "Snapshot format version")
+        _integer(self.format_version, 2, 2, "Snapshot format version")
         if self.story_sha256 != sha256(story.data[: story.size]).hexdigest():
             raise ValueError("Snapshot belongs to a different story image")
         if type(self.ram) is not bytes:
@@ -112,6 +115,8 @@ class GameState:
         self.rng._validate()
         if type(self.screen_enabled) is not bool or type(self.halted) is not bool:
             raise TypeError("Snapshot output and halt flags must be booleans")
+        if type(self.game_over) is not bool or type(self.victory) is not bool:
+            raise TypeError("Snapshot outcome flags must be booleans")
         if self.halted:
             if self.input_request is not None:
                 raise ValueError("A halted snapshot cannot have pending input")

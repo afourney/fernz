@@ -71,6 +71,7 @@ jobs:
       # Require Quetzal file interchange and the walkthrough with save/restore opcodes.
       # Require in-game restart, RNG reseeding, and the full walkthrough after restart.
       # Compare environment copies, deferred host seeds, and score/move queries.
+      # Compare locations (including vehicles), score limits, and loss/victory queries.
       - run: uv run --no-sync poe test-reference
 
   build:

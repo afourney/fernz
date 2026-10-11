@@ -15,6 +15,7 @@ from operator import index
 
 from fernz import GameState, Memory
 from fernz._instruction import OperandType, decode
+from fernz._profiles import profile_for
 from fernz._state import FrameState, InputRequest, RandomState
 
 STACK_WORDS = 1024
@@ -154,6 +155,12 @@ class StateBridge:
         # decoded the operands; perform their stack pops exactly once here.
         instruction = self._read(memory, pc - 1)
         values, frames[-1] = self._resolve_read(memory, frames[-1], instruction)
+        profile = profile_for(self.story)
+        game_over, victory = (
+            profile.outcomes(native[8].decode("cp1252", errors="replace"))
+            if profile
+            else (False, False)
+        )
         result = GameState(
             story_sha256=sha256(self.story.data[: self.story.size]).hexdigest(),
             ram=memory.read_bytes(0, self.story.header.static_memory),
@@ -163,6 +170,8 @@ class StateBridge:
             input_request=InputRequest(*values, instruction_address=instruction.address),
             screen_enabled=True,
             halted=False,
+            game_over=game_over,
+            victory=victory,
         )
         result._validate(self.story)
         return result
