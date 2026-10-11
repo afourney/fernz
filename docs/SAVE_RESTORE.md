@@ -71,7 +71,7 @@ def save_game(data: bytes) -> bool:
     return True
 
 env = FernzEnv(
-    "games/jericho-game-suite/zork1.z5",
+    "games/zork1.z5",
     seed=12,
     save_handler=save_game,
     restore_handler=lambda: slot.get("game"),
@@ -104,7 +104,7 @@ failed execution still requires reset or a valid host checkpoint before reuse.
 Use the game's own SAVE and RESTORE commands:
 
 ```sh
-uv run fernz games/jericho-game-suite/zork1.z5
+uv run fernz games/zork1.z5
 ```
 
 When the corresponding opcode executes, the CLI asks for a filename. A blank

@@ -375,12 +375,13 @@ def test_download_mode_without_story_or_frontend(tmp_path, monkeypatch, capsys, 
     monkeypatch.setattr(_cli, "find_spec", lambda name: pytest.fail("No UI for downloads"))
     args = ["--download-games"] + ([destination] if destination else [])
     assert _cli.main(args) == 0
-    suite = Path(destination or "games") / "jericho-game-suite"
+    suite = Path(destination or "games")
     assert (suite / "zork1.z5").is_file()
+    assert not (suite / "jericho-game-suite").exists()
     captured = capsys.readouterr()
     assert str(suite) in captured.out
     assert captured.err == ""
-    story = suite / "zork1.z5" if destination else Path("jericho-game-suite/zork1.z5")
+    story = suite / "zork1.z5" if destination else Path("zork1.z5")
     assert _cli.main(["--simple", str(story)]) == 0
 
 

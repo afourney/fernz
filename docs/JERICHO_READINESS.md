@@ -176,7 +176,7 @@ For a customer that wants plain text, the basic conversion is small:
 ```python
 from fernz import FernzEnv
 
-env = FernzEnv("games/jericho-game-suite/zork1.z5", seed=12)
+env = FernzEnv("games/zork1.z5", seed=12)
 try:
     observation, info = env.reset()
     opening_text = observation.text

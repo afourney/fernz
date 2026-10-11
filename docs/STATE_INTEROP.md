@@ -28,7 +28,7 @@ from fernz import FernzEnv
 from jericho import FrotzEnv
 from tests.state_bridge import StateBridge
 
-path = "games/jericho-game-suite/zork1.z5"  # This fixture is V3.
+path = "games/zork1.z5"  # This fixture is V3.
 reference = FrotzEnv(path, seed=12)
 env = FernzEnv(path, seed=12)
 try:

@@ -41,23 +41,23 @@ and play Zork I:
 
 ```sh
 fernz --download-games
-fernz jericho-game-suite/zork1.z5
+fernz zork1.z5
 ```
 
-The download extracts only the archive's `jericho-game-suite` into
-`./games/jericho-game-suite/`, matching the test fixture. Games are distributed
+The download extracts only the contents of the archive's `jericho-game-suite`
+directly into `./games/`, matching the test fixture. Games are distributed
 separately and retain their own copyrights and licenses. This Zork I file
 contains a V3 story despite its `.z5` extension.
 
 To choose a destination, use `fernz --download-games /path/to/collection`, then
-`fernz /path/to/collection/jericho-game-suite/zork1.z5`. Existing destinations
-with a suite are reused without downloading or overwriting files; an existing
-destination without that suite reports an error.
+`fernz /path/to/collection/zork1.z5`. Existing destinations containing `zork1.z5`
+are reused without downloading or overwriting files; an existing destination
+without that file reports an error.
 
 You can also bring your own raw Z-machine story. Fernz first tries the exact
 supplied path, then, only if it is missing and relative, the same path under
-`./games`. For example, `jericho-game-suite/zork1.z5` falls back to
-`./games/jericho-game-suite/zork1.z5`. There is no extension guessing or other
+`./games`. For example, `zork1.z5` falls back to
+`./games/zork1.z5`. There is no extension guessing or other
 search. Errors reading an existing path are reported without falling back.
 This lookup also applies to `--inspect`; the Python API uses explicit paths.
 
@@ -72,7 +72,7 @@ The game's `save` and `restore` commands open file dialogs.
 ```python
 from fernz import FernzEnv
 
-env = FernzEnv("games/jericho-game-suite/zork1.z5", seed=42)
+env = FernzEnv("games/zork1.z5", seed=42)
 try:
     observation, info = env.reset()
     print(observation.text, end="")

@@ -6,7 +6,7 @@ tuple element. The other tuple elements retain their existing meanings.
 ```python
 from fernz import FernzEnv
 
-env = FernzEnv("games/jericho-game-suite/zork1.z5", screen_width=80, screen_height=25)
+env = FernzEnv("games/zork1.z5", screen_width=80, screen_height=25)
 observation, info = env.reset()
 print(observation.text, end="")
 observation, reward, done, info = env.step("open mailbox")

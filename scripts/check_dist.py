@@ -203,7 +203,7 @@ def main() -> None:
         for entry_point in ([str(command)], [str(python), "-I", "-m", "fernz"]):
             for args, code, message in (
                 (["--help"], 0, "--download-games"),
-                (["--simple", "jericho-game-suite/zork1.z5"], 0, "A\n>\nl"),
+                (["--simple", "zork1.z5"], 0, "A\n>\nl"),
                 ([str(Path(tmp) / "missing.z3")], 2, "fernz:"),
                 (["--inspect", str(game)], 0, '"version": 3'),
                 ([str(game)], 0, "A\n>\nl"),
