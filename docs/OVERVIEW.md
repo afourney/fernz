@@ -220,8 +220,9 @@ The final turn executes `quit` and has no prompt. At that boundary only, tests
 assert two observed differences: Jericho adds one trailing newline and reports
 395 moves, whereas Fernz returns the story's status global of 394. Both endings
 print 394 moves, as does the standalone Frotz executable. The complete remaining
-ending text, reward, score, and quit status must match. The runtime stops at
-`quit`; it has no Zork-specific victory detection or move-count adjustment.
+ending text, reward, score, and quit status must match. The execution core stops
+at `quit` without adjusting the move count. Separate profile-based outcome
+queries report response events without changing that execution boundary.
 
 There are no expected failures. A separate command-parsing comparison covers uppercase,
 extra spaces, dictionary truncation, unknown words, and punctuation. Synthetic
@@ -365,7 +366,7 @@ restart leaves any opcode-seeded predictable mode and reapplies the host RNG
 policy: an explicit seed repeats its sequence, while `None` requests fresh
 entropy. A seed restored through `set_state()` also governs later restarts.
 Host storage and output callbacks remain attached, and existing save files and
-immutable checkpoints remain usable. There is no checkpoint schema change.
+immutable checkpoints remain usable within the supported schema.
 
 Already emitted text remains in the current observation and is streamed only
 once. The selected screen stream survives restart, matching public black-box
@@ -394,7 +395,8 @@ The current `env.memory` object keeps its identity during restore.
 | `input_request` | Resolved text/parse buffer addresses and instruction address for a suspended read, or `None` after quit. |
 | `rng` | Generator state, counting period/position, and host seed policy. Restore consumes no entropy or random draw. |
 | `screen_enabled`, `halted` | Output selection and whether the VM has executed quit. Earlier observations have already been drained and are not replayed. |
-| `story_sha256`, `format_version` | Identity of the original addressable story image, excluding file padding, and the Fernz snapshot schema version (currently 1). |
+| `game_over`, `victory` | Profile-classified loss/victory flags for the last completed response. These are independent of VM quit and preserve queries without retaining the transcript. |
+| `story_sha256`, `format_version` | Identity of the original addressable story image, excluding file padding, and the Fernz snapshot schema version (currently 2). |
 
 Memory alone is insufficient: local variables, stacks, and the execution
 continuation live outside story RAM. Returned checkpoints own immutable bytes
@@ -412,7 +414,7 @@ later reset, `random 0`, or restart still obtains fresh entropy. Use an explicit
 replays that include reseeding.
 
 The pending next-reset choice from `seed()` is environment configuration, outside
-the unchanged checkpoint schema. `set_state()` restores the checkpoint's active
+the checkpoint. `set_state()` restores the checkpoint's active
 host seed and uses that for future resets, replacing any pending choice.
 
 This API follows Jericho's public save/restore workflow using Fernz's own state
@@ -464,6 +466,28 @@ verifies that both original environments remain unchanged. The known final
 move-count difference remains explicit: Fernz reads 394 from the story, while
 Jericho reports 395. Further checks query status after save, restore, restart,
 reset, and host checkpoint restoration.
+
+## Locations and story outcomes
+
+`get_player_location()` returns a detached, immutable `Location(num, name)`.
+The Zork I profile uses the known player's immediate parent, including its boat;
+other V3 stories use the status-line location global. Names retain the complete
+decoded story short name. Zero returns `None`; malformed object data raises
+an error without advancing the game.
+
+An exact story-image profile supplies Zork I's `get_max_score()` (350) and
+response-based `game_over()` / `victory()` queries. Unknown builds raise
+`NotImplementedError` for these metadata/outcome queries. Location and outcome
+queries require initialized state; the static score limit is available as soon
+as the story is loaded.
+
+Public probes show that Zork's first two canyon deaths report loss while still
+allowing play, and a later ordinary response clears it. Victory is reported on
+entering the barrow, rather than merely reaching 350 points. Voluntary quit
+reports neither. Fernz keeps VM `done` separate from these response events and
+stores the two flags in schema-2 checkpoints so copy/restore preserve them.
+No transcript is retained. See [story queries](STORY_QUERIES.md) for the profile
+identity, evidence, name differences, schema change, and required CI coverage.
 
 ## Story-level save and restore
 
@@ -558,7 +582,7 @@ After `uv sync --dev`, run `uv run fernz --help` or
 `uv run python -m fernz --help`. The installed `fernz` command targets
 `fernz._cli:main` inside `src/fernz/`. Modules prefixed with `_` are private;
 import `Story`, `StoryHeader`, `Memory`, `StoryFormatError`, `MemoryAccessError`,
-`ExecutionError`, `UnsupportedOpcodeError`, `GameState`, and `FernzEnv` from `fernz` for the public library
+`ExecutionError`, `UnsupportedOpcodeError`, `GameState`, `Location`, and `FernzEnv` from `fernz` for the public library
 interface and `fernz` or `python -m fernz` for the public CLI.
 `fernz --inspect GAME` prints JSON metadata and exits with 0. It reports both
 physical file size and logical story size, plus checksum validity (null when
@@ -584,6 +608,9 @@ The deliberately small public contract is:
 | `env.seed(seed=None)` | Validate and return `int` in `0..2**31-1`, or `None` for automatic seeding, to apply on the next host reset. Does not change the active episode. An omitted argument selects automatic seeding. |
 | `env.copy()` | Fork mutable execution state and both active/pending seed policies without executing or reading files. Share immutable story data and host callback references. |
 | `env.get_score()`, `env.get_moves()` | Read the current V3 score and move-count globals as integers, including after quit. Require initialized state; time-based status games raise `NotImplementedError`. |
+| `env.get_max_score()` | Read the exact story profile's score limit, including before reset. Unknown story images raise `NotImplementedError`. |
+| `env.get_player_location()` | Return a detached `Location(num, name)` or `None` for location zero. Use the known player's immediate parent when profiled, otherwise the V3 status location. Require initialized state; preserve full story short names. |
+| `env.game_over()`, `env.victory()` | Read loss/victory flags classified from the last completed response. Require initialized state and a supported story profile. Copies and checkpoints retain these flags independently of VM quit. |
 | `env.step(action: str, *, max_steps=250_000)` | Complete a pending V3 read and return `(observation: str, reward: int, done: bool, info: dict[str, object])`. Reward is the signed score delta, or zero for time games. The observation contains new output, including the Enter newline and any story prompt. |
 | `env.get_state()` | Return an immutable `GameState` after reset, step, or a successful restore. Raises `RuntimeError` before initialization or after execution failure. |
 | `env.set_state(state)` | Validate and restore a Fernz checkpoint for the same story, including RNG and host seed; return `None`. May be called before reset, after quit, or after execution failure. Invalid input leaves the environment unchanged. |
@@ -604,9 +631,10 @@ execution fails raises `RuntimeError`; reset or restore a runnable checkpoint.
 
 The [Cabin Fever compatibility audit](CABIN_FEVER_COMPATIBILITY.md) covers the
 server, standalone player, and custom snapshot persistence at a pinned consumer
-revision. In addition to current V3 interaction and score/move queries, it needs
-maximum score, room objects with stable numbers and names, and loss/victory
-queries. The target is future integration: Cabin Fever may change its calls and
+revision. Fernz now provides maximum score, location objects with stable numbers
+and full names, and loss/victory queries for the tested Zork I build, alongside
+its existing V3 interaction and score/move queries. The target is future
+integration: Cabin Fever may change its calls and
 adopt a new save format based on Fernz's immutable checkpoints. Importing existing
 `.bin` saves and preserving their tuple layout are out of scope. Its optional
 change of RNG trajectory on server reload needs an explicit adapter policy,

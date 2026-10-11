@@ -3,6 +3,7 @@
 from ._env import FernzEnv
 from ._errors import ExecutionError, UnsupportedOpcodeError
 from ._memory import Memory, MemoryAccessError
+from ._objects import Location
 from ._state import GameState
 from ._story import Story, StoryFormatError, StoryHeader
 
@@ -10,6 +11,7 @@ __all__ = [
     "ExecutionError",
     "FernzEnv",
     "GameState",
+    "Location",
     "Memory",
     "MemoryAccessError",
     "Story",

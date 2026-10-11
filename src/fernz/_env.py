@@ -1,6 +1,7 @@
 """Public story environment with V3 text interaction."""
 
 from copy import copy as shallow_copy
+from dataclasses import replace
 from operator import index
 from os import PathLike
 from pathlib import Path
@@ -9,6 +10,8 @@ from ._errors import ExecutionError
 from ._host_io import HostIO, OutputHandler, RestoreHandler, SaveHandler
 from ._machine import Machine, signed
 from ._memory import Memory
+from ._objects import Location
+from ._profiles import StoryProfile, profile_for
 from ._random import validate_host_seed
 from ._state import GameState
 from ._story import Story
@@ -46,6 +49,9 @@ class FernzEnv:
         self._seed = validate_host_seed(seed)
         self._io = HostIO(save_handler, restore_handler, output_handler)
         self._machine: Machine | None = None
+        self._profile = profile_for(self.story)
+        self._game_over = False
+        self._victory = False
 
     def seed(self, seed: int | None = None) -> int | None:
         """Select and return the host seed for the next reset(), without executing.
@@ -70,7 +76,23 @@ class FernzEnv:
         machine = Machine(self.memory, seed=self._seed, io=self._io)
         observation = machine.run(max_steps=max_steps)
         self._machine = machine
+        self._record_outcomes(observation)
         return observation, self._info()
+
+    def _record_outcomes(self, observation: str) -> None:
+        self._game_over, self._victory = (
+            self._profile.outcomes(observation) if self._profile else (False, False)
+        )
+
+    def _require_profile(self) -> StoryProfile:
+        if self._profile is None:
+            raise NotImplementedError("No story profile is available for this story image")
+        return self._profile
+
+    def _require_machine(self) -> Machine:
+        if self._machine is None:
+            raise RuntimeError("Call reset() or set_state() before reading game status")
+        return self._machine
 
     def _info(self) -> dict[str, int]:
         assert self._machine is not None
@@ -106,16 +128,61 @@ class FernzEnv:
         """
         return self._status_value("moves")
 
+    def get_max_score(self) -> int:
+        """Return the known score limit, even before reset or after failure.
+
+        Require an exact supported story image; unknown builds raise
+        NotImplementedError. This is metadata, not a value inferred from play.
+        """
+        return self._require_profile().max_score
+
+    def get_player_location(self) -> Location | None:
+        """Read the player's location as a detached number and full story name.
+
+        Require reset() or set_state(); work for both score and time games.
+        A profile's known player object supplies its immediate parent, which
+        can be a vehicle. Otherwise use the V3 status location convention.
+        A zero location means unavailable and returns None. Malformed object
+        data raises ExecutionError or MemoryAccessError without executing.
+        """
+        machine = self._require_machine()
+        if self._profile is not None and self._profile.player_object is not None:
+            number = machine.objects.parent(self._profile.player_object)
+        else:
+            number = machine.read_variable(16)
+        return Location(number, machine.objects.name(number)) if number else None
+
+    def game_over(self) -> bool:
+        """Whether the latest response reported a loss in a supported story.
+
+        Require initialized state and a story profile. This includes Zork's
+        recoverable deaths, clears on an ordinary response, and is independent
+        of VM quit. Checkpoints and copies preserve the reported outcome.
+        """
+        self._require_machine()
+        self._require_profile()
+        return self._game_over
+
+    def victory(self) -> bool:
+        """Whether the latest response reported victory in a supported story.
+
+        Require initialized state and a story profile. A maximum score or quit
+        alone does not imply victory. Reading the flag never advances play.
+        """
+        self._require_machine()
+        self._require_profile()
+        return self._victory
+
     def get_state(self) -> GameState:
         """Return an immutable, independent checkpoint after reset() or step().
 
-        Capture RAM, routine frames, PC, pending input, output selection, and
-        RNG state. A checkpoint can be reused in any FernzEnv for the same story.
+        Capture RAM, routine frames, PC, pending input, output selection, RNG,
+        and response outcomes. Reuse a checkpoint in any FernzEnv for the same story.
         After an execution failure, reset or restore before taking a snapshot.
         """
         if self._machine is None:
             raise RuntimeError("Call reset() or set_state() before get_state()")
-        return self._machine.get_state()
+        return replace(self._machine.get_state(), game_over=self._game_over, victory=self._victory)
 
     def set_state(self, state: GameState) -> None:
         """Restore a checkpoint without executing instructions or emitting output.
@@ -128,6 +195,7 @@ class FernzEnv:
         machine = Machine.from_state(self.memory, state, io=self._io)
         self._machine = machine
         self._seed = state.rng.host_seed
+        self._game_over, self._victory = state.game_over, state.victory
 
     def copy(self) -> "FernzEnv":
         """Fork memory, frames, pending input, and RNG without advancing the game.
@@ -177,6 +245,7 @@ class FernzEnv:
         self._machine = None  # Execution failure requires a fresh episode.
         observation = machine.run(max_steps=max_steps)
         self._machine = machine
+        self._record_outcomes(observation)
         info = self._info()
         return observation, info.get("score", 0) - before, self.done, info
 

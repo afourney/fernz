@@ -1,0 +1,130 @@
+# Locations, score limits, and outcomes
+
+Fernz exposes `get_player_location()`, `get_max_score()`, `game_over()`, and
+`victory()` alongside its existing score and move queries. These methods read
+state without executing instructions, emitting text, or consuming randomness.
+This work changes Fernz only; Cabin Fever is a reference consumer.
+
+## Location results
+
+`get_player_location()` returns a frozen `Location(num: int, name: str)` or
+`None` when the selected location number is zero. Import `Location` from `fernz`.
+The result is detached: subsequent movement or restoration does not change an
+earlier result. Names are the complete decoded object short names, including
+their original spacing. An empty object name remains an empty string.
+
+For the supported Zork I build, the location is the immediate parent of player
+object 4. Public reference queries at all 397 boundaries of the opening and
+walkthrough confirm this relationship. A vehicle can therefore be the location:
+after command 218, entering the boat returns object 156, `magic boat`, while the
+status-line global still contains surrounding room 33, `White Cliffs Beach`.
+
+For other V3 stories, Fernz uses the status-line convention in Standard
+[§8.2.2](https://inform-fiction.org/zmachine/standards/z1point1/sect08.html):
+the first global identifies the object whose short name is displayed. This
+fallback works for score and time games; it is not a guarantee that every game
+uses that object as the player's immediate container. Later execution versions
+need their own location conventions rather than assuming this V3 global layout.
+
+Location queries require successful reset or checkpoint restoration and work
+after quit. Malformed object numbers or property/name data raise an execution
+or memory error without altering state. The object name is decoded according to
+Standard [§12](https://inform-fiction.org/zmachine/standards/z1point1/sect12.html)
+and [§3](https://inform-fiction.org/zmachine/standards/z1point1/sect03.html).
+
+Jericho 3.3.1 sometimes returns shortened names. Fernz intentionally keeps the
+story names; the required reference tests assert these differences explicitly:
+
+| Object | Fernz | Jericho 3.3.1 |
+| --- | --- | --- |
+| 180 | `West of House` | `West House` |
+| 81 | `North of House` | `North House` |
+| 193 | `Living Room` | `Living ` (trailing space) |
+| 25 | `Canyon View` | `CanyView` |
+| 178 | `Stone Barrow` | `Stone Barrow` |
+| 156 | `magic boat` | `magic boat` |
+
+## Story profiles
+
+Score limits and outcome rules are game conventions, outside the Z-machine
+instruction set. Private, immutable profiles contain this metadata separately
+from opcode execution. Only the retained Zork I release 88, serial `840726`,
+checksum `0xa129` is currently profiled. Its maximum score is 350.
+
+Recognition uses SHA-256 of the original addressable story image, excluding
+file padding: `158f1f63b1302591bbce30e1ec23b17909d2a66e39403ed14593a75280b1e7f9`.
+The fixture's whole-file hash differs because its 92,160-byte file contains an
+84,876-byte logical image. Renaming or changing padding retains the profile;
+altering a logical story byte does not, even if the header identity is unchanged.
+Other releases must be measured independently before adding their profiles.
+
+`get_max_score()` reads this metadata and is available before reset, after quit,
+and after execution failure. Unknown story images raise `NotImplementedError`.
+`game_over()` and `victory()` require initialized execution state and a profile;
+they raise `RuntimeError` before initialization or after execution failure, and
+`NotImplementedError` for initialized but unprofiled stories. Unsupported games
+are not guessed to have a zero maximum score or a false outcome.
+
+## Response outcomes and VM termination
+
+The [public Jericho API](https://jericho-py.readthedocs.io/en/latest/frotz_env.html)
+describes loss and victory queries. Black-box calls with the pinned reference
+show that, for Zork I, these report events in the latest response:
+
+- Jumping from the canyon reports a loss even on the first two falls, when the
+  game revives the player and continues accepting commands. An ordinary response
+  on the next turn clears the loss report. The third death also halts the VM.
+- Reaching 350 points does not report victory. Entering the barrow at the end of
+  the walkthrough reports victory and halts the VM.
+- Voluntary quit reports neither loss nor victory.
+
+Replacing only the public reference snapshot's narrative with a placeholder
+clears its outcome query. Transferring the death or winning narrative into the
+opening snapshot changes that query without changing gameplay memory. These
+tests establish why RAM or score alone cannot reproduce this public behavior.
+No interpreter implementation is inspected.
+
+Fernz independently recognizes the observed complete response lines
+`**** You have died ****` and `Inside the Barrow` for this exact story profile,
+normalizing whitespace within each line. It does not search arbitrary substrings
+of player input or infer victory from score. These are response classifiers, not
+universal proofs of a game's internal win/loss state. They classify captured
+output only; suppressed output supplies no event to recognize.
+
+After every successful reset or step, Fernz stores two booleans. Queries read
+those flags, so no prior transcript is retained or reparsed. A rejected input
+leaves them intact. Story restart and Quetzal restore produce a new response and
+classify it normally; Quetzal does not save these host-side flags.
+
+`env.done` and `step()`'s done result continue to mean VM quit. This permits play
+after a recoverable death. A consumer that chooses to end its episode on a
+reported loss or victory can use, for a supported story:
+
+```python
+episode_done = env.done or env.game_over() or env.victory()
+```
+
+The reference tests keep these distinctions explicit. At the third death Fernz
+reports 16 moves and Jericho reports 17, although both print 16; at victory the
+equivalent values are 394 and 395. Fernz reads the story's actual counter at quit.
+
+## Checkpoints and validation
+
+`GameState` schema **2** adds `game_over` and `victory` boolean fields to the
+existing VM and RNG state. `get_state()`, `set_state()`, and `copy()` preserve
+them, including at input after a recoverable death and after terminal loss,
+victory, or quit. Restoration neither executes nor emits an old observation.
+The two fields are type-checked before committing changes; unsupported schema
+versions are rejected. Schema 1 cannot represent the captured outcomes.
+The deterministic RNG and pending-input contracts are unchanged.
+
+Required Linux reference tests compare location numbers, selected complete versus
+shortened names, maximum score, and both outcome queries throughout the entire
+winning walkthrough. They cover vehicles, recoverable and terminal deaths,
+voluntary quit, copies, checkpoint restoration, reset, restart, and Quetzal
+save/restore. Synthetic tests cover independent profiles, unsupported builds,
+immutable names, malformed locations, schema validation, and failed execution.
+
+Future work includes additional story profiles, later execution versions, a
+broader object API, and native snapshot persistence. Legacy Cabin Fever `.bin`
+imports and changes to the Cabin Fever repository are outside this thread.

@@ -9,6 +9,14 @@ from ._text import Text
 
 
 @dataclass(frozen=True, slots=True)
+class Location:
+    """A detached location number and its complete, decoded story short name."""
+
+    num: int
+    name: str
+
+
+@dataclass(frozen=True, slots=True)
 class Property:
     """The number, data address, and byte length of an object property."""
 

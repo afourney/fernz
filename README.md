@@ -97,7 +97,8 @@ env.close()
 ```
 
 The immutable `GameState` includes memory, call frames, PC, pending input, output
-selection, and RNG state. It can also initialize another environment for the
+selection, RNG state, and loss/victory response flags (schema 2).
+It can also initialize another environment for the
 same story. Restore validates the checkpoint before changing the live game and
 returns `None`, with no execution or output. Fernz uses its own named fields;
 Jericho tuples require conversion, and saved-game files use a separate format.
@@ -113,6 +114,16 @@ retain their existing seed semantics, described in [RNG compatibility](docs/RNG.
 `get_score()` and `get_moves()` read the current V3 status globals, including
 after quit. Time-based status games raise `NotImplementedError` for these
 queries; their `info` continues to expose hours and minutes.
+
+`get_player_location()` returns an immutable `Location` with `.num` and `.name`,
+using complete story names. A known player profile uses its immediate container
+(including vehicles); other V3 games use the status-line location convention.
+The retained Zork I build also supports `get_max_score()` (350), `game_over()`,
+and `victory()`. Outcome queries describe the latest response, including
+recoverable deaths, and survive checkpoint restoration and copying. `done`
+continues to indicate VM quit. Unknown builds raise `NotImplementedError` for
+score limits and outcome queries. See [story queries](docs/STORY_QUERIES.md) for
+the measured behavior, supported story identity, and reference differences.
 
 V3 `save` and `restore` opcodes use Quetzal files. Library callers supply
 `save_handler(data: bytes) -> bool` and `restore_handler() -> bytes | None`

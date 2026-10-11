@@ -53,6 +53,13 @@ must already be initialized with the same story and host seed. Its prior
 observation is set to `b"Observation not available"`; the next `step()` returns
 the newly generated observation normally.
 
+Schema-2 Fernz checkpoints also preserve compact loss/victory flags. Import
+classifies the public native narrative through a known Fernz story profile,
+including after Zork's recoverable death. Export still supplies the placeholder,
+so Jericho's narrative-based outcome queries are unavailable until it produces
+a new response. This affects outcome metadata, not the resumed VM trajectory.
+Terminal snapshots remain outside this input-boundary converter's contract.
+
 ## Measured public snapshot layout
 
 The pinned reference returns a nine-entry tuple:
