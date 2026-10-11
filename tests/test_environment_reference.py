@@ -34,7 +34,7 @@ def test_reference_zero_selects_the_games_recommended_seed(zork1):
 
 
 @pytest.mark.smoke
-@pytest.mark.parametrize("version", (3, 5))
+@pytest.mark.parametrize("version", (3, 5, 8))
 def test_seed_is_deferred_and_copy_preserves_fernz_active_host_policy(tmp_path, version):
     story = tmp_path / f"seeds.z{version}"
     story.write_bytes(seed_story(version))

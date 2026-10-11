@@ -245,3 +245,24 @@ The same `--v5-shard 1/3` selector partitions live tests, portable tests and
 `generate-vectors` / `check-vectors --only v5`. The long routes remain manual;
 automatic CI continues to check archive integrity without executing them.
 The 33 V5 ZIPs together occupy about 1.75 MB (1.67 MiB).
+
+## V8 vectors
+
+All six retained V8 games have `<rom>_vectors.zip` archives containing opening
+and action/persistence records. Lost Pig and Snack Time additionally contain
+`walkthrough.json` and `counters.json`, covering 146 and 34 commands through
+winning endings. Both record explicit seed 42. Together the six ZIPs occupy
+about 68 KB; they contain no narrative, ROM bytes, RAM dumps or save payloads.
+
+Each step hashes text, object entries/property tables and all 240 global words,
+and records RNG and pending input facts. Full routes also hash complete object,
+player/location and inventory query results, with counters, rewards and outcomes.
+The recorded raw reference outcomes remain available alongside Fernz's documented
+winning-menu interpretation. Counter probes test width and signedness separately
+from ordinary small gameplay scores.
+
+Regenerate or verify the entire group with `--only v8`, or select `--only lostpig`
+and another ROM stem individually. Comprehensive Linux jobs compare public
+reference behavior directly and check archive freshness; the V8 portable jobs
+run the same assertions without Jericho. Full walkthroughs stay outside fast PR
+checks. See [V8 compatibility](V8.md) for exact coverage and presentation rules.

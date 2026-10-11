@@ -112,6 +112,43 @@ def profile_for(story: Story) -> StoryProfile | None:
     return _PROFILES.get(digest)
 
 
+# Exact-image V8 metadata from public API probes; see docs/V8.md.
+_PROFILES.update(
+    {
+        # Lost Pig release 2, serial 080406.
+        "e07146727dfe66fb7fe1cef5e8d1e7e403a9cc80465d50f2ca7861a5c266cd56": StoryProfile(
+            max_score=7,
+            player_object=87,
+            score_byte=True,
+            score_signed=False,
+            loss_lines=frozenset(),
+            victory_lines=frozenset(),
+            loss_hashes=frozenset(
+                {"cfa7c3c0abfbfefe551a6fe9adfa3555249a22f740c7ced13cc86d14741d9d8c"}
+            ),
+            victory_hashes=frozenset(
+                {"baa5e6fea220950b5205ecaa513c7609fffd63d77d2c2edc4edf12613da0f83c"}
+            ),
+            victory_overrides_loss=True,
+        ),
+        # Snack Time release 1, serial 080929.
+        "5dadab996ae847974304dedffefe1f13a99a6cd5d14ea78dacfee4dd60a5d687": StoryProfile(
+            max_score=50,
+            player_object=44,
+            score_global=2,
+            moves_global=3,
+            score_byte=True,
+            score_signed=False,
+            loss_lines=frozenset(),
+            victory_lines=frozenset(),
+            victory_hashes=frozenset(
+                {"2eef407b5188a23884770c3fdce52ec9ebd4f2d39746c5d773a30db843808105"}
+            ),
+        ),
+    }
+)
+
+
 # Retained V3 profiles measured through public API calls; see docs/V3_GAMES.md.
 _PROFILES.update(
     {

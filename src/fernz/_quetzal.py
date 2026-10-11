@@ -1,4 +1,4 @@
-"""V3/V5 saved games from Quetzal 1.4, independent of host checkpoints."""
+"""V3/V5/V8 saved games from Quetzal 1.4, independent of host checkpoints."""
 
 from dataclasses import dataclass
 from struct import iter_unpack
@@ -72,8 +72,8 @@ def _decompress(data: bytes, original: bytes) -> bytes:
 
 def dumps(story: Story, state: SavedGame) -> bytes:
     """Encode IFhd, compressed dynamic memory, and oldest-first stack frames."""
-    if story.header.version not in (3, 5):
-        raise SaveFormatError("Saved-game execution currently supports V3 and V5")
+    if story.header.version not in (3, 5, 8):
+        raise SaveFormatError("Saved-game execution currently supports V3, V5 and V8")
     stack = bytearray()
     for number, frame in enumerate(state.frames):
         if len(frame.stack) > 0xFFFF:
@@ -86,7 +86,7 @@ def dumps(story: Story, state: SavedGame) -> bytes:
         for value in (*frame.locals, *frame.stack):
             stack.extend(value.to_bytes(2, "big"))
         if number == 0 and stack[:6] != b"\x00" * 6:
-            raise SaveFormatError("Invalid initial V3 frame")
+            raise SaveFormatError("Invalid initial frame")
     header = _identity(story) + state.pc.to_bytes(3, "big")
     original = story.data[: story.header.static_memory]
     body = b"IFZS" + _chunk(b"IFhd", header)
@@ -117,7 +117,7 @@ def _frames(data: bytes, story: Story) -> tuple[FrameState, ...]:
         words = tuple(word for (word,) in iter_unpack(">H", data[cursor:end]))
         if not frames:
             if pc or flags or store or arguments:
-                raise SaveFormatError("Invalid initial V3 frame")
+                raise SaveFormatError("Invalid initial frame")
             frame = FrameState((), words, None, None)
         else:
             if not 0 < pc <= story.size:
@@ -131,19 +131,19 @@ def _frames(data: bytes, story: Story) -> tuple[FrameState, ...]:
         frames.append(frame)
         cursor = end
     if not frames:
-        raise SaveFormatError("Missing initial V3 frame")
+        raise SaveFormatError("Missing initial frame")
     return tuple(frames)
 
 
 def loads(story: Story, data: bytes) -> SavedGame:
-    """Read a V3/V5 Quetzal file without changing a running game.
+    """Read a V3/V5/V8 Quetzal file without changing a running game.
 
     Accept compressed or uncompressed memory, skip unknown chunks, and use the
     first occurrence of each required component (Quetzal §8.8). All sizes are
     checked against the supplied bytes before reading or expanding data.
     """
-    if story.header.version not in (3, 5):
-        raise SaveFormatError("Saved-game execution currently supports V3 and V5")
+    if story.header.version not in (3, 5, 8):
+        raise SaveFormatError("Saved-game execution currently supports V3, V5 and V8")
     if not isinstance(data, bytes):
         raise TypeError("A restore handler must return bytes or None")
     if len(data) < 12 or data[:4] != b"FORM" or data[8:12] != b"IFZS":

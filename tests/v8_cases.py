@@ -8,6 +8,26 @@ from .vector_archive import STORYFILES_PATH, read_archive
 GAMES = tuple(name.removesuffix(".z8") for name in CORPUS[8])
 SEED = 42
 BOOT_ACTIONS = {"anchor": ("", "", ""), "snacktime": ("",), "partyfoul": ("", "no")}
+ROUTES = {
+    "lostpig": {
+        "length": 146,
+        "score": 6,
+        "max_score": 7,
+        "player": 87,
+        "objects": 536,
+        "score_global": 1,
+        "moves_global": 2,
+    },
+    "snacktime": {
+        "length": 34,
+        "score": 50,
+        "max_score": 50,
+        "player": 44,
+        "objects": 85,
+        "score_global": 2,
+        "moves_global": 3,
+    },
+}
 
 
 def archive_path(game):

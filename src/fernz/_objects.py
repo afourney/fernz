@@ -23,7 +23,7 @@ class ZObject:
     """A locally mutable object snapshot, detached from interpreter memory.
 
     Links are object numbers; zero means no link. Attributes are integer flags
-    indexed by attribute number (32 flags in V3, 48 in V5). Properties lists
+    indexed by attribute number (32 flags in V3, 48 in V5/V8). Properties lists
     supplied property numbers in encoded order (normally descending), padded
     to at least 16 entries with zeros for Jericho
     callers. Property values and defaults are not included. Names retain the
