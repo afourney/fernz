@@ -520,9 +520,19 @@ move-count difference remains explicit: Fernz reads 394 from the story, while
 Jericho reports 395. Further checks query status after save, restore, restart,
 reset, and host checkpoint restoration.
 
-## Locations and story outcomes
+## Object inspection, locations, and story outcomes
 
-`get_player_location()` returns a detached, immutable `Location(num, name)`.
+`get_object(n)`, `get_world_objects(clean=False)`, `get_player_object()`, and
+`get_inventory()` provide detached, locally mutable `ZObject` snapshots for V3.
+Fields include full names, parent/sibling/child links, attributes, and property
+numbers. Direct lookup and enumeration infer the object count from the original
+story's table layout; unsupported layouts raise `NotImplementedError`. Player
+and inventory queries require a known player profile. `clean=True` is deferred.
+See [object inspection](OBJECT_INSPECTION.md) for contracts, traversal examples,
+reference differences, and required CI coverage.
+
+`get_player_location()` now returns the same complete `ZObject` snapshot type,
+retaining the existing `.num` and `.name` fields.
 The Zork I profile uses the known player's immediate parent, including its boat;
 other V3 stories use the status-line location global. Names retain the complete
 decoded story short name. Zero returns `None`; malformed object data raises
@@ -635,8 +645,10 @@ After `uv sync --dev`, run `uv run fernz --help` or
 `uv run python -m fernz --help`. The installed `fernz` command targets
 `fernz._cli:main` inside `src/fernz/`. Modules prefixed with `_` are private;
 import `Story`, `StoryHeader`, `Memory`, `StoryFormatError`, `MemoryAccessError`,
-`ExecutionError`, `UnsupportedOpcodeError`, `GameState`, `Location`, and `FernzEnv` from `fernz` for the public library
+`ExecutionError`, `UnsupportedOpcodeError`, `GameState`, `ZObject`, and `FernzEnv` from `fernz` for the public library
 interface and `fernz` or `python -m fernz` for the public CLI.
+The earlier immutable `Location` value remains importable, but location queries
+now return `ZObject`.
 `fernz --inspect GAME` prints JSON metadata and exits with 0. It reports both
 physical file size and logical story size, plus checksum validity (null when
 unavailable). A checksum mismatch is reported as false without rejecting the
@@ -662,7 +674,10 @@ The deliberately small public contract is:
 | `env.copy()` | Fork mutable execution state and both active/pending seed policies without executing or reading files. Share immutable story data and host callback references. |
 | `env.get_score()`, `env.get_moves()` | Read the current V3 score and move-count globals as integers, including after quit. Require initialized state; time-based status games raise `NotImplementedError`. |
 | `env.get_max_score()` | Read the exact story profile's score limit, including before reset. Unknown story images raise `NotImplementedError`. |
-| `env.get_player_location()` | Return a detached `Location(num, name)` or `None` for location zero. Use the known player's immediate parent when profiled, otherwise the V3 status location. Require initialized state; preserve full story short names. |
+| `env.get_object(obj_num)` | Return a detached `ZObject` or `None` for an absent number, including zero. Require initialized V3 state and an enumerable initial layout. |
+| `env.get_world_objects(clean=False)` | Return a list of detached objects indexed by number, with an empty slot zero. Include disconnected and unnamed objects. Require initialized V3 state and an enumerable initial layout; `clean=True` raises `NotImplementedError`. |
+| `env.get_player_object()`, `env.get_inventory()` | Return the known player object, or a list of its immediate children in sibling order. Require initialized state and a known player profile. |
+| `env.get_player_location()` | Return a complete detached `ZObject` or `None` for location zero. Use the known player's immediate parent when profiled, otherwise the V3 status location. Require initialized state; preserve full story short names. |
 | `env.game_over()`, `env.victory()` | Read loss/victory flags classified from the last completed response. Require initialized state and a supported story profile. Copies and checkpoints retain these flags independently of VM quit. |
 | `env.step(action: str, *, max_steps=250_000)` | Complete a pending V3 read and return `(observation: str, reward: int, done: bool, info: dict[str, object])`. Reward is the signed score delta, or zero for time games. The observation contains new output, including the Enter newline and any story prompt. |
 | `env.get_state()` | Return an immutable `GameState` after reset, step, or a successful restore. Raises `RuntimeError` before initialization or after execution failure. |

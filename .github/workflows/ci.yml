@@ -72,6 +72,8 @@ jobs:
       # Require in-game restart, RNG reseeding, and the full walkthrough after restart.
       # Compare environment copies, deferred host seeds, and score/move queries.
       # Compare locations (including vehicles), score limits, and loss/victory queries.
+      # Compare raw world objects, direct lookup, player, and inventory throughout
+      # the walkthrough, including detached snapshots, vehicles, and death states.
       # Branch off the walkthrough with invalid inputs, red herrings, and seeded combat.
       # Compare transcripts and complete converted VM state after every detour turn.
       - run: uv run --no-sync poe test-reference

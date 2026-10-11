@@ -54,7 +54,7 @@ Matching a method name is insufficient when the data or behavior differs.
 | `get_state()`, `set_state(state)` | Autosave each turn; restore without advancing the game or emitting output. The existing save codec requires a nine-field tuple. | Deterministic checkpoints are available, using immutable named fields. Update the consumer to persist Fernz snapshots in a new format; legacy tuple conversion is out of scope for this integration. |
 | `get_score()`, `get_moves()` | Read actual restored values, instead of trusting save-file metadata. | Available for V3 score-based games, including after quit. Time-based games need additional metadata; the final Zork move count has a documented difference. |
 | `get_max_score()` | Render `Score current/maximum` whenever info includes a score. | Available for the exact profiled Zork I build: 350. Unknown builds raise `NotImplementedError`. |
-| `get_player_location()` | Return an object with integer `.num` and string `.name`, or no supported location. Both form the map key. | Available as immutable `Location`, using the profiled player's immediate parent or the V3 status fallback. Full names can differ from the reference's shortened names. |
+| `get_player_location()` | Return an object with integer `.num` and string `.name`, or no supported location. Both form the map key. | Available as detached, locally mutable `ZObject`, using the profiled player's immediate parent or the V3 status fallback. Full names can differ from the reference's shortened names. |
 | `game_over()`, `victory()` | Recompute terminal status after restoring; the console also queries it after loading a ROM. | Available for the profiled Zork I build as latest-response flags, preserved in checkpoints. VM quit remains separate; unknown builds raise `NotImplementedError`. |
 | `env.frotz_lib.getRAMSize()` | Check the saved RAM length against the loaded story before restoring. | Consumer migration: use `env.story.header.static_memory` or `len(env.get_state().ram)`, plus story identity validation. No native compatibility object is needed. |
 | `env.frotz_lib.setRng(a, interval, counter)` | After server restore, replace the RNG state when the saved interval is zero. | Consumer migration: an explicit RNG policy outside deterministic `set_state()` is needed. Deferred `seed()` is not equivalent. |
@@ -66,6 +66,9 @@ and `SaveStore`. The consumer does not call `get_valid_actions()`,
 `get_dictionary()`, `get_inventory()`, `get_world_objects()`,
 `get_world_state_hash()`, `get_walkthrough()`, or access `bindings`.
 These remain separate parts of the broader Jericho compatibility goal.
+Raw `get_world_objects()` and `get_inventory()` are now available as described
+in [object inspection](OBJECT_INSPECTION.md); this does not change the audited
+consumer's calls.
 
 ## Behavioral requirements
 
@@ -156,7 +159,7 @@ game profile. Retain Fernz's existing excluded-game policy when selecting ROMs.
 
 ## Implementation progress and remaining CI acceptance
 
-1. Implemented: immutable locations and exact-image story profiles, initially
+1. Implemented: detached locations and exact-image story profiles, initially
    validated for the retained Zork I build. `get_player_location()` and
    `get_max_score()` have no game-specific logic in opcode execution. Required
    reference tests compare room/container numbers and score limits throughout

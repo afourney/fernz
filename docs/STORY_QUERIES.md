@@ -7,11 +7,16 @@ This work changes Fernz only; Cabin Fever is a reference consumer.
 
 ## Location results
 
-`get_player_location()` returns a frozen `Location(num: int, name: str)` or
-`None` when the selected location number is zero. Import `Location` from `fernz`.
+`get_player_location()` now returns a locally mutable `ZObject` or `None` when
+the selected location number is zero. Import `ZObject` from `fernz`.
 The result is detached: subsequent movement or restoration does not change an
 earlier result. Names are the complete decoded object short names, including
 their original spacing. An empty object name remains an empty string.
+The earlier immutable `Location(num, name)` return type has been replaced by the
+complete object record, preserving `.num` and `.name`. See
+[object inspection](OBJECT_INSPECTION.md) for the remaining fields and raw tree,
+direct lookup, player, and inventory methods. `Location` remains importable as a
+legacy value type.
 
 For the supported Zork I build, the location is the immediate parent of player
 object 4. Public reference queries at all 397 boundaries of the opening and
@@ -125,6 +130,6 @@ voluntary quit, copies, checkpoint restoration, reset, restart, and Quetzal
 save/restore. Synthetic tests cover independent profiles, unsupported builds,
 immutable names, malformed locations, schema validation, and failed execution.
 
-Future work includes additional story profiles, later execution versions, a
-broader object API, and native snapshot persistence. Legacy Cabin Fever `.bin`
+Future work includes additional story profiles, later execution versions,
+cleaned world inspection, and native snapshot persistence. Legacy Cabin Fever `.bin`
 imports and changes to the Cabin Fever repository are outside this thread.
