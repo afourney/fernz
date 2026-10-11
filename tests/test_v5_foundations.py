@@ -182,8 +182,7 @@ def test_v5_objects_have_word_links_48_attributes_and_long_properties():
     objects.put(1, 33, 0xCAFE)
     assert objects.get(1, 33) == 0xFE
     assert objects.next_property(1, 63) == 62 and objects.next_property(1, 33) == 0
-    with pytest.raises(ExecutionError, match="one- or two-byte"):
-        objects.get(1, 63)
+    assert objects.get(1, 63) == 0xC000  # Legacy long-property scalar read.
 
 
 @pytest.mark.parametrize("version", (3, 5))

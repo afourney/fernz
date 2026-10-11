@@ -8,7 +8,7 @@ from fernz import FernzEnv
 
 from .test_restart_reference import synthetic_reference
 from .test_save_restore import results
-from .v5_legacy_story import duplicate_story, zero_story
+from .v5_legacy_story import duplicate_story, long_property_story, zero_story
 
 pytestmark = pytest.mark.reference
 
@@ -16,8 +16,20 @@ pytestmark = pytest.mark.reference
 @pytest.mark.parametrize(
     "image,expected",
     [(duplicate_story(), [11, 9, 33, 99])]
-    + [(zero_story(*pair), [2, 1]) for pair in ((0, 2), (1, 0), (0, 0))],
-    ids=("duplicate-properties", "zero-source", "zero-destination", "both-zero"),
+    + [(zero_story(*pair), [2, 1]) for pair in ((0, 2), (1, 0), (0, 0))]
+    + [
+        (long_property_story(size), [value])
+        for size, value in ((3, -31982), (8, -30702), (64, -32750))
+    ],
+    ids=(
+        "duplicate-properties",
+        "zero-source",
+        "zero-destination",
+        "both-zero",
+        "long-3",
+        "long-8",
+        "long-64",
+    ),
 )
 def test_synthetic_legacy_operations_match_both_references(tmp_path, dfrotz, image, expected):
     path = tmp_path / "objects.z5"

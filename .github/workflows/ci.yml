@@ -101,6 +101,20 @@ jobs:
       - run: uv run --no-sync poe test-v3-reference --v3-shard ${{ matrix.shard }}
       - run: uv run --no-sync poe check-vectors --only v3 --v3-shard ${{ matrix.shard }}
 
+  reference-v5:
+    name: reference V5
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+          version: "0.12.23"
+      - run: uv sync --frozen --group reference
+      - run: uv run --no-sync poe test-v5-reference
+      - run: uv run --no-sync poe check-vectors --only v5
+
   portable:
     name: portable (${{ matrix.os }}, Python 3.12, ${{ matrix.group }})
     runs-on: ${{ matrix.os }}
@@ -110,7 +124,7 @@ jobs:
       matrix:
         # Hosted x64 Windows is Server 2025; ARM uses Windows 11.
         os: [macos-latest, windows-2025, windows-11-arm]
-        group: [core, "1/3", "2/3", "3/3"]
+        group: [core, "1/3", "2/3", "3/3", v5]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -126,8 +140,10 @@ jobs:
       # do not cache or upload the games directory.
       - if: matrix.group == 'core'
         run: uv run --no-sync poe test-vectors-core
-      - if: matrix.group != 'core'
+      - if: matrix.group != 'core' && matrix.group != 'v5'
         run: uv run --no-sync poe test-v3-vectors --v3-shard ${{ matrix.group }}
+      - if: matrix.group == 'v5'
+        run: uv run --no-sync poe test-v5-vectors
 
   build:
     runs-on: ubuntu-latest

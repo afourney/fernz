@@ -223,11 +223,16 @@ class Objects:
         return next((p for p in self.properties(obj) if p.number == number), None)
 
     def get(self, obj: int, number: int) -> int:
-        """Read a one- or two-byte property, falling back to its default."""
+        """Read a scalar property, with measured legacy V5 long-property behavior."""
         prop = self.find(obj, number)
         if prop is None:
             return self.memory.read_word(self.base + 2 * (number - 1))
         if prop.size not in (1, 2):
+            if not self.early:
+                # §15 leaves get_prop on long properties undefined. Legacy
+                # V5 executable probes return the trailing size byte followed
+                # by the first data byte. Acorn Court's parser relies on this.
+                return self.memory.read_word(prop.address - 1)
             raise ExecutionError(f"get_prop requires a one- or two-byte property: {number}")
         read = self.memory.read_byte if prop.size == 1 else self.memory.read_word
         return read(prop.address)
