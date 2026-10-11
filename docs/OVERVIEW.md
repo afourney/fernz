@@ -33,8 +33,9 @@ The Jericho repository link below identifies the upstream project only. It is
 ## Project goals
 
 - Provide an installable Python package that can be used as a library.
-- Mirror Jericho's Python API, or get as close as practical. The exact compatibility
-  scope has not yet been decided.
+- Mirror Jericho's Python API, or get as close as practical. Include the
+  [Cabin Fever consumer requirements](CABIN_FEVER_COMPATIBILITY.md) as a concrete
+  compatibility target alongside the broader public API.
 - Implement the interpreter in pure Python as much as possible.
 - Potentially provide a minimal interactive CLI for manual testing and playing
   through test games.
@@ -601,14 +602,16 @@ available for compatibility with the initial package scaffold.
 Calling `step()` before a successful reset or restore, after quit, or after
 execution fails raises `RuntimeError`; reset or restore a runnable checkpoint.
 
-Caller-side context was limited to the root
-[`play_jericho.py` in cabin-fever-x86](https://github.com/afourney/cabin-fever-x86/blob/b4933c8b167635c9ffbd7cd8ffd1307fc0b3d52e/play_jericho.py).
-That consumer uses construction, reset, text steps, and cleanup. Its additional
-direct binary-save API, location lookup, and game-over/victory queries remain
-deferred; score/move queries are now available for V3 score-based status games.
-Quetzal files are currently loaded by the story's `restore`
-opcode through the host callback. Private native-library access is outside this
-public contract.
+The [Cabin Fever compatibility audit](CABIN_FEVER_COMPATIBILITY.md) covers the
+server, standalone player, and custom snapshot persistence at a pinned consumer
+revision. In addition to current V3 interaction and score/move queries, it needs
+maximum score, room objects with stable numbers and names, and loss/victory
+queries. Its `.bin` saves wrap the nine-field reference checkpoint, so they need
+a migration path separate from Quetzal. Its optional change of RNG trajectory on
+server reload also needs an explicit adapter policy, preserving deterministic
+Fernz checkpoint restoration. The audit records every call, behavioral gaps, and
+CI acceptance requirements. Private native-library access remains outside the
+public contract; the consumer's two such calls require public replacements.
 
 API tests use temporary synthetic files without requesting the game fixture
 or downloading ROMs. Package validation also exercises the installed command and
