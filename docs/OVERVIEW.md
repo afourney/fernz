@@ -204,6 +204,12 @@ consumables, vehicles, score changes, and continuation after recoverable death.
 Each longer detour is restored and replayed exactly. Combat detours additionally
 run twice with each of five seeds: 1, 12, 42, 1000, and 32767.
 
+A dedicated death sequence takes a lit lamp into the cellar, goes south to the
+chasm, and jumps. It requires the death response, a 10-point penalty, and forest
+respawn, then compares continued play. Restoring the snapshot at the chasm and
+jumping again must reproduce the same response and complete state. The canyon
+death tests also cover repeated deaths through the terminal third fall.
+
 Every detour turn compares the complete response, reward, score, moves, location
 number, and loss/victory queries. It also requires equality of **every Fernz
 snapshot field** with the converted public Jericho snapshot, including dynamic

@@ -398,6 +398,44 @@ def test_multi_turn_detour_replays_exactly(checkpoint_envs, checkpoint, actions)
             assert env.get_state() == first_state
 
 
+def test_cellar_chasm_death_replays_and_allows_continued_play(checkpoint_envs):
+    env, reference, bridge, checkpoints = checkpoint_envs
+    state, native_state = checkpoints["living-room"]
+    env.set_state(state)
+    reference.set_state(native_state)
+    for action in ("take lamp", "turn on lamp", "move rug", "open trap door", "down"):
+        compare_turn(env, reference, bridge, action)
+        assert not env.game_over()
+    assert env.get_player_location().name == "Cellar"
+    compare_turn(env, reference, bridge, "south")
+    assert env.get_player_location().name == "East of Chasm"
+    assert not env.game_over()
+    ledge, native_ledge = env.get_state(), reference.get_state()
+    score_before = env.get_score()
+
+    first_result = None
+    first_state = None
+    for replay in range(2):
+        env.set_state(ledge)
+        reference.set_state(native_ledge)
+        result = compare_turn(env, reference, bridge, "jump")
+        actual, expected = result
+        assert "You have died" in actual[0]
+        assert actual[1] == expected[1] == -10
+        assert env.get_score() == score_before - 10
+        assert env.game_over() is reference.game_over() is True
+        assert not env.done  # The first death respawns the player.
+        assert env.get_player_location().name == "Forest"
+        if replay == 0:
+            first_result, first_state = result, env.get_state()
+        else:
+            assert result == first_result
+            assert env.get_state() == first_state
+        for action in ("look", "inventory", "wait"):
+            compare_turn(env, reference, bridge, action)
+            assert env.game_over() is reference.game_over() is False
+
+
 @pytest.mark.parametrize("seed", (1, 12, 42, 1000, 32767))
 def test_combat_detour_with_different_seeds(zork1, seed):
     from jericho import FrotzEnv
