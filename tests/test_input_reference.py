@@ -12,8 +12,11 @@ from .story_files import READ, program_bytes
 pytestmark = pytest.mark.reference
 
 
-@pytest.mark.parametrize("capacity,line", [(2, "A"), (5, "LOOK"), (20, "A,B zz"), (20, "")])
-def test_v3_input_buffers_match_frotz(tmp_path, dfrotz, capacity, line):
+@pytest.mark.parametrize(
+    "capacity,line",
+    [(2, "A"), (5, "LOOK"), (20, "A,B zz"), (20, ""), (20, "A?B"), (20, "?"), (20, "X" * 25)],
+)
+def test_v3_input_buffers_against_frotz(tmp_path, dfrotz, capacity, line):
     # Print input bytes and two parse slots, including untouched canaries.
     addresses = [*range(0x281, 0x281 + capacity + 1), *range(0x2A1, 0x2AA)]
     code = bytearray(READ)
@@ -44,9 +47,16 @@ def test_v3_input_buffers_match_frotz(tmp_path, dfrotz, capacity, line):
     env = FernzEnv(story, seed=42)
     try:
         env.reset()
-        expected = re.findall(r"^R=(\d+)$", reference.stdout, re.MULTILINE)
-        actual = re.findall(r"^R=(\d+)$", env.step(line)[0], re.MULTILINE)
+        expected = [int(n) for n in re.findall(r"^R=(\d+)$", reference.stdout, re.MULTILINE)]
+        actual = [int(n) for n in re.findall(r"^R=(\d+)$", env.step(line)[0], re.MULTILINE)]
         assert len(expected) == len(actual) == len(addresses)
-        assert actual == expected
+        if line == "X" * 25:
+            # This dumb frontend passes all 25 characters despite capacity 20.
+            # Fernz reserves NUL within the declared V3 buffer: it accepts 19,
+            # leaves the canary intact, and records the shorter parsed word.
+            assert expected == [120] * 21 + [1, 0, 0, 25, 1] + [204] * 4
+            assert actual == [120] * 19 + [0, 204, 1, 0, 0, 19, 1] + [204] * 4
+        else:
+            assert actual == expected
     finally:
         env.close()

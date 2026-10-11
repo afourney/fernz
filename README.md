@@ -163,6 +163,14 @@ changes score memory before each restore, and still matches every gameplay turn
 through the ending. Quetzal tests exchange files with standalone Frotz in both
 directions, using independent nested-call probes and Zork.
 
+Off-path comparisons branch from 11 game checkpoints with 85 commands each,
+including unknown verbs and nouns, futile actions, incomplete commands, and
+container operations. Longer detours cover clarification, pronouns, vehicles,
+recoverable death, and combat with five seeds. Each turn compares the response
+and complete converted VM state; detours also replay from saved checkpoints.
+Explicit boundary tests record question-mark and long-input differences without
+filtering them from ordinary comparisons. See the [reference test details](docs/OVERVIEW.md#black-box-reference-tests).
+
 Fernz preserves the title, input newline, and prompt that Jericho omits; tests
 assert these separately. At the final quit, Jericho adds one newline and reports
 395 moves; Fernz reports the story's 394 moves, also printed by standalone Frotz.
