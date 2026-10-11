@@ -136,3 +136,15 @@ immutable names, malformed locations, schema validation, and failed execution.
 Future work includes additional releases and stories, later execution versions,
 cleaned world inspection, and native snapshot persistence. Legacy Cabin Fever `.bin`
 imports and changes to the Cabin Fever repository are outside this thread.
+
+
+## V5 profiles
+
+V5 has no standardized status globals. The pinned `905.z5` profile supplies
+player 28, maximum score 1, a latest-response victory score, and elapsed minutes
+from global 17 minus 545. Its winning and losing response lines are represented
+by hashes. [V5 validation](V5.md) compares these queries with the documented
+public reference API across the complete route, detours, endings, restarts,
+saves, and snapshots. Other V5 builds currently return empty `info` and raise
+`NotImplementedError` for unsupported story-specific queries; raw object
+inspection is independent of profiles.

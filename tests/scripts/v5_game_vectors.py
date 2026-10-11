@@ -4,7 +4,7 @@ import os
 from tempfile import TemporaryDirectory
 
 from ..v5_cases import CHECKPOINTS, DETOURS, SCENARIOS, SEED_905, STARTUP_ACTIONS, STORY_905
-from ..v5_vectors import capture_reference
+from ..v5_vectors import capture_reference, measure_step
 from ..vector_archive import FORMAT_VERSION, REFERENCE_VERSION, digest, json_bytes
 
 
@@ -31,7 +31,7 @@ def _record_905(reference):
     checkpoints = {0: reference.get_state()}
     route = [capture_reference(reference, None, opening)]
     for turn, action in enumerate(actions, 1):
-        route.append(capture_reference(reference, action, reference.step(action)[0]))
+        route.append(measure_step(reference, action))
         if turn in CHECKPOINTS:
             checkpoints[turn] = reference.get_state()
     assert reference.victory() and reference.get_score() == 1
@@ -45,7 +45,7 @@ def _record_905(reference):
             reference.set_state(checkpoints[turn])
             records = []
             for command in (action, "look", "inventory"):
-                records.append(capture_reference(reference, command, reference.step(command)[0]))
+                records.append(measure_step(reference, command))
             cases.append({"id": f"detour-{index}", "checkpoint": turn, "steps": records})
         documents[f"detours/{turn}.json"] = {"cases": cases}
     cases = []
@@ -53,10 +53,9 @@ def _record_905(reference):
         reference.set_state(checkpoints[turn])
         records = []
         for index, action in enumerate(actions):
-            record = capture_reference(
+            record = measure_step(
                 reference,
                 action,
-                reference.step(action)[0],
                 halted=name == "quit-confirmed" and index == len(actions) - 1,
             )
             records.append(record)
@@ -64,6 +63,14 @@ def _record_905(reference):
                 assert reference.game_over() and not reference.victory()
         cases.append({"id": name, "checkpoint": turn, "steps": records})
     documents["scenarios.json"] = {"cases": cases}
+    cases = []
+    for seed in (1, 42, 1000, 2**31 - 1):
+        assert reference.seed(seed) == seed
+        records = [capture_reference(reference, None, reference.reset()[0])]
+        for action in reference.get_walkthrough()[:11]:
+            records.append(measure_step(reference, action))
+        cases.append({"id": f"seed-{seed}", "seed": seed, "steps": records})
+    documents["seeds.json"] = {"cases": cases}
     documents["manifest.json"] = {
         "format_version": FORMAT_VERSION,
         "kind": "v5-gameplay",

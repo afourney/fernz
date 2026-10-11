@@ -33,9 +33,10 @@ def test_reference_zero_selects_the_games_recommended_seed(zork1):
 
 
 @pytest.mark.smoke
-def test_seed_is_deferred_and_copy_preserves_fernz_active_host_policy(tmp_path):
-    story = tmp_path / "seeds.z3"
-    story.write_bytes(seed_story())
+@pytest.mark.parametrize("version", (3, 5))
+def test_seed_is_deferred_and_copy_preserves_fernz_active_host_policy(tmp_path, version):
+    story = tmp_path / f"seeds.z{version}"
+    story.write_bytes(seed_story(version))
     env = FernzEnv(story, seed=42)
     reference = synthetic_reference(story, 42)
     environments = [env, reference]

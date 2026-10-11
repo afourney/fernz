@@ -22,7 +22,7 @@ class ZObject:
     """A locally mutable object snapshot, detached from interpreter memory.
 
     Links are object numbers; zero means no link. Attributes are integer flags
-    indexed by attribute number. Properties lists the supplied property numbers
+    indexed by attribute number (32 flags in V3, 48 in V5). Properties lists the supplied property numbers
     in descending order, padded to at least 16 entries with zeros for Jericho
     callers. Property values and defaults are not included. Names retain the
     full decoded story text. Lists are ordinary Python lists, not NumPy arrays.

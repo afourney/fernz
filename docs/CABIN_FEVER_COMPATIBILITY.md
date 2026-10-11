@@ -42,20 +42,21 @@ All links below identify the audited revision, rather than a moving branch:
 
 Status here includes the environment helpers introduced in
 [PR #12](https://github.com/afourney/fernz/pull/12) and the
-[story queries](STORY_QUERIES.md). Fernz still executes V3 only.
+[story queries](STORY_QUERIES.md). Fernz executes V3 and initial V5; the pinned V5 9:05 build now has the same
+profiled query surface, documented in [V5 milestones](V5.md).
 Matching a method name is insufficient when the data or behavior differs.
 
 | Consumer call | Audited consumer behavior | Fernz coverage / remaining work |
 | --- | --- | --- |
 | `FrotzEnv(path, seed=positive_integer)` | The server supplies a fresh seed in `1..2**31-1`, then calls reset. The standalone player omits the seed. | `FernzEnv` accepts the server's seed range. Change the import/class selection in an adapter. Fernz requires explicit reset, which both consumers already perform. Automatic seed policies differ. |
-| `reset()` | Return `(observation, info)` at the opening prompt. | Available for V3. Info has score/moves for score-based games and hours/minutes for time-based games. |
-| `step(text)` | Return `(observation, reward, done, info)`. The server ignores reward; the standalone player displays it. | Available for V3. Outcome semantics and transcript differences need adaptation, as described below. |
+| `reset()` | Return `(observation, info)` at the opening prompt. | Available for V3 and the validated V5 scope. Info has score/moves for score-based games and hours/minutes for time-based games. |
+| `step(text)` | Return `(observation, reward, done, info)`. The server ignores reward; the standalone player displays it. | Available for V3 and the validated V5 scope. Outcome semantics and transcript differences need adaptation, as described below. |
 | `close()` | Cleanup on reboot, console exit, and failed console initialization. | Available and idempotent. |
 | `get_state()`, `set_state(state)` | Autosave each turn; restore without advancing the game or emitting output. The existing save codec requires a nine-field tuple. | Deterministic checkpoints are available, using immutable named fields. Update the consumer to persist Fernz snapshots in a new format; legacy tuple conversion is out of scope for this integration. |
 | `get_score()`, `get_moves()` | Read actual restored values, instead of trusting save-file metadata. | Available for V3 score-based games, including after quit. Time-based games need additional metadata; the final Zork move count has a documented difference. |
-| `get_max_score()` | Render `Score current/maximum` whenever info includes a score. | Available for the exact profiled Zork I build: 350. Unknown builds raise `NotImplementedError`. |
+| `get_max_score()` | Render `Score current/maximum` whenever info includes a score. | Available for the 16 profiled V3 builds and V5 9:05 (1); Zork I returns 350. Unknown builds raise `NotImplementedError`. |
 | `get_player_location()` | Return an object with integer `.num` and string `.name`, or no supported location. Both form the map key. | Available as detached, locally mutable `ZObject`, using the profiled player's immediate parent or the V3 status fallback. Full names can differ from the reference's shortened names. |
-| `game_over()`, `victory()` | Recompute terminal status after restoring; the console also queries it after loading a ROM. | Available for the profiled Zork I build as latest-response flags, preserved in checkpoints. VM quit remains separate; unknown builds raise `NotImplementedError`. |
+| `game_over()`, `victory()` | Recompute terminal status after restoring; the console also queries it after loading a ROM. | Available for profiled V3 games and V5 9:05 as latest-response flags, preserved in checkpoints. VM quit remains separate; unknown builds raise `NotImplementedError`. |
 | `env.frotz_lib.getRAMSize()` | Check the saved RAM length against the loaded story before restoring. | Consumer migration: use `env.story.header.static_memory` or `len(env.get_state().ram)`, plus story identity validation. No native compatibility object is needed. |
 | `env.frotz_lib.setRng(a, interval, counter)` | After server restore, replace the RNG state when the saved interval is zero. | Consumer migration: an explicit RNG policy outside deterministic `set_state()` is needed. Deferred `seed()` is not equivalent. |
 
@@ -153,8 +154,8 @@ Both use synchronous observation tuples, so no async interpreter API is needed.
 
 The consumer advertises `.z3` through `.z8` and draws games from the same public
 collection. Fernz's V1-V8 loader does not establish execution support: current
-execution and reference coverage focus on Zork I (V3), even though the fixture
-is named `zork1.z5`. Expand execution by header version and test each supported
+complete reference coverage includes the 16 V3 builds and V5 9:05. The Zork I
+fixture is named `zork1.z5` but contains V3. Expand execution by header version and test each supported
 game profile. Retain Fernz's existing excluded-game policy when selecting ROMs.
 
 ## Implementation progress and remaining CI acceptance

@@ -99,16 +99,20 @@ class FernzEnv:
         assert self._machine is not None
         if self._profile is not None:
             profile = self._profile
-            score = self._machine.read_variable(16 + profile.score_global)
-            if profile.score_byte:
-                score &= 0xFF
-                if profile.score_signed and score & 0x80:
-                    score -= 0x100
-            elif profile.score_signed:
-                score = signed(score)
+            if profile.victory_score is not None:
+                score = profile.victory_score if self._victory else 0
+            else:
+                score = self._machine.read_variable(16 + profile.score_global)
+                if profile.score_byte:
+                    score &= 0xFF
+                    if profile.score_signed and score & 0x80:
+                        score -= 0x100
+                elif profile.score_signed:
+                    score = signed(score)
             return {
                 "score": score,
-                "moves": self._machine.read_variable(16 + profile.moves_global),
+                "moves": self._machine.read_variable(16 + profile.moves_global)
+                + profile.moves_offset,
             }
         if self.story.header.version >= 4:
             # Later versions have no VM-defined score or move globals (§8).
@@ -131,18 +135,18 @@ class FernzEnv:
         return self._info()[name]
 
     def get_score(self) -> int:
-        """Return the current signed V3 score, including after quit.
+        """Return the profile's score or the standard V3 score, including after quit.
 
         Require reset() or set_state() after construction or execution failure.
-        Time-based V3 games raise NotImplementedError; their info contains time.
+        Unprofiled V5 and V3 time games raise NotImplementedError.
         """
         return self._status_value("score")
 
     def get_moves(self) -> int:
-        """Return the current V3 move-count global, including after quit.
+        """Return the profile's moves or the standard V3 counter, including after quit.
 
         Require reset() or set_state() after construction or execution failure.
-        Time-based V3 games raise NotImplementedError; their info contains time.
+        Unprofiled V5 and V3 time games raise NotImplementedError.
         This reports the story's counter, not the number of host step() calls.
         """
         return self._status_value("moves")
@@ -158,7 +162,7 @@ class FernzEnv:
     def get_object(self, obj_num: int) -> ZObject | None:
         """Return a detached object, or None for zero or an absent object number.
 
-        Require initialized V3 execution and an enumerable initial object table.
+        Require initialized execution and an enumerable initial object table.
         The result is locally mutable; editing it never writes to the game.
         Non-integer numbers raise TypeError. Malformed object data raises an
         execution or memory error; unsupported table layouts raise NotImplementedError.
@@ -170,7 +174,7 @@ class FernzEnv:
         return objects.snapshot(number)
 
     def get_world_objects(self, clean: bool = False) -> list[ZObject]:
-        """Return detached V3 objects in number order, with an empty slot zero.
+        """Return detached objects in number order, with an empty slot zero.
 
         Include disconnected and invisible objects, not just the current room.
         Enumeration uses the initial layout convention described in §12's
@@ -180,7 +184,10 @@ class FernzEnv:
         objects = self._require_machine().objects
         if clean:
             raise NotImplementedError("Cleaned world-object inspection is not implemented")
-        return [ZObject(0, ""), *(objects.snapshot(n) for n in range(1, objects.count + 1))]
+        return [
+            ZObject(0, "", attr=[0] * objects.attributes),
+            *(objects.snapshot(n) for n in range(1, objects.count + 1)),
+        ]
 
     def get_player_object(self) -> ZObject:
         """Return the profile's player as a detached, locally mutable object.

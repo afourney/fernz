@@ -2,6 +2,7 @@
 
 import re
 
+from .v5_queries import query_fingerprint
 from .vector_archive import digest
 
 
@@ -68,9 +69,17 @@ def capture_reference(env, action, observation, *, halted=False):
         "action": action,
         "presentation": mode,
         "halted": halted,
+        "queries": query_fingerprint(env),
         "observation_sha256": digest(text.encode()),
         "object_memory_sha256": digest(object_memory(env.get_state()[0].tobytes())),
     }
+
+
+def measure_step(env, action, *, halted=False):
+    observation, reward, done, _ = env.step(action)
+    record = capture_reference(env, action, observation, halted=halted)
+    record.update(reward=int(reward), reference_done=bool(done))
+    return record
 
 
 def check_step(env, record):
@@ -79,6 +88,14 @@ def check_step(env, record):
     assert digest(observation.encode()) == record["observation_sha256"], record["action"]
     assert digest(object_memory(env.get_state().ram)) == record["object_memory_sha256"]
     assert env.done == record["halted"]
+    before = env.get_state()
+    assert query_fingerprint(env, fernz=True) == record["queries"], record["action"]
+    assert env.get_state() == before
+    info = {key: record["queries"][key] for key in ("score", "moves")}
+    assert response[-1] == info
+    if "reward" in record:
+        assert response[1] == record["reward"]
+        assert record["reference_done"] == (env.game_over() or env.victory())
     return response
 
 
@@ -98,6 +115,21 @@ def replay_documents(path, documents):
                 checkpoints[turn] = env.get_state()
         for name, document in documents.items():
             if name in ("manifest.json", "startup.json", "walkthrough.json"):
+                continue
+            if name == "seeds.json":
+                for case in document["cases"]:
+                    env.seed(case["seed"])
+                    check_step(env, case["steps"][0])
+                    original = env.get_state()
+                    fork = env.copy()
+                    try:
+                        for record in case["steps"][1:]:
+                            check_step(fork, record)
+                        assert env.get_state() == original
+                        fork.reset()
+                        assert fork.get_state() == original
+                    finally:
+                        fork.close()
                 continue
             for case in document["cases"]:
                 env.set_state(checkpoints[case["checkpoint"]])
