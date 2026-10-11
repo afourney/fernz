@@ -17,10 +17,13 @@ they must not become broad filters that hide unrelated failures.
 
 ## Live comparisons on Linux, recorded expectations everywhere
 
-Linux CI runs Jericho as a development-only reference and compares its behavior
-directly with Fernz. These live comparisons remain required. Linux also checks
-committed gameplay vectors against freshly recorded public Jericho results,
-so recorded expectations cannot silently drift away from the reference.
+Linux CI executes Jericho through its public Python API as a black-box test
+oracle. It supplies the same inputs to Jericho and Fernz, then compares their
+observed outputs and publicly exposed state. We do not read, inspect, or use
+Jericho or Frotz implementation source to develop Fernz or its tests. These
+live comparisons remain required. Linux also checks committed gameplay vectors
+against fresh results from those public API calls, so recorded expectations
+cannot silently drift away from the reference.
 
 The macOS and Windows jobs use committed test vectors containing hashes of
 expected results. They run Fernz on the actual story files and compare its
