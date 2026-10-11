@@ -202,12 +202,14 @@ class Machine:
                 self.io.output(text)
 
     def _save(self, instruction: Instruction) -> bool:
-        # A V3 Quetzal PC points to the branch bytes, before save's result is
-        # applied. The public checkpoint API has a different suspension point.
+        # Quetzal §5.8: before applying the result, save the branch address in
+        # V3 or the store-variable address in V5. Host checkpoints pause later.
         saved = SavedGame(
             self.memory.read_bytes(0, self.memory.story.header.static_memory),
             self._frame_states(),
-            instruction.address + 1,
+            instruction.address + 1
+            if self.memory.story.header.version == 3
+            else instruction.next_address - 1,
         )
         try:
             data = dumps(self.memory.story, saved)
@@ -229,8 +231,12 @@ class Machine:
                 Frame(list(f.locals), list(f.stack), f.return_address, f.store, f.argument_count)
                 for f in saved.frames
             ]
-            branch, candidate.pc = decode_branch(candidate.memory, saved.pc)
-            candidate._branch(branch, True)
+            if self.memory.story.header.version == 3:
+                branch, candidate.pc = decode_branch(candidate.memory, saved.pc)
+                candidate._branch(branch, True)
+            else:
+                candidate.pc = saved.pc + 1
+                candidate.write_variable(candidate.memory.read_byte(saved.pc), 2)
             if not 0 <= candidate.pc < len(self.memory):
                 raise SaveFormatError("Restored continuation is outside the story")
         except (SaveFormatError, MemoryAccessError, ExecutionError):
@@ -321,11 +327,22 @@ class Machine:
             self._branch(instruction.branch, condition)
 
         match name:
-            case "save" if self.memory.story.header.version == 3:
-                branch(self._save(instruction))
-            case "restore" if self.memory.story.header.version == 3:
+            case "save":
+                if args:
+                    raise UnsupportedOpcodeError("Auxiliary region saves are not implemented")
+                success = self._save(instruction)
+                if instruction.branch is not None:
+                    branch(success)
+                else:
+                    store(int(success))
+            case "restore":
+                if args:
+                    raise UnsupportedOpcodeError("Auxiliary region restores are not implemented")
                 if not self._restore():
-                    branch(False)
+                    if instruction.branch is not None:
+                        branch(False)
+                    else:
+                        store(0)
             case "restart":
                 self._restart()
             case "rtrue" | "rfalse":

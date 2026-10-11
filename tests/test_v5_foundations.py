@@ -25,7 +25,7 @@ def test_v5_header_advertises_only_implemented_text_capabilities():
     m = machine(AREAD)
     assert m.memory.read_byte(1) == 0x10
     assert m.memory.read_bytes(0x20, 8) == bytes((25, 80, 0, 80, 0, 25, 1, 1))
-    assert m.memory.read_word(0x32) == 0
+    assert m.memory.read_word(0x32) == 0x100
     assert m.memory.story.data[0x20:0x28] == bytes(8)
 
 
@@ -303,6 +303,7 @@ def test_v5_empty_stack_ret_popped_does_not_use_the_v3_legacy_local():
         m.run()
 
 
-def test_unsupported_v5_save_is_explicit_until_the_next_milestone():
-    with pytest.raises(UnsupportedOpcodeError, match="save"):
-        machine(bytes.fromhex("be 00 ff 10")).run()
+def test_v5_save_without_storage_stores_failure():
+    m = machine(bytes.fromhex("be 00 ff 11") + AREAD)
+    m.run()
+    assert m.read_variable(17) == 0

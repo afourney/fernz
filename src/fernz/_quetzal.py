@@ -1,4 +1,4 @@
-"""V3 saved games from the Quetzal 1.4 specification, independent of host checkpoints."""
+"""V3/V5 saved games from Quetzal 1.4, independent of host checkpoints."""
 
 from dataclasses import dataclass
 from struct import iter_unpack
@@ -13,7 +13,7 @@ class SaveFormatError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class SavedGame:
-    """Portable VM state; PC addresses the save instruction's branch bytes."""
+    """Portable VM state; PC addresses save's branch or result-variable byte."""
 
     ram: bytes
     frames: tuple[FrameState, ...]
@@ -70,15 +70,16 @@ def _decompress(data: bytes, original: bytes) -> bytes:
 
 def dumps(story: Story, state: SavedGame) -> bytes:
     """Encode IFhd, compressed dynamic memory, and oldest-first stack frames."""
-    if story.header.version != 3:
-        raise SaveFormatError("Saved-game execution currently supports V3 only")
+    if story.header.version not in (3, 5):
+        raise SaveFormatError("Saved-game execution currently supports V3 and V5")
     stack = bytearray()
     for number, frame in enumerate(state.frames):
         if len(frame.stack) > 0xFFFF:
             raise SaveFormatError("A saved evaluation stack exceeds 65535 words")
         # Quetzal §4.11 requires a zeroed dummy header for the initial context.
         stack.extend((frame.return_address or 0).to_bytes(3, "big"))
-        stack.extend((len(frame.locals), frame.store or 0, (1 << frame.argument_count) - 1))
+        flags = len(frame.locals) | (0x10 if number and frame.store is None else 0)
+        stack.extend((flags, frame.store or 0, (1 << frame.argument_count) - 1))
         stack.extend(len(frame.stack).to_bytes(2, "big"))
         for value in (*frame.locals, *frame.stack):
             stack.extend(value.to_bytes(2, "big"))
@@ -101,10 +102,14 @@ def _frames(data: bytes, story: Story) -> tuple[FrameState, ...]:
         flags, store, arguments = data[cursor + 3 : cursor + 6]
         count = int.from_bytes(data[cursor + 6 : cursor + 8], "big")
         cursor += 8
-        # V3 calls always store a result and supply at most three arguments.
-        if flags & 0xF0 or arguments not in (0, 1, 3, 7):
-            raise SaveFormatError("Invalid V3 frame flags or argument mask")
-        end = cursor + 2 * (flags + count)
+        # Quetzal §4: bit 4 discards a result; bits 0..3 count locals. V3 calls
+        # always store and take up to three arguments, later calls up to seven.
+        early = story.header.version == 3
+        argument_masks = (0, 1, 3, 7) if early else (0, 1, 3, 7, 15, 31, 63, 127)
+        if flags & (0xF0 if early else 0xE0) or arguments not in argument_masks:
+            raise SaveFormatError(f"Invalid V{story.header.version} frame flags or argument mask")
+        locals_count = flags & 15
+        end = cursor + 2 * (locals_count + count)
         if end > len(data):
             raise SaveFormatError("Truncated locals or evaluation stack")
         words = tuple(word for (word,) in iter_unpack(">H", data[cursor:end]))
@@ -115,9 +120,12 @@ def _frames(data: bytes, story: Story) -> tuple[FrameState, ...]:
         else:
             if not 0 < pc <= story.size:
                 raise SaveFormatError("Saved return address is outside the story")
-            if 0 < store < 16 and store > len(frames[-1].locals):
+            result = None if flags & 0x10 else store
+            if result is not None and 0 < result < 16 and result > len(frames[-1].locals):
                 raise SaveFormatError("Saved return refers to a missing caller local")
-            frame = FrameState(words[:flags], words[flags:], pc, store, arguments.bit_count())
+            frame = FrameState(
+                words[:locals_count], words[locals_count:], pc, result, arguments.bit_count()
+            )
         frames.append(frame)
         cursor = end
     if not frames:
@@ -126,14 +134,14 @@ def _frames(data: bytes, story: Story) -> tuple[FrameState, ...]:
 
 
 def loads(story: Story, data: bytes) -> SavedGame:
-    """Read a V3 Quetzal file without changing a running game.
+    """Read a V3/V5 Quetzal file without changing a running game.
 
     Accept compressed or uncompressed memory, skip unknown chunks, and use the
     first occurrence of each required component (Quetzal §8.8). All sizes are
     checked against the supplied bytes before reading or expanding data.
     """
-    if story.header.version != 3:
-        raise SaveFormatError("Saved-game execution currently supports V3 only")
+    if story.header.version not in (3, 5):
+        raise SaveFormatError("Saved-game execution currently supports V3 and V5")
     if not isinstance(data, bytes):
         raise TypeError("A restore handler must return bytes or None")
     if len(data) < 12 or data[:4] != b"FORM" or data[8:12] != b"IFZS":
