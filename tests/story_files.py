@@ -35,7 +35,7 @@ def program_bytes(
     data[0x401 : 0x401 + len(code)] = code
     data[0x280] = 20
     data[0x2A0] = 4
-    data[0x301] = 4  # Empty, structurally valid V3 dictionary.
+    data[0x301] = 4 if version <= 3 else 6  # Empty, structurally valid dictionary.
     for address, chunk in chunks:
         data[address : address + len(chunk)] = chunk
     if version >= 3:

@@ -1,4 +1,4 @@
-"""V3 object entries, tree links, and properties (Standard §12)."""
+"""Version-aware object entries, tree links, and properties (Standard §12)."""
 
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -47,16 +47,21 @@ class Property:
 
 
 class Objects:
-    """Access V3 objects directly in memory, including mutable property tables."""
-
-    max_number = 255
+    """Access objects directly in memory, including mutable property tables."""
 
     def __init__(self, memory: Memory) -> None:
-        """Bind to the V3 object table."""
-        if memory.story.header.version != 3:
-            raise NotImplementedError("Object access currently supports V3 only")
+        """Bind to the object layout selected by the story version."""
         self.memory = memory
         self.base = memory.story.header.object_table
+        self.early = memory.story.header.version <= 3
+        self.max_number = 255 if self.early else 65535
+        self.max_property = 31 if self.early else 63
+        self.attributes = 32 if self.early else 48
+        self.defaults_size = 2 * self.max_property
+        self.entry_size = 9 if self.early else 14
+        self.link_size = 1 if self.early else 2
+        self.link_start = self.attributes // 8
+        self.property_offset = self.entry_size - 2
 
     @cached_property
     def count(self) -> int:
@@ -69,22 +74,24 @@ class Objects:
         Opcode operations do not depend on this optional enumeration heuristic.
         """
         data = self.memory.story.data
-        cursor = self.base + 62
+        cursor = self.base + self.defaults_size
         boundary = self.memory.story.header.static_memory
         for count in range(1, self.max_number + 1):
-            if cursor + 9 > boundary:
+            if cursor + self.entry_size > boundary:
                 break
-            table = int.from_bytes(data[cursor + 7 : cursor + 9], "big")
-            if not cursor + 9 <= table < self.memory.story.header.static_memory:
+            table = int.from_bytes(
+                data[cursor + self.property_offset : cursor + self.entry_size], "big"
+            )
+            if not cursor + self.entry_size <= table < self.memory.story.header.static_memory:
                 break
             boundary = min(boundary, table)
-            cursor += 9
+            cursor += self.entry_size
             if cursor == boundary:
                 return count
         raise NotImplementedError("Cannot infer object count from the initial object-table layout")
 
     def snapshot(self, obj: int) -> ZObject:
-        """Read one complete, detached V3 object, without executing or cleaning."""
+        """Read one complete, detached object, without executing or cleaning."""
         properties = [prop.number for prop in self.properties(obj)]
         properties.extend([0] * max(0, 16 - len(properties)))
         return ZObject(
@@ -93,7 +100,7 @@ class Objects:
             parent=self.parent(obj),
             sibling=self.sibling(obj),
             child=self.child(obj),
-            attr=[int(self.attribute(obj, number)) for number in range(32)],
+            attr=[int(self.attribute(obj, number)) for number in range(self.attributes)],
             properties=properties,
         )
 
@@ -104,25 +111,33 @@ class Objects:
 
     def _entry(self, obj: int) -> int:
         if not 1 <= obj <= self.max_number:
-            raise ExecutionError(f"Invalid V3 object number {obj}")
-        return self._dynamic(self.base + 62 + 9 * (obj - 1), 9)
+            raise ExecutionError(f"Invalid V{self.memory.story.header.version} object number {obj}")
+        return self._dynamic(
+            self.base + self.defaults_size + self.entry_size * (obj - 1), self.entry_size
+        )
+
+    def _read_link(self, address: int) -> int:
+        return self.memory.read_byte(address) if self.early else self.memory.read_word(address)
+
+    def _write_link(self, address: int, number: int) -> None:
+        self.memory.write_bytes(address, number.to_bytes(self.link_size, "big"))
 
     def parent(self, obj: int) -> int:
         """Return the containing object number."""
-        return self.memory.read_byte(self._entry(obj) + 4)
+        return self._read_link(self._entry(obj) + self.link_start)
 
     def sibling(self, obj: int) -> int:
         """Return the next sibling object number."""
-        return self.memory.read_byte(self._entry(obj) + 5)
+        return self._read_link(self._entry(obj) + self.link_start + self.link_size)
 
     def child(self, obj: int) -> int:
         """Return the first child object number."""
-        return self.memory.read_byte(self._entry(obj) + 6)
+        return self._read_link(self._entry(obj) + self.link_start + 2 * self.link_size)
 
     def attribute(self, obj: int, attribute: int, value: bool | None = None) -> bool:
         """Read an attribute, or set it when value is provided."""
-        if not 0 <= attribute <= 31:
-            raise ExecutionError(f"Invalid V3 attribute {attribute}")
+        if not 0 <= attribute < self.attributes:
+            raise ExecutionError(f"Invalid attribute {attribute}")
         address = self._entry(obj) + attribute // 8
         mask = 0x80 >> (attribute % 8)
         byte = self.memory.read_byte(address)
@@ -136,15 +151,15 @@ class Objects:
         entry = self._entry(obj)
         parent = self.parent(obj)
         if parent:
-            link = self._entry(parent) + 6
+            link = self._entry(parent) + self.link_start + 2 * self.link_size
             seen = set()
-            while (current := self.memory.read_byte(link)) != obj:
+            while (current := self._read_link(link)) != obj:
                 if current == 0 or current in seen:
                     raise ExecutionError(f"Broken sibling chain for object {obj}")
                 seen.add(current)
-                link = self._entry(current) + 5
-            self.memory.write_byte(link, self.sibling(obj))
-        self.memory.write_bytes(entry + 4, b"\x00\x00")
+                link = self._entry(current) + self.link_start + self.link_size
+            self._write_link(link, self.sibling(obj))
+        self.memory.write_bytes(entry + self.link_start, bytes(2 * self.link_size))
 
     def insert(self, obj: int, destination: int) -> None:
         """Move an object to the head of another object's child list."""
@@ -152,11 +167,12 @@ class Objects:
         # §12.5 leaves tree validity to the game. Some stories temporarily
         # introduce a cycle while rearranging objects across several opcodes.
         self.remove(obj)
-        self.memory.write_bytes(entry + 4, bytes((destination, self.child(destination))))
-        self.memory.write_byte(target + 6, obj)
+        self._write_link(entry + self.link_start, destination)
+        self._write_link(entry + self.link_start + self.link_size, self.child(destination))
+        self._write_link(target + self.link_start + 2 * self.link_size, obj)
 
     def _table(self, obj: int) -> int:
-        return self._dynamic(self.memory.read_word(self._entry(obj) + 7), 1)
+        return self._dynamic(self.memory.read_word(self._entry(obj) + self.property_offset), 1)
 
     def name(self, obj: int) -> str:
         """Decode the bounded short name of an object."""
@@ -169,19 +185,37 @@ class Objects:
         """Walk the strictly descending property list, checking its bounds."""
         table = self._table(obj)
         address = table + 1 + 2 * self.memory.read_byte(table)
-        previous = 32
+        previous = self.max_property + 1
         while size_byte := self.memory.read_byte(self._dynamic(address, 1)):
-            number, size = size_byte & 31, (size_byte >> 5) + 1
+            number = size_byte & self.max_property
+            header_size = 2 if not self.early and size_byte & 0x80 else 1
+            if self.early:
+                size = (size_byte >> 5) + 1
+            elif header_size == 2:
+                size = self.memory.read_byte(self._dynamic(address + 1, 1)) & 63 or 64
+            else:
+                size = 2 if size_byte & 0x40 else 1
             if not 0 < number < previous:
                 raise ExecutionError(f"Invalid property order for object {obj}")
-            yield Property(number, self._dynamic(address + 1, size), size)
+            yield Property(number, self._dynamic(address + header_size, size), size)
             previous = number
-            address += size + 1
+            address += size + header_size
+
+    def property_length(self, address: int) -> int:
+        """Read a property's trailing size byte; address zero has length zero."""
+        if address == 0:
+            return 0
+        size = self.memory.read_byte(address - 1)
+        if self.early:
+            return (size >> 5) + 1
+        if size & 0x80:
+            return size & 63 or 64
+        return 2 if size & 0x40 else 1
 
     def find(self, obj: int, number: int) -> Property | None:
         """Return a property, or None if the object omits it."""
-        if not 1 <= number <= 31:
-            raise ExecutionError(f"Invalid V3 property {number}")
+        if not 1 <= number <= self.max_property:
+            raise ExecutionError(f"Invalid property {number}")
         return next((p for p in self.properties(obj) if p.number == number), None)
 
     def get(self, obj: int, number: int) -> int:

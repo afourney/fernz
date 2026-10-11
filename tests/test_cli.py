@@ -44,13 +44,13 @@ def test_invalid_path(tmp_path, capsys, directory):
 
 def test_existing_game_reports_unimplemented(tmp_path, capsys):
     game = tmp_path / "game with spaces.z3"
-    game.write_bytes(story_bytes(5))
+    game.write_bytes(story_bytes(8))
     assert _cli.main([str(game)]) == 1
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert "supports V3 only" in captured.err
+    assert "supports V3 and V5" in captured.err
     assert "Traceback" not in captured.err
-    assert game.read_bytes() == story_bytes(5)
+    assert game.read_bytes() == story_bytes(8)
 
 
 def test_cli_prints_the_complete_opening_and_exits_at_eof(tmp_path, capsys, monkeypatch):

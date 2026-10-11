@@ -1,4 +1,4 @@
-"""Public story environment with V3 text interaction."""
+"""Public story environment with V3 and initial V5 text interaction."""
 
 from copy import copy as shallow_copy
 from dataclasses import replace
@@ -65,10 +65,11 @@ class FernzEnv:
         return self._seed
 
     def reset(self, *, max_steps: int = 250_000) -> tuple[str, dict[str, object]]:
-        """Run a fresh V3 episode to its first input request or quit.
+        """Run a fresh supported episode to its first input request or quit.
 
         Return the story's output and status globals. Score games expose score
-        and moves; time games expose hours and minutes. No input is consumed.
+        and moves; V3 time games expose hours and minutes. V5 stories without a
+        profile return empty info because V5 defines no status globals. No input is consumed.
         Other versions and unimplemented opcodes raise NotImplementedError.
         Invalid execution or an exhausted instruction budget raises ExecutionError.
         """
@@ -109,6 +110,9 @@ class FernzEnv:
                 "score": score,
                 "moves": self._machine.read_variable(16 + profile.moves_global),
             }
+        if self.story.header.version >= 4:
+            # Later versions have no VM-defined score or move globals (§8).
+            return {}
         second = self._machine.read_variable(17)
         third = self._machine.read_variable(18)
         if self.story.header.flags1 & 2:
@@ -120,6 +124,8 @@ class FernzEnv:
     def _status_value(self, name: str) -> int:
         if self._machine is None:
             raise RuntimeError("Call reset() or set_state() before reading game status")
+        if self.story.header.version >= 4 and self._profile is None:
+            raise NotImplementedError("Score and move queries require a story profile for V5")
         if self.story.header.flags1 & 2 and self._profile is None:
             raise NotImplementedError("Score and move queries are unavailable for V3 time games")
         return self._info()[name]
@@ -223,6 +229,8 @@ class FernzEnv:
         machine = self._require_machine()
         if self._profile is not None and self._profile.player_object is not None:
             number = machine.objects.parent(self._profile.player_object)
+        elif self.story.header.version >= 4:
+            raise NotImplementedError("Player location requires a story profile for V5")
         else:
             number = machine.read_variable(16)
         return machine.objects.snapshot(number) if number else None

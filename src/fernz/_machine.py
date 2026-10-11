@@ -1,4 +1,4 @@
-"""A V3 execution core that suspends and resumes at line-input requests."""
+"""A version-aware execution core that suspends at input requests."""
 
 from copy import copy
 from dataclasses import dataclass, field
@@ -7,14 +7,15 @@ from operator import index
 
 from ._errors import ExecutionError, UnsupportedOpcodeError
 from ._host_io import HostIO
-from ._input import read_line
+from ._input import read_line, tokenise
 from ._instruction import Branch, Instruction, OperandType, decode, decode_branch
 from ._memory import Memory, MemoryAccessError
 from ._objects import Objects
+from ._output import Output
 from ._quetzal import SavedGame, SaveFormatError, dumps, loads
 from ._random import RandomGenerator
-from ._state import FrameState, GameState, InputRequest
-from ._text import Text, zscii
+from ._state import ExtendedGameState, FrameState, GameState, InputRequest, StoredInputRequest
+from ._text import Text
 
 
 def signed(value: int) -> int:
@@ -34,18 +35,18 @@ class Frame:
 
 
 class Machine:
-    """Execute V3 with a bounded instruction budget and captured output."""
+    """Execute V3/V5 with a bounded instruction budget and captured output."""
 
     def __init__(
         self, memory: Memory, *, seed: int | None = None, io: HostIO | None = None
     ) -> None:
         """Start a fresh episode, resetting memory, frames, output, and randomness."""
-        if memory.story.header.version != 3:
-            raise NotImplementedError("Story execution currently supports V3 only")
+        if memory.story.header.version not in (3, 5):
+            raise NotImplementedError("Story execution currently supports V3 and V5")
         self.memory = memory
         self.io = io or HostIO()
         self.memory.reset()
-        self.memory._configure_v3_header()
+        self.memory._configure_header()
         self.pc = memory.story.header.entry_address
         self.frames = [Frame()]
         self.text = Text(memory)
@@ -53,13 +54,16 @@ class Machine:
         self.rng = RandomGenerator(seed)
         self.output: list[str] = []
         self.screen_enabled = True
+        self.display = Output(memory)
         self.input_request: InputRequest | None = None
         self.halted = False
 
     def get_state(self) -> GameState:
         """Capture a detached checkpoint at a public input or quit boundary."""
         story = self.memory.story
-        return GameState(
+        extended = story.header.version >= 5 or bool(self.display.state.memory_streams)
+        state_type = ExtendedGameState if extended else GameState
+        return state_type(
             story_sha256=sha256(story.data[: story.size]).hexdigest(),
             ram=self.memory.read_bytes(0, story.header.static_memory),
             pc=self.pc,
@@ -68,6 +72,7 @@ class Machine:
             input_request=self.input_request,
             screen_enabled=self.screen_enabled,
             halted=self.halted,
+            **({"output": self.display.state} if extended else {}),
         )
 
     def _frame_states(self) -> tuple[FrameState, ...]:
@@ -79,10 +84,12 @@ class Machine:
     @classmethod
     def from_state(cls, memory: Memory, state: GameState, *, io: HostIO | None = None) -> "Machine":
         """Restore a checkpoint, validating everything before changing memory."""
-        if memory.story.header.version != 3:
-            raise NotImplementedError("Story execution currently supports V3 only")
-        if type(state) is not GameState:
+        if memory.story.header.version not in (3, 5):
+            raise NotImplementedError("Story execution currently supports V3 and V5")
+        if type(state) not in (GameState, ExtendedGameState):
             raise TypeError("Expected a GameState returned by get_state()")
+        if memory.story.header.version >= 5 and type(state) is not ExtendedGameState:
+            raise ValueError("V5 requires an extended I/O snapshot")
         state._validate(memory.story)
         # Construct without the startup/reset side effects of __init__.
         result = cls.__new__(cls)
@@ -98,9 +105,12 @@ class Machine:
         result.rng = RandomGenerator.from_state(state.rng)
         result.output = []  # Public calls already drained the previous observation.
         result.screen_enabled = state.screen_enabled
+        result.display = (
+            Output(memory, state.output) if type(state) is ExtendedGameState else Output(memory)
+        )
         result.input_request = state.input_request
         result.halted = state.halted
-        memory._restore_v3_dynamic(state.ram)
+        memory._restore_dynamic(state.ram)
         return result
 
     def read_variable(self, number: int, *, indirect: bool = False) -> int:
@@ -149,15 +159,21 @@ class Machine:
         if frame.store is not None:
             self.write_variable(frame.store, value)
 
-    def _call(self, packed: int, arguments: list[int], store: int) -> None:
+    def _call(self, packed: int, arguments: list[int], store: int | None) -> None:
         if packed == 0:
-            self.write_variable(store, 0)
+            if store is not None:
+                self.write_variable(store, 0)
             return
         address = self.memory.story.header.unpack_routine_address(packed)
         count = self.memory.read_byte(address)
         if count > 15:
             raise ExecutionError(f"Invalid local count {count} at {address:#x}")
-        locals_ = [self.memory.read_word(address + 1 + 2 * i) for i in range(count)]
+        defaults = self.memory.story.header.version <= 4
+        locals_ = (
+            [self.memory.read_word(address + 1 + 2 * i) for i in range(count)]
+            if defaults
+            else [0] * count
+        )
         for i, value in enumerate(arguments[:count]):
             locals_[i] = value
         self.frames.append(
@@ -165,7 +181,7 @@ class Machine:
                 locals=locals_, return_address=self.pc, store=store, argument_count=len(arguments)
             )
         )
-        self.pc = address + 1 + 2 * count
+        self.pc = address + 1 + (2 * count if defaults else 0)
 
     def _branch(self, branch: Branch, condition: bool) -> None:
         if condition == branch.on_true:
@@ -175,7 +191,12 @@ class Machine:
                 self.pc += branch.offset - 2
 
     def _emit(self, text: str) -> None:
-        if self.screen_enabled:
+        if self.display.state.memory_streams or (
+            self.memory.story.header.version >= 5 and self.screen_enabled
+        ):
+            # Stream 3 is independent of whether screen output is enabled.
+            text = self.display.emit(text)
+        if text and self.screen_enabled:
             self.output.append(text)
             if self.io.output is not None:
                 self.io.output(text)
@@ -203,7 +224,7 @@ class Machine:
             # Stage only memory, frames, and PC. Branch/return helpers touch
             # those fields alone; RNG, output, and host callbacks stay untouched.
             candidate = copy(self)
-            candidate.memory = self.memory._prepare_v3_restore(saved.ram)
+            candidate.memory = self.memory._prepare_restore(saved.ram)
             candidate.frames = [
                 Frame(list(f.locals), list(f.stack), f.return_address, f.store, f.argument_count)
                 for f in saved.frames
@@ -214,7 +235,7 @@ class Machine:
                 raise SaveFormatError("Restored continuation is outside the story")
         except (SaveFormatError, MemoryAccessError, ExecutionError):
             return False
-        self.memory._restore_v3_dynamic(
+        self.memory._restore_dynamic(
             candidate.memory.read_bytes(0, self.memory.story.header.static_memory)
         )
         self.frames, self.pc = candidate.frames, candidate.pc
@@ -225,7 +246,7 @@ class Machine:
         # Flags 2. Keep the Memory object used by the text/object helpers.
         flags2 = self.memory.read_word(0x10)
         self.memory.reset()
-        self.memory._configure_v3_header()
+        self.memory._configure_header()
         self.memory.write_word(0x10, flags2)
         self.pc = self.memory.story.header.entry_address
         self.frames = [Frame()]
@@ -270,11 +291,18 @@ class Machine:
         if request is None or self.halted:
             raise ExecutionError("The machine is not waiting for line input")
         try:
-            read_line(self.memory, request.text, request.parse, line)
+            if isinstance(request, StoredInputRequest) and request.character:
+                encoded = self.text.encode_input(line, lowercase=False)
+                self.write_variable(request.store, encoded[0] if encoded else 13)
+            else:
+                read_line(self.memory, request.text, request.parse, line)
+                if isinstance(request, StoredInputRequest):
+                    self.write_variable(request.store, 13)
         except MemoryAccessError as exc:
             raise ExecutionError(f"Invalid input buffer or dictionary: {exc}") from exc
         self.input_request = None
-        self._emit("\n")  # The read opcode prints the Enter terminator (§15).
+        if not isinstance(request, StoredInputRequest) or not request.character:
+            self._emit("\n")  # Line reads print the Enter terminator (§15).
 
     def _execute(self, instruction: Instruction) -> None:
         name = instruction.opcode.name
@@ -293,9 +321,9 @@ class Machine:
             self._branch(instruction.branch, condition)
 
         match name:
-            case "save":
+            case "save" if self.memory.story.header.version == 3:
                 branch(self._save(instruction))
-            case "restore":
+            case "restore" if self.memory.story.header.version == 3:
                 if not self._restore():
                     branch(False)
             case "restart":
@@ -310,12 +338,32 @@ class Machine:
                 # Executable probes return the last local in this historical
                 # case. Keep other stack underflows strict.
                 value = (
-                    frame.locals[-1] if not frame.stack and frame.locals else self.read_variable(0)
+                    frame.locals[-1]
+                    if self.memory.story.header.version == 3 and not frame.stack and frame.locals
+                    else self.read_variable(0)
                 )
                 self._return(value)
-            case "call":
-                assert instruction.store is not None
+            case (
+                "call"
+                | "call_vs"
+                | "call_vs2"
+                | "call_1s"
+                | "call_2s"
+                | "call_1n"
+                | "call_2n"
+                | "call_vn"
+                | "call_vn2"
+            ):
                 self._call(args[0], args[1:], instruction.store)
+            case "check_arg_count":
+                branch(self.frames[-1].argument_count >= args[0])
+            case "catch":
+                store(len(self.frames) - 1)
+            case "throw":
+                if not 0 < args[1] < len(self.frames):
+                    raise ExecutionError("Invalid catch frame token")
+                del self.frames[args[1] + 1 :]
+                self._return(args[0])
             case "jump":
                 self.pc += signed(args[0]) - 2
             case "jz":
@@ -409,10 +457,14 @@ class Machine:
                 store(self.objects.get(*args) if args[0] else 0)
             case "get_prop_addr":
                 # A property above the V3 range cannot be present (§12.4.1).
-                prop = self.objects.find(*args) if args[0] and args[1] <= 31 else None
+                prop = (
+                    self.objects.find(*args)
+                    if args[0] and args[1] <= self.objects.max_property
+                    else None
+                )
                 store(prop.address if prop else 0)
             case "get_prop_len":
-                store((self.memory.read_byte(args[0] - 1) >> 5) + 1 if args[0] else 0)
+                store(self.objects.property_length(args[0]))
             case "get_next_prop":
                 store(self.objects.next_property(*args) if args[0] else 0)
             case "put_prop":
@@ -438,12 +490,14 @@ class Machine:
                     # before object 1 as its name-table pointer. Cutthroats
                     # exercises this on an unresolved pronoun. Keep the text
                     # bounded by the addressable story image in this case.
-                    table = self.memory.read_word(self.objects.base + 60)
+                    table = self.memory.read_word(
+                        self.objects.base + self.objects.defaults_size - 2
+                    )
                     self._emit(
                         self.text.decode(table + 1) if self.memory.read_byte(table) else "object#0"
                     )
             case "print_char":
-                self._emit(zscii(args[0]))
+                self._emit(self.text.character(args[0]))
             case "print_num":
                 self._emit(str(signed(args[0])))
             case "new_line":
@@ -452,9 +506,64 @@ class Machine:
                 store(self.rng.random(signed(args[0])))
             case "sread":
                 self.input_request = InputRequest(*args, instruction_address=instruction.address)
+            case "aread" | "read_char":
+                timing = args[2:] if name == "aread" else args[1:]
+                if any(timing):
+                    raise UnsupportedOpcodeError("Timed input is not supported")
+                if name == "read_char" and args[0] != 1:
+                    raise ExecutionError("Only keyboard character input is supported")
+                assert instruction.store is not None
+                self.input_request = StoredInputRequest(
+                    text=args[0] if name == "aread" else 0,
+                    parse=args[1] if name == "aread" else 0,
+                    instruction_address=instruction.address,
+                    store=instruction.store,
+                    character=name == "read_char",
+                )
+            case "tokenise":
+                tokenise(
+                    self.memory, *args[:3], skip_unknown=bool(args[3]) if len(args) > 3 else False
+                )
+            case "encode_text":
+                text, length, start, destination = args
+                self.memory.write_bytes(
+                    destination,
+                    self.text.encode_dictionary(self.memory.read_bytes(text + start, length)),
+                )
+            case "copy_table":
+                source, destination, size = args
+                size = signed(size)
+                if destination == 0:
+                    self.memory.write_bytes(source, bytes(abs(size)))
+                elif size >= 0:
+                    self.memory.write_bytes(destination, self.memory.read_bytes(source, size))
+                else:
+                    for offset in range(-size):
+                        self.memory.write_byte(
+                            destination + offset, self.memory.read_byte(source + offset)
+                        )
+            case "scan_table":
+                value, table, length = args[:3]
+                form = args[3] if len(args) == 4 else 0x82
+                size = form & 0x7F
+                read = self.memory.read_word if form & 0x80 else self.memory.read_byte
+                found = next(
+                    (table + i * size for i in range(length) if read(table + i * size) == value), 0
+                )
+                store(found)
+                branch(bool(found))
+            case "log_shift" | "art_shift":
+                value, places = args[0], signed(args[1])
+                if not -15 <= places <= 15:
+                    raise ExecutionError("Shift count must be between -15 and 15")
+                if name == "art_shift":
+                    value = signed(value)
+                store(value << places if places >= 0 else value >> -places)
+            case "save_undo" | "restore_undo":
+                store(-1)  # Explicitly unavailable; no undo support is advertised.
             case "quit":
                 self.halted = True
-            case "nop" | "show_status":
+            case "nop" | "show_status" | "extended_nop":
                 pass  # This transcript interface advertises no status-line display.
             case "sound_effect":
                 # Sound resources are external (§9). This text-only host has
@@ -462,16 +571,57 @@ class Machine:
                 pass
             case "verify":
                 branch(self.memory.story.verify_checksum() is not False)
+            case "piracy":
+                branch(True)
             case "output_stream" if signed(args[0]) in (-1, 1):
                 self.screen_enabled = signed(args[0]) == 1
             case "output_stream" if args[0] == 0:
                 pass
+            case "output_stream" if signed(args[0]) in (-3, 3):
+                if args[0] == 3 and len(args) < 2:
+                    raise ExecutionError("Memory output requires a table operand")
+                self.display.memory_stream(args[1] if args[0] == 3 else None)
+            case "split_window" if self.memory.story.header.version >= 5:
+                self.display.split(args[0])
+            case "set_window" if self.memory.story.header.version >= 5:
+                self.display.select(args[0])
+            case "set_cursor":
+                self.display.move(*args)
+            case "get_cursor":
+                row, column = self.display.state.cursors[self.display.state.window]
+                self.memory.write_bytes(args[0], row.to_bytes(2, "big") + column.to_bytes(2, "big"))
+            case "erase_window":
+                self.display.erase(signed(args[0]))
+            case "erase_line" | "set_text_style" | "buffer_mode" | "set_colour" | "set_true_colour":
+                pass  # Presentation controls do not alter a plain transcript.
+            case "set_font":
+                store(self.display.font(args[0]))
+            case "print_unicode":
+                self._emit(chr(args[0]))
+            case "check_unicode":
+                code = args[0]
+                printable = 32 <= code <= 0xFFFF and not 0xD800 <= code <= 0xDFFF and code != 127
+                readable = printable and (code <= 126 or chr(code) in self.text._extra())
+                store(int(printable) | (int(readable) << 1))
+            case "print_table":
+                table, width = args[:2]
+                height = args[2] if len(args) > 2 else 1
+                skip = args[3] if len(args) > 3 else 0
+                for row in range(height):
+                    if row:
+                        self._emit("\n")
+                    self._emit(
+                        "".join(
+                            self.text.character(code)
+                            for code in self.memory.read_bytes(table + row * (width + skip), width)
+                        )
+                    )
             case "split_window" | "set_window" if args[0] == 0:
                 pass  # The only supported window is the unsplit lower window.
             case "input_stream" if args[0] == 0:
                 pass
             case _:
                 raise UnsupportedOpcodeError(
-                    f"Unsupported V3 opcode {name} ({instruction.group}:{instruction.number}) "
+                    f"Unsupported V{self.memory.story.header.version} opcode {name} ({instruction.group}:{instruction.number}) "
                     f"at {instruction.address:#x}"
                 )

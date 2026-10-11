@@ -188,7 +188,7 @@ class StateBridge:
         if state.rng.host_seed != self.seed:
             raise ValueError("The destination must use the snapshot's host seed")
         memory = Memory(self.story)
-        memory._restore_v3_dynamic(state.ram)
+        memory._restore_dynamic(state.ram)
         request = state.input_request
         instruction = self._read(memory, request.instruction_address)
         if instruction.next_address != state.pc:
