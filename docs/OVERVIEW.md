@@ -297,8 +297,9 @@ representation measured with independent synthetic stories. Fernz's runtime
 keeps its own immutable checkpoint format and has no reference dependency.
 
 Every turn compares text, reward, quit status, score, and move count. Fernz
-retains the Enter newline and story prompt that Jericho omits; tests assert and
-remove exactly those characters before comparing the remaining response.
+retains the Enter newline that Jericho omits; tests assert and remove that
+newline before comparing the remaining response. The trailing Zork command
+prompt is omitted from `.text` and preserved in `.stream`.
 The final turn executes `quit` and has no prompt. At that boundary only, tests
 assert two observed differences: Jericho adds one trailing newline and reports
 395 moves, whereas Fernz returns the story's status global of 394. Both endings
