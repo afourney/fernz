@@ -84,7 +84,7 @@ jobs:
           enable-cache: true
       - run: uv sync --frozen --extra textual
       - run: uv run --no-sync python -c "import importlib.util; assert importlib.util.find_spec('jericho') is None"
-      # All offline tests and 56 story files; only five gameplay commands per
+      # All offline tests and 57 story files; only five gameplay commands per
       # V3 route plus short replay/reset checks. ZIP hashes are still verified.
       # The fixture downloads ROMs if absent; never cache or upload them.
       - run: uv run --no-sync poe test-fast

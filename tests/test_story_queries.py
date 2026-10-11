@@ -294,3 +294,22 @@ def test_byte_move_counter_does_not_leak_high_byte(profiled_story, monkeypatch, 
     assert env.get_moves() == expected
     assert env.get_state() == before
     env.close()
+
+
+def test_profile_without_fixed_maximum_keeps_other_queries(profiled_story, monkeypatch):
+    identity = sha256(profiled_story.read_bytes()).hexdigest()
+    monkeypatch.setitem(
+        _profiles._PROFILES, identity, replace(_profiles._PROFILES[identity], max_score=None)
+    )
+    env = FernzEnv(profiled_story, seed=42)
+    with pytest.raises(NotImplementedError, match="no fixed maximum"):
+        env.get_max_score()
+    env.reset()
+    before = env.get_state()
+    assert outcomes(env) == (True, False)
+    assert location(env) == (1, "abc")
+    assert env.get_score() == 0 and env.get_moves() == 0
+    with pytest.raises(NotImplementedError, match="no fixed maximum"):
+        env.get_max_score()
+    assert env.get_state() == before
+    env.close()

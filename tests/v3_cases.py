@@ -450,7 +450,8 @@ MECHANICS = {
 
 
 def selected_games(shard=None):
-    games = tuple(GAMES)
+    # LGOP has a separate recorder because the public reference lacks its queries.
+    games = (*GAMES, "lgop")
     if shard is None:
         return games
     try:
@@ -458,7 +459,7 @@ def selected_games(shard=None):
     except (ValueError, AttributeError) as error:
         raise ValueError("Use a V3 shard such as 1/3") from error
     if not 1 <= part <= total <= len(games):
-        raise ValueError("V3 shard must satisfy 1 <= part <= total <= 15")
+        raise ValueError(f"V3 shard must satisfy 1 <= part <= total <= {len(games)}")
     return games[part - 1 :: total]
 
 

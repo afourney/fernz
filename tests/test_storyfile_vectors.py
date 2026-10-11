@@ -69,8 +69,8 @@ def test_story_only_command_needs_no_reference_and_detects_changed_inputs(tmp_pa
     args = ["--only", "storyfiles", "--suite", str(suite), "--storyfiles-output", str(output)]
     generate_zork1_vectors.main(args)
     documents = read_archive(output)
-    assert len(documents) == 57
-    assert documents["manifest.json"]["story_count"] == 56
+    assert len(documents) == 58
+    assert documents["manifest.json"]["story_count"] == 57
     before = output.read_bytes(), output.stat().st_mtime_ns
     generate_zork1_vectors.main([*args, "--check"])
     assert (output.read_bytes(), output.stat().st_mtime_ns) == before

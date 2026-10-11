@@ -20,7 +20,7 @@ def story_vectors():
     manifest = documents["manifest.json"]
     filenames = {name for names in GAMES.values() for name in names}
     assert manifest["kind"] == "storyfiles"
-    assert manifest["story_count"] == len(filenames) == 56
+    assert manifest["story_count"] == len(filenames) == 57
     assert set(documents) == {"manifest.json", *(name + ".json" for name in filenames)}
     return documents
 

@@ -43,13 +43,13 @@ def test_existing_games_without_suite_is_left_untouched(tmp_path, monkeypatch):
     assert [(p.name, p.read_text()) for p in games.iterdir()] == [("notes.txt", "keep me")]
 
 
-def test_download_keeps_only_requested_suite_and_excludes_lgop(tmp_path, monkeypatch):
+def test_download_keeps_the_complete_requested_suite(tmp_path, monkeypatch):
     archive = zip_bytes(
         {
             "z-machine-games-master/README.md": b"upstream readme",
             "z-machine-games-master/jericho-game-suite/zork1.z5": b"\x03zork",
             "z-machine-games-master/jericho-game-suite/trinity.z4": b"\x04trinity",
-            "z-machine-games-master/jericho-game-suite/lgop.z3": b"excluded",
+            "z-machine-games-master/jericho-game-suite/lgop.z3": b"\x03lgop",
             "z-machine-games-master/autoplay-game-suite/Advent.z5": b"other suite",
             "z-machine-games-master/the-large-game-collection.zip": b"other archive",
         }
@@ -68,6 +68,7 @@ def test_download_keeps_only_requested_suite_and_excludes_lgop(tmp_path, monkeyp
     } == {
         "jericho-game-suite/zork1.z5": b"\x03zork",
         "jericho-game-suite/trinity.z4": b"\x04trinity",
+        "jericho-game-suite/lgop.z3": b"\x03lgop",
     }
     assert game_files.ensure_jericho_games(games) == suite
     assert requests == [game_files.GAMES_ARCHIVE_URL]
