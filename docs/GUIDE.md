@@ -13,7 +13,7 @@ also have detours, loss paths and V5 Quetzal save/restore coverage. Linux compar
 vectors cover other platforms. See [V5 milestones](V5.md) for exact scope
 and remaining features. **V8 execution** covers openings, commands and persistence
 in all six retained games, plus complete winning routes and query APIs for
-Lost Pig and Snack Time; see [V8 compatibility](V8.md).
+all six games; see [V8 compatibility](V8.md).
 Full conformance and Blorb containers are still ahead.
 
 **V4 execution** completes Trinity's 610-command winning walkthrough at seed 0,

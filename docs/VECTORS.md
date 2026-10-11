@@ -251,13 +251,16 @@ The 33 V5 ZIPs together occupy about 1.75 MB (1.67 MiB).
 ## V8 vectors
 
 All six retained V8 games have `<rom>_vectors.zip` archives containing opening
-and action/persistence records. Lost Pig and Snack Time additionally contain
-`walkthrough.json` and `counters.json`, covering 146 and 34 commands through
-winning endings. Both record explicit seed 42. Together the six ZIPs occupy
-about 68 KB; they contain no narrative, ROM bytes, RAM dumps or save payloads.
+and action/persistence records, plus `walkthrough.json` and `counters.json`.
+Their complete winning routes cover 966 inputs at explicit seed 42. Together
+the six ZIPs occupy about 250 KiB; they contain no narrative, ROM bytes, RAM
+dumps or save payloads. See [the corpus inventory](CORPUS.md) for each route.
 
-Each step hashes text, object entries/property tables and all 240 global words,
-and records RNG and pending input facts. Full routes also hash complete object,
+Each step hashes object entries/property tables and all 240 global words,
+and records RNG and pending input facts. Opening/action text is checked per
+step; full-route text is grouped across character pauses to account for the
+reference's deferred words. V8 record version 2 records these boundaries and
+the measured first-character clipping. Full routes also hash complete object,
 player/location and inventory query results, with counters, rewards and outcomes.
 The recorded raw reference outcomes remain available alongside Fernz's documented
 winning-menu interpretation. Counter probes test width and signedness separately

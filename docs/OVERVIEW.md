@@ -7,7 +7,7 @@ See [V3 gameplay coverage](V3_GAMES.md) for exact builds and limitations. The li
 minimal interactive CLI support V3, V4, V5 and V8 execution. All 33 retained V5
 builds complete measured winning routes; see [V5](V5.md). V8 covers all six
 retained openings and action/persistence scenarios, with full winning routes
-and query APIs for Lost Pig and Snack Time; see [V8](V8.md).
+and query APIs for all six games; see [V8](V8.md).
 
 ## Mandatory clean-room requirement
 
@@ -792,5 +792,5 @@ V8 execution reaches all six retained opening screens and continues through
 commands, snapshots, save/restore and restart. It shares V5 semantics with
 eight-byte packed addresses and file-length units. High-address synthetic
 tests and public-reference hashes cover those scenarios, plus full winning
-routes and query APIs for Lost Pig and Snack Time. See [V8 compatibility](V8.md)
+routes and query APIs for all six games. See [V8 compatibility](V8.md)
 for exact scope, counter probes and startup pause conventions.

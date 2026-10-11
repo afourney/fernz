@@ -1,5 +1,10 @@
 # Jericho Readiness Report
 
+> Coverage update: all 57 retained builds now have profiles and recorded winning
+> routes; LGOP alone has no fixed maximum score. See the [corpus inventory](CORPUS.md)
+> and [V8 details](V8.md). The review below describes its pinned implementation
+> baseline; its four-game profile/route gap has since been closed.
+
 **Assessment date: 2026-10-11.** This report evaluates Fernz as a replacement for
 Jericho in a general customer's application, rather than only in Cabin Fever.
 The implementation baseline is Fernz

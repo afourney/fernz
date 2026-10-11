@@ -1,5 +1,10 @@
 # Cabin Fever x86 readiness review
 
+> Coverage update: all 57 retained builds now have profiles and recorded winning
+> routes; LGOP alone has no fixed maximum score. See the [corpus inventory](CORPUS.md)
+> and [V8 details](V8.md). The review below describes its pinned implementation
+> baseline; its four-game profile/route gap has since been closed.
+
 For a general customer replacing Jericho beyond Cabin Fever's particular API
 usage, see the [Jericho Readiness Report](JERICHO_READINESS.md).
 
