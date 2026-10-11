@@ -1,5 +1,9 @@
 # Portable test vectors
 
+Our [testing philosophy](TESTING_PHILOSOPHY.md) explains the roles of live
+references and recorded hashes, independent expectations, and the rule against
+including copyrighted game content in vector archives.
+
 `tests/vectors/zork1_vectors.zip` records expectations from public Jericho 3.3.1
 calls on little-endian Linux/Python 3.11. Python's standard `zipfile` library
 reads JSON members into memory; replay never extracts the archives to disk

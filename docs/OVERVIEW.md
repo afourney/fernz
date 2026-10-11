@@ -157,8 +157,11 @@ The archives hold hashes and metadata for all 56 story files and for Zork's
 walkthrough, detours, deaths, combat seeds, and save/restore/restart. Each story
 has portable loading/memory and environment/CLI inspection cases. Neither ZIP
 contains ROMs or narrative dumps.
-See [portable vectors](VECTORS.md) for the format, coverage, explicit comparison
-differences, and regeneration steps.
+See [our testing philosophy](TESTING_PHILOSOPHY.md) for the roles of live Linux
+references and portable hashes, independent expectations, and the rule against
+including copyrighted game content in vectors. The [vector guide](VECTORS.md)
+documents the format, coverage, explicit comparison differences, and regeneration
+steps.
 
 The package check verifies metadata, package files, the `py.typed` marker, and
 that neither distribution contains game ROMs. It then installs the wheel into a
