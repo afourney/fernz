@@ -172,7 +172,14 @@ vector format version change and coordinated reader/generator updates.
 
 ## CI
 
-The core Linux reference job keeps existing comparisons, checks Zork I and
+Every PR runs the offline suite, all 56 story files' loading and inspection
+checks, and bounded gameplay prefixes for all 16 V3 games. It verifies every
+archive member's integrity and compares short live traces on Linux. Short
+portable replay runs on macOS and both Windows runners without Jericho.
+See [fast and comprehensive CI](CI.md) for timing limits and manual dispatch.
+
+In the manual comprehensive workflow, the core Linux reference job keeps
+existing comparisons, checks Zork I and
 story metadata archives, and replays those vectors. Three additional Linux
 jobs partition the other 15 games and run live comparisons plus archive
 freshness checks. The Python 3.12 portable matrix has a core group and the

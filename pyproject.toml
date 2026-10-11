@@ -34,6 +34,7 @@ build-backend = "uv_build"
 testpaths = ["tests"]
 addopts = "-m 'not reference and not rom'"
 markers = [
+    "smoke: bounded real-game and live reference checks for fast pull-request CI",
     "reference: black-box comparisons requiring Jericho and downloaded ROMs",
     "rom: loading, memory, and gameplay tests using downloaded story files",
     "vectors: portable story metadata and gameplay comparisons using committed ZIPs (no Jericho)",
@@ -84,6 +85,9 @@ lint-fix = "ruff check --fix src tests scripts"
 # Keep downloaded ROMs and deliberately malformed test inputs out of spell checks.
 spell = "codespell --check-hidden src scripts docs README.md pyproject.toml .github"
 test = "pytest"
+test-fast = "pytest -m 'not reference and (not rom or smoke)' -ra --tb=short --durations=10"
+test-fast-reference = "pytest -m 'reference and smoke' -ra --tb=short --durations=10"
+test-full = ["test", "test-roms", "test-reference", "test-vectors", "check-vectors"]
 test-roms = "pytest -m 'rom and not vectors' -ra"
 test-reference = "pytest -m reference -ra --tb=short"
 test-vectors = "pytest -m vectors -ra --tb=short"

@@ -124,6 +124,9 @@ Run `uv sync --dev` to install the locked development tools, then use:
 | `uv run poe check` | Check formatting, lint, and spelling. |
 | `uv run poe fix-all` | Apply formatting and automatic lint fixes. |
 | `uv run poe test` | Run synthetic and API tests without Jericho or ROM downloads. |
+| `uv run poe test-fast` | Run the fast PR selection: offline tests, all story files, and short portable gameplay. |
+| `uv run --no-sync poe test-fast-reference` | Run bounded live Jericho comparisons on Linux. |
+| `uv run --no-sync poe test-full` | Run all tests and archive freshness checks in the Linux reference environment. |
 | `uv run poe test-roms` | Load all 56 retained ROMs, check checksums and memory, and run Zork I startup, mailbox play, quit, and reset. |
 | `uv run --no-sync poe test-reference` | Compare all 16 seeded V3 walkthroughs, detours, and synthetic probes with the references, after installing the reference group below. |
 | `uv run poe test-vectors` | Check all 56 stories' metadata and replay all 16 V3 archives on any supported platform without Jericho. |
@@ -138,23 +141,31 @@ distribution in `dist/`; remove stale distributions after changing versions.
 Formatting and lint cover `src/`, `tests/`, and `scripts/`. Spelling checks also
 cover documentation and CI configuration, but exclude test inputs and ROMs.
 
-`.github/workflows/ci.yml` runs on pull requests, pushes to `main`, and manual
-dispatch. Separate jobs check code quality and lockfile consistency, run pytest
-on Python 3.11 through 3.14, and validate the built package. CI uses the same Poe
-tasks as local development, with frozen dependency installation. Superseded runs
-are cancelled and workflow permissions are limited to reading repository contents.
-A separate Linux/Python 3.11 job installs the optional reference group and runs
-the ROM loading tests followed by the Jericho comparisons. Both use the same
-`jericho_games` fixture. Missing dependencies, download failures, and reference
-execution failures fail that job; it does not silently skip them.
+`.github/workflows/fast.yml` runs on pull requests, pushes to `main`, and manual
+dispatch, under the name **check**. It keeps code quality, lockfile consistency,
+all offline tests on Linux/Python 3.11–3.14, and package validation. Linux also
+runs all story loading checks, short vector replay, and bounded live Jericho
+comparisons. Python 3.12 portable jobs run offline tests, all 56 story files,
+and short gameplay on macOS, Windows Server 2025 x64, and Windows 11 ARM,
+without Jericho. Every V3 game gets its opening and five route commands, with
+copy, snapshot restore, and reset checks. Every archive's member hashes are
+verified. Test steps have two-minute limits and jobs have five-minute limits;
+the target is under three minutes of runner execution.
 
-The core Linux job checks Zork I and story-file metadata archives. Three
-additional Linux jobs each run five V3 games against the public reference and
-verify their archives against fresh measurements. The Python 3.12 portable
-matrix has core and V3 groups on macOS, Windows Server 2025 x64, and Windows 11
-ARM, without Jericho. The 17 archives hold hashes and metadata for all 56 story
-files and all 16 V3 games' routes, detours, losses, seeds, and save/restart/restore.
-No archive contains ROMs, game narrative, or memory dumps.
+`.github/workflows/ci.yml`, named **comprehensive**, retains the complete matrix
+and runs only by manual dispatch. Its core Linux job includes complete Zork I
+comparisons and checks the Zork I and story-file archives against fresh
+measurements. Three additional Linux jobs each run five V3 games against the
+public reference and verify their archives. The portable matrix has core and
+V3 groups on all three platforms. The 17 archives hold hashes and metadata
+for all 56 story files and all 16 V3 games' routes, detours, losses, seeds, and
+save/restart/restore. No archive contains ROMs, narrative, or memory dumps.
+
+Both workflows use the same Poe tasks as local development, frozen dependency
+installation, read-only repository permissions, and cancellation of superseded
+runs. Missing dependencies, fixture downloads, or reference execution fail the
+selected checks; they do not silently skip them. See [CI](CI.md) for manual
+validation of a PR's current commit and the fast-suite timing policy.
 See [our testing philosophy](TESTING_PHILOSOPHY.md) for the roles of live Linux
 references and portable hashes, independent expectations, and the rule against
 including copyrighted game content in vectors. The [vector guide](VECTORS.md)

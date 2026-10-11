@@ -1,10 +1,7 @@
-name: check
+name: comprehensive
 
-# Always report each job, including on documentation-only pull requests.
+# Run explicitly on the branch/commit under review. Fast checks run in fast.yml.
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
 
 permissions:

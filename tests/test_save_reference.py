@@ -96,6 +96,7 @@ def test_zork_quetzal_files_work_in_both_interpreters(dfrotz, zork1, tmp_path):
             env.close()
 
 
+@pytest.mark.smoke
 def test_zork_fernz_save_restores_in_jericho(zork1, tmp_path, monkeypatch):
     from jericho import FrotzEnv
 
