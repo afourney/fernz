@@ -37,6 +37,7 @@ markers = [
     "reference: black-box comparisons requiring Jericho and downloaded ROMs",
     "rom: loading, memory, and gameplay tests using downloaded story files",
     "vectors: portable story metadata and gameplay comparisons using committed ZIPs (no Jericho)",
+    "v3games: comprehensive gameplay checks for the additional retained V3 stories",
 ]
 
 [tool.ruff]
@@ -86,6 +87,10 @@ test = "pytest"
 test-roms = "pytest -m 'rom and not vectors' -ra"
 test-reference = "pytest -m reference -ra --tb=short"
 test-vectors = "pytest -m vectors -ra --tb=short"
+test-reference-core = "pytest -m 'reference and not v3games' -ra --tb=short"
+test-vectors-core = "pytest -m 'vectors and not v3games' -ra --tb=short"
+test-v3-reference = "pytest -m 'reference and v3games' -ra --tb=short"
+test-v3-vectors = "pytest -m 'vectors and v3games' -ra --tb=short"
 generate-vectors = "python -m tests.scripts.generate_zork1_vectors"
 check-vectors = "python -m tests.scripts.generate_zork1_vectors --check"
 build = "uv build --out-dir dist"

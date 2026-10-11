@@ -76,21 +76,43 @@ jobs:
       # the walkthrough, including detached snapshots, vehicles, and death states.
       # Branch off the walkthrough with invalid inputs, red herrings, and seeded combat.
       # Compare transcripts and complete converted VM state after every detour turn.
-      - run: uv run --no-sync poe test-reference
+      - run: uv run --no-sync poe test-reference-core
       # Regenerate public reference measurements and specification-derived
       # story metadata in memory. Require both ZIPs to match without rewriting.
-      - run: uv run --no-sync poe check-vectors
-      - run: uv run --no-sync poe test-vectors
+      - run: uv run --no-sync poe check-vectors --only storyfiles
+      - run: uv run --no-sync poe check-vectors --only zork1
+      - run: uv run --no-sync poe test-vectors-core
+
+  reference-v3:
+    name: reference V3 (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ["1/3", "2/3", "3/3"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+          version: "0.12.23"
+      - run: uv sync --frozen --group reference
+      # Compare every additional V3 game directly through public Jericho APIs,
+      # then require its committed hashes to match fresh reference measurements.
+      - run: uv run --no-sync poe test-v3-reference --v3-shard ${{ matrix.shard }}
+      - run: uv run --no-sync poe check-vectors --only v3 --v3-shard ${{ matrix.shard }}
 
   portable:
-    name: portable (${{ matrix.os }}, Python 3.12)
+    name: portable (${{ matrix.os }}, Python 3.12, ${{ matrix.group }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         # Hosted x64 Windows is Server 2025; ARM uses Windows 11.
         os: [macos-latest, windows-2025, windows-11-arm]
+        group: [core, "1/3", "2/3", "3/3"]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -99,11 +121,15 @@ jobs:
           version: "0.12.23"
       - run: uv sync --frozen
       - run: uv run --no-sync python -c "import importlib.util; assert importlib.util.find_spec('jericho') is None"
-      - run: uv run --no-sync poe test
+      - if: matrix.group == 'core'
+        run: uv run --no-sync poe test
       # Read both ZIPs directly: all 56 story files' metadata/memory/CLI info,
       # plus Zork gameplay. Only the existing ROM fixture downloads games;
       # do not cache or upload the games directory.
-      - run: uv run --no-sync poe test-vectors
+      - if: matrix.group == 'core'
+        run: uv run --no-sync poe test-vectors-core
+      - if: matrix.group != 'core'
+        run: uv run --no-sync poe test-v3-vectors --v3-shard ${{ matrix.group }}
 
   build:
     runs-on: ubuntu-latest

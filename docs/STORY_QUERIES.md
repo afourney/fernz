@@ -24,7 +24,8 @@ walkthrough confirm this relationship. A vehicle can therefore be the location:
 after command 218, entering the boat returns object 156, `magic boat`, while the
 status-line global still contains surrounding room 33, `White Cliffs Beach`.
 
-For other V3 stories, Fernz uses the status-line convention in Standard
+All 16 retained V3 profiles use the measured player's immediate parent.
+For unprofiled V3 stories, Fernz uses the status-line convention in Standard
 [§8.2.2](https://inform-fiction.org/zmachine/standards/z1point1/sect08.html):
 the first global identifies the object whose short name is displayed. This
 fallback works for score and time games; it is not a guarantee that every game
@@ -53,8 +54,10 @@ story names; the required reference tests assert these differences explicitly:
 
 Score limits and outcome rules are game conventions, outside the Z-machine
 instruction set. Private, immutable profiles contain this metadata separately
-from opcode execution. Only the retained Zork I release 88, serial `840726`,
-checksum `0xa129` is currently profiled. Its maximum score is 350.
+from opcode execution. All 16 retained V3 builds now have measured profiles; see [V3 games](V3_GAMES.md)
+for seeds, player identities, score conventions, and ending differences.
+The retained Zork I release 88, serial `840726`, checksum `0xa129` has a maximum
+score of 350.
 
 Recognition uses SHA-256 of the original addressable story image, excluding
 file padding: `158f1f63b1302591bbce30e1ec23b17909d2a66e39403ed14593a75280b1e7f9`.
@@ -130,6 +133,6 @@ voluntary quit, copies, checkpoint restoration, reset, restart, and Quetzal
 save/restore. Synthetic tests cover independent profiles, unsupported builds,
 immutable names, malformed locations, schema validation, and failed execution.
 
-Future work includes additional story profiles, later execution versions,
+Future work includes additional releases and stories, later execution versions,
 cleaned world inspection, and native snapshot persistence. Legacy Cabin Fever `.bin`
 imports and changes to the Cabin Fever repository are outside this thread.

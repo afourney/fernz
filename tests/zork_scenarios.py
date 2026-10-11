@@ -106,6 +106,21 @@ COMMAND_GROUPS = {
 }
 SCENARIOS = (
     Scenario(
+        "west-house",
+        ("look", "glorb", "wait", "z", "wait. wait", "inventory", "wait"),
+        id="wait-advances-game-time",
+    ),
+    Scenario(
+        "boat",
+        ("launch", "look", "glorb", "inventory", "look", "look", "look"),
+        id="river-current-on-every-turn",
+    ),
+    Scenario(
+        "boat",
+        ("launch", "wait", "wait", "wait", "look", "inventory"),
+        id="river-current-interrupts-wait",
+    ),
+    Scenario(
         "living-room",
         ("move rug", "open door", "wooden", "open door", "trap", "look"),
         id="ambiguous-doors-and-clarification",

@@ -217,8 +217,8 @@ def test_header_capabilities_and_game_write_protection():
 
 
 def test_unsupported_opcode_is_not_silently_ignored():
-    with pytest.raises(UnsupportedOpcodeError, match=r"sound_effect .*0x401"):
-        run_hex("f5 7f 01")
+    with pytest.raises(UnsupportedOpcodeError, match=r"split_window .*0x401"):
+        run_hex("ea 7f 01")
 
 
 def test_execution_budget_and_exact_budget_boundary():
@@ -319,9 +319,10 @@ def test_jin_still_rejects_invalid_nonzero_objects(obj):
         machine(code + READ).run()
 
 
-def test_get_parent_still_rejects_object_zero():
-    with pytest.raises(ExecutionError, match="get_parent at 0x401: Invalid V3 object number 0"):
-        run_hex("93 00 10")
+def test_get_parent_treats_object_zero_as_parentless():
+    m = machine(bytes.fromhex("93 00 10") + READ)
+    m.run()
+    assert m.memory.read_word(m.memory.story.header.globals_table) == 0
 
 
 def test_execution_reloads_modified_instructions():
@@ -331,3 +332,55 @@ def test_execution_reloads_modified_instructions():
     m.run()
     assert m.input_request is not None
     assert m.pc == 0x246
+
+
+@pytest.mark.parametrize(
+    "code", ["93 00 10", "92 00 10 c2", "91 00 10 c2", "11 00 01 10", "12 00 01 10", "13 00 00 10"]
+)
+def test_absent_object_reads_return_zero_without_mutation(code):
+    m = machine(bytes.fromhex(code) + READ)
+    before = m.memory.read_bytes(0x40, 0xC0)
+    m.run()
+    assert m.read_variable(16) == 0
+    assert m.memory.read_bytes(0x40, 0xC0) == before
+
+
+def test_absent_object_writes_are_noops():
+    m = machine(bytes.fromhex("0b 00 1f 0c 00 1f 99 00") + READ)
+    before = m.memory.read_bytes(0x40, 0x240)
+    m.run()
+    assert m.memory.read_bytes(0x40, 0x240) == before
+
+
+def test_print_absent_object_uses_legacy_name_pointer():
+    # The default-property word immediately before object 1 holds the pointer.
+    m = machine(
+        bytes.fromhex("9a 00") + READ, (0x7C, b"\x02\x00"), (0x200, b"\x01" + zchars(6, 7, 8))
+    )
+    assert m.run() == "abc"
+
+
+@pytest.mark.parametrize("push,expected", [(b"", 23), (bytes.fromhex("e8 7f 2a"), 42)])
+def test_ret_popped_uses_stack_then_last_local(push, expected):
+    # call 0x500, storing the result in global 16; two initial local values.
+    m = machine(
+        bytes.fromhex("e0 3f 02 80 10") + READ,
+        (0x500, bytes.fromhex("02 00 0b 00 17") + push + b"\xb8"),
+    )
+    m.run()
+    assert m.read_variable(16) == expected
+    assert len(m.frames) == 1 and not m.frames[0].stack
+
+
+def test_silent_sound_host_continues_execution():
+    m = machine(
+        bytes.fromhex("f5 7f 01 f5 5f 03 01 f5 53 03 02 00 08 f5 5f 03 03 f5 5f 03 04 e5 7f 41")
+        + READ
+    )
+    assert m.run() == "A"
+    assert m.input_request is not None
+
+
+def test_print_absent_object_without_name_uses_numeric_placeholder():
+    m = machine(bytes.fromhex("9a 00") + READ, (0x7C, b"\x02\x00"))
+    assert m.run() == "object#0"

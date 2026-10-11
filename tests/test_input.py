@@ -140,3 +140,37 @@ def test_legacy_parse_capacity_is_checked_against_actual_records_written():
     memory = input_memory((0x2A0, b"\xf0"))
     read_line(memory, 0x280, 0x2A0, "look")
     assert memory.read_bytes(0x2A1, 5) == bytes.fromhex("01 03 2a 04 01")
+
+
+def malformed_dictionary_story():
+    # One malformed terminator makes this legacy dictionary locally unsorted.
+    # Pin exact binary-search behavior without repairing the game's bytes.
+    words = (
+        (11, 20, 20),
+        (11, 20, 23),
+        (11, 20, 23, 12, 10, 25),
+        (11, 20, 23, 18, 6, 25),
+        (11, 20, 23, 25),
+        (11, 20, 29),
+        (11, 20, 29, 10, 24),
+    )
+    entries = [bytearray(zchars(*w, *([5] * (6 - len(w))))) for w in words]
+    entries[3][2] &= 0x7F
+    table = b"\x00\x06\x00\x07" + b"".join(entry + b"\x00\x00" for entry in entries)
+    # Leading nop lets the public reference suspend at the first read.
+    code = (
+        b"\xb4"
+        + READ
+        + bytes.fromhex("e5 7f 52 e5 7f 3d cf 1f 02 a2 00 00 e6 bf 00 bb")
+        + READ
+        + b"\xba"
+    )
+    return program_bytes(code, (0x300, table), (0x85, b"\x00\x90"), (0x100, b"\x00\x01"))
+
+
+def test_legacy_dictionary_lookup_preserves_malformed_keys():
+    dictionary = Dictionary(Memory(Story(malformed_dictionary_story())))
+    assert [
+        dictionary.lookup(w)
+        for w in (b"foo", b"for", b"forget", b"format", b"fort", b"fox", b"foxes")
+    ] == [0x304, 0, 0, 0, 0x31C, 0x322, 0x328]

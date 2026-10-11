@@ -19,7 +19,7 @@ the external tuple encoding is an observed property of the pinned reference.
 ## Using the adapter
 
 Both environments must load the exact same story image, use the same explicit
-positive host seed, and keep screen output enabled. Capture the template after
+deterministic host seed, and keep screen output enabled. Capture the template after
 a fresh reference reset. It supplies the destination's interpreter-owned header
 settings; it does not supply gameplay state to later conversions.
 
@@ -129,7 +129,7 @@ constant, local, global, and stack operands.
 
 Conversion preserves story RAM except for the V3 capability bits `0x70` in
 header byte 1 and the advertised Standard version at `0x32..0x33`. These are
-replaced with the receiving interpreter's settings. Flags 2 and all other
+replaced with the receiving interpreter's settings. Flags 2 (except reserved V3 bit 4, described below) and all other
 gameplay bytes are retained; protected header fields are validated on import.
 
 The reference exposes a signed affine RNG state; Fernz keeps the low 31 bits
@@ -140,7 +140,7 @@ affine, and host-seeded sequences, a switch between modes, and `random 0` after
 transfer. See [RNG compatibility](RNG.md) for the behavioral contract.
 
 The reference tuple does not capture the external host seed policy. The adapter
-therefore requires an explicit positive seed and rejects export when Fernz's
+therefore requires an explicit deterministic seed and rejects export when Fernz's
 saved host seed differs. The caller must configure the Jericho recipient with
 that seed; it cannot be recovered from the tuple.
 
@@ -177,3 +177,8 @@ reference's measured capacity. Arrays and registers are checked before creating
 a converted snapshot, but this remains a test helper for trusted checkpoints,
 not a deserializer for arbitrary input. Any new reference version or platform
 needs fresh public-API measurements and passing continuation tests.
+
+The additional V3 suites transfer snapshots in both directions at the midpoint
+of every retained route. Explicit zero is accepted for the measured zero-default
+games. The bridge also normalizes reserved V3 Flags 2 bit 4, which the retained
+Lurking Horror ROM sets and the reference clears. See [V3 comparisons](V3_GAMES.md).

@@ -281,3 +281,48 @@ def test_long_command_limits_are_an_explicit_reference_difference(checkpoint_env
         assert_zork_turn(actual[0], bounded[0])
         assert actual[1:] == bounded[1:]
         assert_state(env, reference, bridge)
+
+
+def test_wait_consumes_story_moves_but_unknown_verbs_do_not(checkpoint_envs):
+    env, reference, bridge, checkpoints = checkpoint_envs
+    state, native = checkpoints["west-house"]
+    env.set_state(state)
+    reference.set_state(native)
+    commands = ("look", "glorb", "wait", "z", "wait. wait", "inventory", "wait")
+    for command, moves in zip(commands, (1, 1, 4, 7, 13, 14, 17), strict=True):
+        compare_turn(env, reference, bridge, command)
+        assert env.get_moves() == reference.get_moves() == moves
+        assert env.get_player_location().num == 180
+
+
+@pytest.mark.parametrize(
+    "commands,moves,parents,locations",
+    [
+        (
+            ("launch", "look", "glorb", "inventory", "look", "look", "look"),
+            (218, 219, 219, 220, 221, 222, 223),
+            (34, 34, 34, 130, 130, 31, 31),
+            (156, 156, 156, 156, 156, 156, 232),
+        ),
+        (
+            ("launch", "wait", "wait", "wait"),
+            (218, 220, 222, 223),
+            (34, 130, 31, 31),
+            (156, 156, 156, 232),
+        ),
+    ],
+    ids=("every-turn", "waiting-is-interrupted"),
+)
+def test_river_current_moves_the_boat_on_the_game_clock(
+    checkpoint_envs, commands, moves, parents, locations
+):
+    env, reference, bridge, checkpoints = checkpoint_envs
+    state, native = checkpoints["boat"]
+    env.set_state(state)
+    reference.set_state(native)
+    for command, count, parent, location in zip(commands, moves, parents, locations, strict=True):
+        compare_turn(env, reference, bridge, command)
+        assert env.get_moves() == reference.get_moves() == count
+        assert env.get_object(156).parent == reference.get_object(156).parent == parent
+        assert env.get_player_location().num == reference.get_player_location().num == location
+    assert env.game_over() and not env.done  # Going over the falls leaves a playable ghost.

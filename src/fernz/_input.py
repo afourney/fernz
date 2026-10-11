@@ -27,8 +27,8 @@ class Dictionary:
     def lookup(self, word: bytes) -> int:
         """Return an entry's byte address, or zero for an unrecognized word."""
         key = self.text.encode_dictionary(word)
-        low, high = 0, self.count
-        while low < high:
+        low, high = 0, self.count - 1
+        while low <= high:
             middle = (low + high) // 2
             address = self.entries + middle * self.entry_length
             entry = self.memory.read_bytes(address, 4)
@@ -37,7 +37,7 @@ class Dictionary:
             if entry < key:
                 low = middle + 1
             else:
-                high = middle
+                high = middle - 1
         return 0
 
     def parse(self, text: bytes, limit: int, *, position_base: int) -> bytes:

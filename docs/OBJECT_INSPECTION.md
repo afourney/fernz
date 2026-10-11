@@ -14,7 +14,7 @@ no reference interpreter implementation was inspected.
 | --- | --- |
 | `get_object(obj_num)` | One `ZObject`, or `None` for zero, negative, or absent object numbers. Non-integer arguments raise `TypeError`. |
 | `get_world_objects(clean=False)` | A Python list in object-number order, including disconnected and invisible objects. Slot zero is an empty `ZObject(0, "")`, so `objects[n]` identifies object `n`. |
-| `get_player_object()` | The player identified by the exact story profile, currently object 4 in the retained Zork I build. |
+| `get_player_object()` | The player identified by the exact story profile, including all 16 retained V3 builds (object 4 for Zork I). |
 | `get_player_location()` | A complete `ZObject` for the player's immediate parent, including vehicles. Without a known player, retain the V3 status-location fallback. Zero location returns `None`. |
 | `get_inventory()` | A list of the player's immediate children in sibling order. Items inside carried containers remain reachable through their child links. An empty inventory returns `[]`. |
 
@@ -140,3 +140,8 @@ Independent synthetic tests cover field decoding, unnamed/disconnected objects,
 nested inventory, property lists longer than 16 entries, the V3 object limit,
 out-of-order and relocated property tables, unsupported layouts, malformed
 data, lifecycle errors, and the absence of host callback side effects.
+
+The [additional V3 suites](V3_GAMES.md) check every object at every measured
+boundary using an independent specification-based decoder of public snapshots.
+They also cover unnamed inventory/location nodes, native enumeration limits,
+and property lists longer than 16 without truncating Fernz's raw records.

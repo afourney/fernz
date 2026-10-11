@@ -96,6 +96,19 @@ class FernzEnv:
 
     def _info(self) -> dict[str, int]:
         assert self._machine is not None
+        if self._profile is not None:
+            profile = self._profile
+            score = self._machine.read_variable(16 + profile.score_global)
+            if profile.score_byte:
+                score &= 0xFF
+                if profile.score_signed and score & 0x80:
+                    score -= 0x100
+            elif profile.score_signed:
+                score = signed(score)
+            return {
+                "score": score,
+                "moves": self._machine.read_variable(16 + profile.moves_global),
+            }
         second = self._machine.read_variable(17)
         third = self._machine.read_variable(18)
         if self.story.header.flags1 & 2:
@@ -107,7 +120,7 @@ class FernzEnv:
     def _status_value(self, name: str) -> int:
         if self._machine is None:
             raise RuntimeError("Call reset() or set_state() before reading game status")
-        if self.story.header.flags1 & 2:
+        if self.story.header.flags1 & 2 and self._profile is None:
             raise NotImplementedError("Score and move queries are unavailable for V3 time games")
         return self._info()[name]
 

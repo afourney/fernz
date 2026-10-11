@@ -192,3 +192,41 @@ def test_copies_and_detached_object_queries(vector_story, walkthrough_states, tu
         if fork is not None:
             fork.close()
         env.close()
+
+
+@pytest.mark.parametrize(
+    "scenario,moves,parents,locations",
+    [
+        ("wait-advances-game-time", (1, 1, 4, 7, 13, 14, 17), None, (180,) * 7),
+        (
+            "river-current-on-every-turn",
+            (218, 219, 219, 220, 221, 222, 223),
+            (34, 34, 34, 130, 130, 31, 31),
+            (156, 156, 156, 156, 156, 156, 232),
+        ),
+        (
+            "river-current-interrupts-wait",
+            (218, 220, 222, 223),
+            (34, 130, 31, 31),
+            (156, 156, 156, 232),
+        ),
+    ],
+)
+def test_wait_and_river_timing(
+    vector_story, walkthrough_states, scenario, moves, parents, locations
+):
+    case = DOCUMENTS[f"scenarios/{scenario}.json"]["cases"][0]
+    env = FernzEnv(vector_story, seed=WALKTHROUGH_SEED)
+    try:
+        turn = MANIFEST["checkpoints"][case["checkpoint"]]["turn"]
+        env.set_state(walkthrough_states[turn])
+        for index, (count, location) in enumerate(zip(moves, locations, strict=True)):
+            step_and_check(env, case["steps"][index])
+            assert env.get_moves() == count
+            assert env.get_player_location().num == location
+            if parents is not None:
+                assert env.get_object(156).parent == parents[index]
+        if parents is not None:
+            assert env.game_over() and not env.done
+    finally:
+        env.close()
