@@ -6,6 +6,7 @@ import pytest
 
 from fernz import FernzEnv
 
+from .observation_helpers import plain_text
 from .test_restart_reference import synthetic_reference
 from .test_save_restore import results
 from .v5_legacy_story import duplicate_story, long_property_story, zero_story
@@ -46,7 +47,11 @@ def test_synthetic_legacy_operations_match_both_references(tmp_path, dfrotz, ima
     native = synthetic_reference(path, 42)
     env = FernzEnv(path, seed=42)
     try:
-        assert results(native.reset()[0]) == results(env.reset()[0]) == expected
+        assert (
+            results(plain_text(native.reset()[0]))
+            == results(plain_text(env.reset()[0]))
+            == expected
+        )
     finally:
         native.close()
         env.close()
@@ -104,7 +109,7 @@ def test_sherlock_identity_attribute_48_write_behavior(tmp_path, dfrotz, opcode,
         assert "Illegal attribute" in result.stderr
     reference = synthetic_reference(path, 0)
     try:
-        assert reference.reset()[0] == ("Y\n" if identity else "")
+        assert plain_text(reference.reset()[0]) == ("Y\n" if identity else "")
     finally:
         reference.close()
 
@@ -132,7 +137,9 @@ def test_cursor_beyond_screen_width_uses_left_margin(tmp_path, dfrotz):
     native = synthetic_reference(path, 42)
     env = FernzEnv(path)
     try:
-        assert results(native.reset()[0]) == results(env.reset()[0]) == [3, 1]
+        assert (
+            results(plain_text(native.reset()[0])) == results(plain_text(env.reset()[0])) == [3, 1]
+        )
     finally:
         native.close()
         env.close()

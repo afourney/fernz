@@ -221,11 +221,11 @@ The startup comparison runs twice, with a memory mutation between resets, and
 compares the transcript, score, and move count. Black-box probes of Jericho 3.3.1
 showed that its observation
 omits this recognized game's title line and the final prompt. Fernz retains
-the full story output. The Zork comparison explicitly asserts that Fernz prints
-the expected title and prompt, removes only those two pieces for comparison,
-and compares the remaining text exactly, apart from CRLF versus LF. There is
-no title filtering, game-specific output substitution, or reference dependency
-in Fernz's runtime.
+complete text in `Observation.stream`; its convenience `.text` omits only the
+recognized trailing Zork command prompt. The Zork comparison asserts the title,
+removes it for comparison, and compares the remaining text exactly, apart from
+CRLF versus LF. Prompt retention in the stream is tested separately. No title
+filtering or reference dependency exists in Fernz's runtime.
 
 The off-path suite branches from **11 walkthrough checkpoints**, from the opening
 through underground exploration, boat travel, and the 350-point state before the
@@ -398,13 +398,14 @@ read exactly once before continuing at the saved PC. The test-only
 [state bridge](STATE_INTEROP.md#suspended-input) translates the reference's
 earlier pause point into this convention.
 
-Output is drained after each run, so observations contain only new output.
-Output is a plain transcript without screen wrapping or status-line rendering.
-The header advertises no status line,
-split screen, or variable-pitch font; it does not claim full Standard conformance.
-Stream 1 can be enabled or disabled, and nested stream 3 captures ZSCII in
-memory. Sound is silent when resources are unavailable. V5 additionally tracks
-logical text windows; its header and rendering scope are documented in [V5](V5.md).
+Output is drained after each run into an immutable `Observation`: `.text` is
+the plain transcript of both windows, and `.stream` interleaves text and ordered
+display commands. Geometry defaults to 80 columns by 25 rows and is configurable.
+V3 advertises split-window support, but no built-in status line or variable-pitch
+font. There is no screen-cell renderer or full Standard-conformance claim.
+Stream 1 can be enabled or disabled, and nested stream 3 captures ZSCII in memory
+without entering observations. Sound is silent when resources are unavailable.
+See [observations and stream grammar](OBSERVATIONS.md) and [V5](V5.md).
 
 Line input follows Standard [§3.7](https://inform-fiction.org/zmachine/standards/z1point1/sect03.html),
 [§13](https://inform-fiction.org/zmachine/standards/z1point1/sect13.html), and
@@ -487,8 +488,9 @@ The current `env.memory` object keeps its identity during restore.
 | `input_request` | Resolved text/parse buffer addresses and instruction address for a suspended read, or `None` after quit. |
 | `rng` | Generator state, counting period/position, and host seed policy. Restore consumes no entropy or random draw. |
 | `screen_enabled`, `halted` | Output selection and whether the VM has executed quit. Earlier observations have already been drained and are not replayed. |
+| `output` | Logical display geometry, selected window, cursors, styles, fonts, colours, buffering, and nested memory streams. Rendered cells and previous observations are not stored. |
 | `game_over`, `victory` | Profile-classified loss/victory flags for the last completed response. These are independent of VM quit and preserve queries without retaining the transcript. |
-| `story_sha256`, `format_version` | Identity of the original addressable story image, excluding file padding, and the Fernz snapshot schema version (currently 2). |
+| `story_sha256`, `format_version` | Identity of the original addressable story image, excluding file padding, and the Fernz snapshot schema version (currently 4). |
 
 Memory alone is insufficient: local variables, stacks, and the execution
 continuation live outside story RAM. Returned checkpoints own immutable bytes
@@ -587,7 +589,7 @@ Public probes show that Zork's first two canyon deaths report loss while still
 allowing play, and a later ordinary response clears it. Victory is reported on
 entering the barrow, rather than merely reaching 350 points. Voluntary quit
 reports neither. Fernz keeps VM `done` separate from these response events and
-stores the two flags in schema-2 checkpoints so copy/restore preserve them.
+stores the two flags in checkpoints (introduced in schema 2) so copy/restore preserve them.
 No transcript is retained. See [story queries](STORY_QUERIES.md) for the profile
 identity, evidence, name differences, schema change, and required CI coverage.
 
@@ -684,7 +686,7 @@ After `uv sync --dev`, run `uv run fernz --help` or
 `uv run python -m fernz --help`. The installed `fernz` command targets
 `fernz._cli:main` inside `src/fernz/`. Modules prefixed with `_` are private;
 import `Story`, `StoryHeader`, `Memory`, `StoryFormatError`, `MemoryAccessError`,
-`ExecutionError`, `UnsupportedOpcodeError`, `GameState`, `ZObject`, and `FernzEnv` from `fernz` for the public library
+`ExecutionError`, `UnsupportedOpcodeError`, `GameState`, `Observation`, `ZObject`, and `FernzEnv` from `fernz` for the public library
 interface and `fernz` or `python -m fernz` for the public CLI.
 The earlier immutable `Location` value remains importable, but location queries
 now return `ZObject`.
@@ -706,9 +708,9 @@ The deliberately small public contract is:
 | Interface | Contract |
 | --- | --- |
 | `from fernz import FernzEnv` | Public environment class; no Jericho runtime dependency. |
-| `FernzEnv(game_path, *, seed=None, save_handler=None, restore_handler=None, output_handler=None)` | Accepts a string or text path-like object, stores a `Path` in `game_path`, and loads a raw V1-V8 story without executing it. Missing/inaccessible paths raise `OSError` subclasses; non-regular paths raise `ValueError`; invalid story data raises `StoryFormatError`. Optional synchronous callbacks supply storage and streaming output; see [save and restore](SAVE_RESTORE.md). |
+| `FernzEnv(game_path, *, seed=None, save_handler=None, restore_handler=None, output_handler=None, screen_width=80, screen_height=25)` | Accepts a string or text path-like object, stores a `Path` in `game_path`, and loads a raw V1-V8 story without executing it. Missing/inaccessible paths raise `OSError` subclasses; non-regular paths raise `ValueError`; invalid story data raises `StoryFormatError`. Optional synchronous callbacks supply storage and streaming output; see [save and restore](SAVE_RESTORE.md). |
 | `env.story`, `env.memory` | Immutable story image and independent protected memory instance. |
-| `env.reset(*, max_steps=250_000)` | Run fresh V3 startup through input or quit and return `(observation: str, info: dict[str, object])`. The observation retains all story text, including title and prompt. Score games expose integer `score` and `moves`; time games expose `hours` and `minutes`. |
+| `env.reset(*, max_steps=250_000)` | Run fresh V3 startup through input or quit and return `(observation: Observation, info: dict[str, object])`. The observation provides a plain transcript and an ordered display stream; see [its contract](OBSERVATIONS.md). Score games expose integer `score` and `moves`; time games expose `hours` and `minutes`. |
 | `env.seed(seed=None)` | Validate and return `int` in `0..2**31-1`, or `None` for automatic seeding, to apply on the next host reset. Does not change the active episode. An omitted argument selects automatic seeding. |
 | `env.copy()` | Fork mutable execution state and both active/pending seed policies without executing or reading files. Share immutable story data and host callback references. |
 | `env.get_score()`, `env.get_moves()` | Read the current V3 score and move-count globals as integers, including after quit. Require initialized state; time-based status games raise `NotImplementedError`. |
@@ -718,7 +720,7 @@ The deliberately small public contract is:
 | `env.get_player_object()`, `env.get_inventory()` | Return the known player object, or a list of its immediate children in sibling order. Require initialized state and a known player profile. |
 | `env.get_player_location()` | Return a complete detached `ZObject` or `None` for location zero. Use the known player's immediate parent when profiled, otherwise the V3 status location. Require initialized state; preserve full story short names. |
 | `env.game_over()`, `env.victory()` | Read loss/victory flags classified from the last completed response. Require initialized state and a supported story profile. Copies and checkpoints retain these flags independently of VM quit. |
-| `env.step(action: str, *, max_steps=250_000)` | Complete a pending V3 read and return `(observation: str, reward: int, done: bool, info: dict[str, object])`. Reward is the signed score delta, or zero for time games. The observation contains new output, including the Enter newline and any story prompt. |
+| `env.step(action: str, *, max_steps=250_000)` | Complete a pending V3 read and return `(observation: Observation, reward: int, done: bool, info: dict[str, object])`. Reward is the signed score delta, or zero for time games. The observation contains only new output; `.stream` retains prompts and `.text` omits the recognized Zork command prompt. |
 | `env.get_state()` | Return an immutable `GameState` after reset, step, or a successful restore. Raises `RuntimeError` before initialization or after execution failure. |
 | `env.set_state(state)` | Validate and restore a Fernz checkpoint for the same story, including RNG and host seed; return `None`. May be called before reset, after quit, or after execution failure. Invalid input leaves the environment unchanged. |
 | `env.done` | True after the VM executes `quit`; false before reset. It does not infer death or victory while the story is still running. |

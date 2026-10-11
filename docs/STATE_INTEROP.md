@@ -148,6 +148,13 @@ Only continuation output is compared. Fernz does not retain a prior observation,
 and the adapter does not synthesize one. Screen output must remain enabled;
 stream selection is not represented by the observed tuple.
 
+New Fernz checkpoints use schema 4 with logical display state. The V3 adapter
+still imports the schema-2 base fields and starts with default display state;
+it cannot recover native cursor, split, style or colour state from the public
+tuple. Reference-state fingerprints compare that VM-only projection. Complete
+Fernz-to-Fernz checkpoint replay separately checks the display fields and ordered
+observation stream. See [observations](OBSERVATIONS.md) for renderer checkpoints.
+
 ## Validation and limits
 
 The required Linux reference CI job runs:

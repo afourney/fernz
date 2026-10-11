@@ -28,7 +28,7 @@ class Reference:
 
     def text_capabilities(self):
         native = self.env.get_state()
-        flags = (int(native[0][1]) & ~0x70) | 0x10
+        flags = (int(native[0][1]) & ~0x70) | 0x30
         if flags != int(native[0][1]):
             ram = native[0].copy()
             ram[1] = flags

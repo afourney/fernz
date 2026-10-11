@@ -9,6 +9,7 @@ from fernz._machine import Machine
 from fernz._quetzal import loads
 from fernz._random import RandomGenerator
 
+from .observation_helpers import plain_text, text_response
 from .save_story import save_story
 from .story_files import READ, program_bytes
 
@@ -30,7 +31,7 @@ class Storage:
 
 
 def results(observation):
-    return [int(n) for n in re.findall(r"^R=(-?\d+)$", observation, re.MULTILINE)]
+    return [int(n) for n in re.findall(r"^R=(-?\d+)$", plain_text(observation), re.MULTILINE)]
 
 
 @pytest.fixture(params=[False, True], ids=["low-addresses", "high-addresses"])
@@ -60,7 +61,9 @@ def test_save_close_and_restore_into_fresh_environment(game):
     second.reset()
     assert second.get_state() == initial
     memory = second.memory
-    assert second.step("restore") == saved_output
+    restored_output = second.step("restore")
+    assert text_response(restored_output) == text_response(saved_output)
+    assert "<split 0>" in restored_output[0].stream
     assert second.memory is memory
     assert second.step("continue") == continuation
     assert storage.saves == storage.restores == 1
@@ -82,7 +85,7 @@ def test_opcode_restore_preserves_current_rng_flags_and_output(game, seed):
     env.memory.write_byte(0x11, 3)
     before = env.get_state()
     expected_draw = rng.random(32767)
-    assert env.step("restore")[0] == ""
+    assert plain_text(env.step("restore")[0]) == ""
     after = env.get_state()
     assert after.rng == rng.get_state()
     assert after.rng.host_seed == 77
@@ -107,7 +110,7 @@ def test_host_checkpoints_still_rewind_rng_flags_and_screen_and_keep_recipient_h
     )
     env.set_state(checkpoint)
     expected = env.step("save")
-    assert "".join(streamed) == expected[0]
+    assert "".join(streamed) == expected[0].text
     env.memory.write_byte(0x11, 3)
     env.set_state(checkpoint)
     assert env.get_state() == checkpoint

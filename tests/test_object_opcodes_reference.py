@@ -6,6 +6,7 @@ import pytest
 
 from fernz import FernzEnv
 
+from .observation_helpers import plain_text
 from .story_files import program_bytes
 from .test_objects import object_memory
 
@@ -37,7 +38,7 @@ def test_jin_zero_matches_frotz_branch_outcome(tmp_path, dfrotz, parent, branch_
     assert markers == [expected], (result.stdout, result.stderr)
     env = FernzEnv(path)
     try:
-        assert env.reset()[0] == expected + "\n"
+        assert plain_text(env.reset()[0]) == expected + "\n"
         assert env.done
     finally:
         env.close()
@@ -79,7 +80,7 @@ def test_historical_object_operations_match_frotz(tmp_path, dfrotz, code, expect
     assert lines == expected
     env = FernzEnv(path)
     try:
-        assert env.reset()[0].splitlines() == expected
+        assert plain_text(env.reset()[0]).splitlines() == expected
         assert env.done
     finally:
         env.close()
@@ -113,7 +114,7 @@ def test_legacy_v3_execution_matches_standalone(tmp_path, dfrotz, code, chunks, 
     assert reference.stdout.rstrip().endswith(expected), (reference.stdout, reference.stderr)
     env = FernzEnv(path)
     try:
-        assert env.reset()[0] == expected + "\n"
+        assert plain_text(env.reset()[0]) == expected + "\n"
         assert env.done
     finally:
         env.close()
@@ -139,7 +140,9 @@ def test_malformed_dictionary_lookup_matches_public_references(tmp_path, dfrotz)
         try:
             env.reset()
             assert [
-                line for line in env.step(command)[0].splitlines() if line.startswith("R=")
+                line
+                for line in plain_text(env.step(command)[0]).splitlines()
+                if line.startswith("R=")
             ] == [f"R={expected}"]
         finally:
             env.close()
@@ -162,7 +165,7 @@ def test_absent_object_name_placeholder_matches_public_jericho(tmp_path):
     reference = FrotzEnv(str(path), seed=42)
     env = FernzEnv(path)
     try:
-        assert env.reset()[0] == reference.reset()[0] == "object#0\n"
+        assert plain_text(env.reset()[0]) == plain_text(reference.reset()[0]) == "object#0\n"
     finally:
         reference.close()
         env.close()

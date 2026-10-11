@@ -210,15 +210,15 @@ def test_random_seed_repeatability_and_range():
 
 def test_header_capabilities_and_game_write_protection():
     m = machine(READ)
-    assert m.memory.read_byte(1) & 0x70 == 0x10
+    assert m.memory.read_byte(1) & 0x70 == 0x30
     assert m.memory.read_word(0x32) == 0
     with pytest.raises(ValueError, match="protected header"):
         m.memory.write_byte(1, 0)
 
 
 def test_unsupported_opcode_is_not_silently_ignored():
-    with pytest.raises(UnsupportedOpcodeError, match=r"split_window .*0x401"):
-        run_hex("ea 7f 01")
+    with pytest.raises(UnsupportedOpcodeError, match=r"input_stream .*0x401"):
+        run_hex("f4 7f 01")
 
 
 def test_execution_budget_and_exact_budget_boundary():

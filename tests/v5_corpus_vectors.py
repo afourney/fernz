@@ -2,6 +2,7 @@
 
 import re
 
+from .observation_helpers import join_observations, window_text
 from .v3_oracle import word
 from .v5_corpus import BOOT_ACTIONS, SEED, WINDOWED_OPENINGS, story_identity
 from .vector_archive import digest
@@ -46,6 +47,8 @@ def object_fingerprint(ram, layout):
 
 def observation_text(text, game, *, opening=False, fernz=False):
     """Compare text content, with whitespace, prompt, and measured status handling."""
+    if fernz and not isinstance(text, str):
+        text = window_text(text)
     text = text.replace("\r\n", "\n")
     if fernz and opening:
         # Measured V5 reset clipping: one character, not one line. Spirit
@@ -85,7 +88,7 @@ def reset_fernz(env, game):
         assert request.character == (game != "jewel")
         continuation = env.step(action)[0]
         if game != "jewel":
-            observation += continuation
+            observation = join_observations(observation, continuation)
     assert not env.get_state().input_request.character
     return observation
 

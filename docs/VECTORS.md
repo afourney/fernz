@@ -59,9 +59,12 @@ boundaries**, occupying about **350 KB** compressed:
 
 Each boundary contains the command, reward, reference done flag, score/moves,
 outcome flags, and hashes of the observation and object queries. Pending-input
-boundaries also contain the complete canonical snapshot fingerprint: SHA-256
-of dynamic RAM and frames, plus PC, input continuation, RNG, story identity,
-screen selection, and snapshot flags/version. The test-only
+boundaries also contain a canonical VM fingerprint: SHA-256 of dynamic RAM and
+frames, plus PC, input continuation, RNG, story identity, screen-stream selection,
+and outcome flags. Its `state_format_version=2` identifies the reference-visible
+projection, not the current public checkpoint schema (4). Window geometry,
+cursors, fonts, styles and colours are excluded because public native snapshots
+do not expose them. Full Fernz snapshot replay separately checks those fields. The test-only
 [state bridge](STATE_INTEROP.md) converts the public native snapshot when
 recording; portable replay compares Fernz's snapshot without loading that bridge.
 
@@ -86,8 +89,10 @@ tests; hashes cannot be imported as a saved game.
 
 ## Explicit comparison boundaries
 
-Presentation handling follows the existing live tests: assert Fernz's title,
-input newline, and prompt, then hash the corresponding reference observation.
+Presentation handling follows the existing live tests: select `Observation.text`,
+assert Fernz's title and input newline, then hash the corresponding reference
+observation. The recognized Zork trailing command prompt is already omitted from
+`.text`; separate tests require it in `.stream`.
 Line endings normalize only CRLF to LF. The restart confirmation's trailing
 space/prompt and the winning ending's final newline have separate modes.
 
@@ -217,5 +222,5 @@ Balances and Sherlock extend their existing archives with complete trajectories,
 profiled query hashes, detours, loss paths, persistence and seeded forks. Their
 `breadth.json` members remain unchanged, so corpus startup checks keep their
 original scope. Boxed clue text has a separate upper-window hash checked through
-a test-only observer; no clue text or object names enter the archives. See
+the public display stream; no clue text or object names enter the archives. See
 [V5 phase 3](V5.md#broader-v5-validation-phase-3) for display and input boundaries.

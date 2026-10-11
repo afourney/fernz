@@ -7,6 +7,7 @@ import pytest
 from fernz import ExecutionError, FernzEnv, Memory, Story
 from fernz._machine import Machine
 
+from .observation_helpers import plain_text, text_response
 from .restart_story import restart_story
 from .story_files import READ, program_bytes
 
@@ -21,7 +22,7 @@ def test_restart_discards_nested_state_and_preserves_flags_and_output(
     path.write_bytes(data)
     emitted = []
     env = FernzEnv(path, seed=42, output_handler=emitted.append)
-    assert env.reset() == ("R=14545\n", {"score": 0, "moves": 0})
+    assert text_response(env.reset()) == ("R=14545\n", {"score": 0, "moves": 0})
     initial = env.get_state()
     memory = env.memory
     for _ in range(2):
@@ -32,14 +33,14 @@ def test_restart_discards_nested_state_and_preserves_flags_and_output(
         assert env.memory.read_byte(0x200) == 0xAA
         emitted.clear()
         result = env.step("again")
-        assert result == ("\nR=55\nR=14545\n", -73, False, {"score": 0, "moves": 0})
-        assert "".join(emitted) == result[0]
+        assert text_response(result) == ("\nR=55\nR=14545\n", -73, False, {"score": 0, "moves": 0})
+        assert "".join(emitted) == result[0].text
         assert env.memory is memory
         ram = bytearray(initial.ram)
         ram[0x10:0x12] = flags2.to_bytes(2, "big")
         assert env.get_state() == replace(initial, ram=bytes(ram))
     assert path.read_bytes() == data
-    assert env.reset()[0] == "R=14545\n"
+    assert plain_text(env.reset()[0]) == "R=14545\n"
     assert env.get_state() == initial  # Host reset still clears Flags 2.
 
 
@@ -60,10 +61,10 @@ def test_restart_uses_host_seed_policy_and_leaves_predictable_mode(
     path = tmp_path / "restart.z3"
     path.write_bytes(restart_story())
     env = FernzEnv(path, seed=seed)
-    assert env.reset()[0] == f"R={expected[0]}\n"
+    assert plain_text(env.reset()[0]) == f"R={expected[0]}\n"
     env.step("descend")
     assert env.get_state().rng.period == 5
-    assert env.step("again")[0] == f"\nR=55\nR={expected[1]}\n"
+    assert plain_text(env.step("again")[0]) == f"\nR=55\nR={expected[1]}\n"
     assert env.get_state().rng.period == 0
     assert env.get_state().rng.host_seed == seed
     assert requests == ([31, 31] if seed is None else [])
@@ -94,9 +95,9 @@ def test_restart_retains_screen_selection_until_the_story_changes_it(tmp_path):
         )
     )
     env = FernzEnv(path, seed=42)
-    assert env.reset()[0] == "AB"
+    assert plain_text(env.reset()[0]) == "AB"
     for _ in range(2):
-        assert env.step("again")[0] == "\nB"
+        assert plain_text(env.step("again")[0]) == "\nB"
 
 
 def test_restart_retains_storage_callbacks(tmp_path):
@@ -129,10 +130,10 @@ def test_restart_does_not_renew_the_instruction_budget(tmp_path):
     env = FernzEnv(path, seed=42)
     env.reset()
     saved = env.get_state()
-    assert env.step("again", max_steps=2)[0] == "\n"
+    assert plain_text(env.step("again", max_steps=2)[0]) == "\n"
     with pytest.raises(ExecutionError, match=r"budget \(1\)"):
         env.step("again", max_steps=1)
     with pytest.raises(RuntimeError, match="reset"):
         env.get_state()
     env.set_state(saved)
-    assert env.step("again", max_steps=2)[0] == "\n"
+    assert plain_text(env.step("again", max_steps=2)[0]) == "\n"

@@ -1,40 +1,13 @@
 """Shared live-reference measurements and portable full-trajectory assertions."""
 
 import re
-from contextlib import contextmanager
 from dataclasses import asdict
-from unittest.mock import patch
 
-from fernz._output import Output
-
+from .observation_helpers import window_text
 from .v5_corpus_vectors import object_fingerprint, object_layout, observation_text, reset_fernz
 from .v5_oracle import assert_public_object, object_records
 from .v5_trajectory_cases import GAMES
 from .vector_archive import digest
-
-
-@contextmanager
-def upper_text():
-    """Observe Fernz's executed box text without changing the transcript API."""
-    parts = []
-    emit, move = Output.emit, Output.move
-
-    def output(display, text):
-        if (
-            display.state.window == 1
-            and display.state.split_lines > 2
-            and not display.state.memory_streams
-        ):
-            parts.append(text)
-        return emit(display, text)
-
-    def cursor(display, row, column):
-        if display.state.window == 1 and display.state.split_lines > 2:
-            parts.append(" ")
-        return move(display, row, column)
-
-    with patch.object(Output, "emit", output), patch.object(Output, "move", cursor):
-        yield parts
 
 
 def boxed_text(observation, game):
@@ -48,6 +21,8 @@ def boxed_text(observation, game):
 
 
 def text_content(observation, game, *, opening=False, fernz=False):
+    if fernz:
+        observation = window_text(observation)
     if game == "balances" and not fernz:
         observation = re.sub(r" {127,128}[^\n]{1,40}Score: -?\d+Moves: \d+$", "", observation)
     if game == "sherlock":
@@ -163,13 +138,12 @@ def capture(env, original, game, action, response):
 
 
 def check_step(env, game, record):
-    with upper_text() as upper:
-        if record["action"] is None:
-            observation = reset_fernz(env, game)
-            response = (observation, 0, False, {"score": env.get_score(), "moves": env.get_moves()})
-        else:
-            response = env.step(record["action"])
-            observation = response[0]
+    if record["action"] is None:
+        observation = reset_fernz(env, game)
+        response = (observation, 0, False, {"score": env.get_score(), "moves": env.get_moves()})
+    else:
+        response = env.step(record["action"])
+        observation = response[0]
     state = env.get_state()
     assert not env.done
     assert state.input_request.character == record["character_input"]
@@ -187,7 +161,10 @@ def check_step(env, game, record):
     assert response[1] == record["reward"] and response[-1] == record["info"]
     assert record["reference_done"] == (env.game_over() or env.victory())
     if record["upper_window_sha256"] is not None:
-        assert digest(" ".join("".join(upper).split()).encode()) == record["upper_window_sha256"]
+        assert (
+            digest(" ".join(window_text(observation, 1, minimum_split=3).split()).encode())
+            == record["upper_window_sha256"]
+        )
     if record["observation_sha256"] is not None:
         text = text_content(observation, game, opening=record["action"] is None, fernz=True)
         assert digest(text.encode()) == record["observation_sha256"], (game, record["action"], text)

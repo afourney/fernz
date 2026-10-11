@@ -7,6 +7,7 @@ import pytest
 from fernz import FernzEnv
 
 from .environment_story import seed_story
+from .observation_helpers import plain_text
 from .test_reference import assert_zork_step
 from .test_reference import walkthrough_trace as walkthrough_trace
 from .test_reference import zork1 as zork1
@@ -42,7 +43,7 @@ def test_seed_is_deferred_and_copy_preserves_fernz_active_host_policy(tmp_path, 
     environments = [env, reference]
     try:
         for candidate in environments:
-            assert results(candidate.reset()[0]) == [14545]
+            assert results(plain_text(candidate.reset()[0])) == [14545]
             assert candidate.seed(1000) == 1000
         environments.append(env.copy())
         with warnings.catch_warnings():
@@ -51,15 +52,15 @@ def test_seed_is_deferred_and_copy_preserves_fernz_active_host_policy(tmp_path, 
             )
             environments.append(reference.copy())
         for candidate in environments:
-            assert results(candidate.step("next")[0]) == [24057]
+            assert results(plain_text(candidate.step("next")[0])) == [24057]
         for action in ("random zero", "restart"):
             for candidate, expected in zip(environments, [14545, 14545, 14545, 18626], strict=True):
                 # Measured Jericho 3.3.1 difference: copying with a pending seed
                 # changes its next in-game reseed. Fernz preserves the active
                 # host policy along with the current RNG and pending reset seed.
-                assert results(candidate.step(action)[0]) == [expected]
+                assert results(plain_text(candidate.step(action)[0])) == [expected]
         for candidate in environments:
-            assert results(candidate.reset()[0]) == [18626]
+            assert results(plain_text(candidate.reset()[0])) == [18626]
     finally:
         for candidate in environments:
             candidate.close()

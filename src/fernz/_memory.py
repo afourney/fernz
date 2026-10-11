@@ -103,27 +103,27 @@ class Memory:
 
     def _configure_v3_header(self) -> None:
         # Interpreter-only writes (§11), deliberately unavailable to game opcodes.
-        # Plain transcript output: no status line, split screen, or variable font.
-        self._data[1] = (self._data[1] & ~0x70) | 0x10
+        # Window output is available; the separate V3 status line is not rendered.
+        self._data[1] = (self._data[1] & ~0x70) | 0x30
         self._data[0x11] &= ~1  # No file transcript is open.
         self._data[0x32:0x34] = b"\x00\x00"  # Do not claim full Standard conformance.
 
-    def _configure_header(self) -> None:
+    def _configure_header(self, width: int = 80, height: int = 25) -> None:
         if self.story.header.version == 3:
             self._configure_v3_header()
             return
-        # A fixed-width 80x25 text host. Do not advertise colour, graphics,
+        # A configurable fixed-width text host. Do not advertise colour, graphics,
         # styles, timed input, mouse, sound, or undo support that is absent.
         self._data[1] = (self._data[1] & 0x62) | 0x10
         flags = self.read_word(0x10) & ~0x01B9
         self._data[0x10:0x12] = flags.to_bytes(2, "big")
-        self._data[0x1E:0x28] = bytes((6, ord("F"), 25, 80, 0, 80, 0, 25, 1, 1))
+        self._data[0x1E:0x28] = bytes((6, ord("F"), height, width, 0, width, 0, height, 1, 1))
         self._data[0x2C:0x2E] = bytes((2, 9))  # Black background, white foreground.
         # V5 uses Standard 1.0 text semantics, including nested stream 3.
         # Stories use this field to select their text-capture implementation.
         self._data[0x32:0x34] = b"\x01\x00"
 
-    def _restore_dynamic(self, data: bytes) -> None:
+    def _restore_dynamic(self, data: bytes, *, width: int = 80, height: int = 25) -> None:
         # Validate against the configured header before touching live memory.
         # The snapshot includes interpreter-owned header fields; ordinary game
         # writes still cannot change them. Flags 2 is restored with this host
@@ -131,7 +131,7 @@ class Memory:
         if type(data) is not bytes or len(data) != self.story.header.static_memory:
             raise ValueError("Expected a complete immutable dynamic-memory snapshot")
         candidate = Memory(self.story)
-        candidate._configure_header()
+        candidate._configure_header(width, height)
         candidate.write_bytes(0, data)
         self._data[: len(data)] = data
 
@@ -141,7 +141,7 @@ class Memory:
         if len(data) != self.story.header.static_memory:
             raise ValueError("Saved memory has the wrong length")
         candidate = Memory(self.story)
-        candidate._configure_header()
+        candidate._configure_header(self.read_byte(0x21) or 80, self.read_byte(0x20) or 25)
         restored = bytearray(data)
         if self.story.header.version == 3:
             restored[1] = (restored[1] & ~0x70) | (candidate._data[1] & 0x70)

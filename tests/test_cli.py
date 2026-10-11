@@ -152,12 +152,15 @@ def test_inspect_metadata(tmp_path, capsys, version):
     assert captured.err == ""
 
 
-def test_cli_delegates_to_library_and_closes(tmp_path, monkeypatch, capsys):
+@pytest.mark.parametrize("width,height", [(80, 25), (128, 232)])
+def test_cli_delegates_to_library_and_closes(tmp_path, monkeypatch, capsys, width, height):
     calls = []
 
     class StubEnv:
         def __init__(self, path, **handlers):
             calls.append(("init", path))
+            assert handlers.pop("screen_width") == width
+            assert handlers.pop("screen_height") == height
             assert set(handlers) == {"save_handler", "restore_handler", "output_handler"}
             assert all(callable(handler) for handler in handlers.values())
 
@@ -170,7 +173,10 @@ def test_cli_delegates_to_library_and_closes(tmp_path, monkeypatch, capsys):
 
     monkeypatch.setattr(_cli, "FernzEnv", StubEnv)
     game = tmp_path / "game.z3"
-    assert _cli.main([str(game)]) == 1
+    args = [str(game)]
+    if (width, height) != (80, 25):
+        args += ["--screen-width", str(width), "--screen-height", str(height)]
+    assert _cli.main(args) == 1
     assert calls == [("init", game), "reset", "close"]
     assert "test execution unavailable" in capsys.readouterr().err
 

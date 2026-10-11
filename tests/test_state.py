@@ -5,6 +5,7 @@ import pytest
 from fernz import ExecutionError, FernzEnv, GameState
 from fernz._random import RandomGenerator
 
+from .observation_helpers import plain_text, text_response
 from .story_files import READ, program_bytes
 
 
@@ -64,7 +65,7 @@ def test_restore_replays_nested_calls_randomness_score_and_quit(game):
         assert env.memory is memory
         assert env.get_state() == state
         assert not env.done
-        assert env.step("LOOK") == expected
+        assert text_response(env.step("LOOK")) == expected
         assert len(env.get_state().frames) == 1
         assert env.step("quit")[2] is True
         ending = env.get_state()
@@ -75,7 +76,7 @@ def test_restore_replays_nested_calls_randomness_score_and_quit(game):
     with pytest.raises(RuntimeError, match="reset"):
         env.step("look")
     env.set_state(state)
-    assert env.step("LOOK") == expected
+    assert text_response(env.step("LOOK")) == expected
 
 
 def test_snapshot_can_fork_into_same_story_without_shared_mutable_state(game, tmp_path):
@@ -189,15 +190,15 @@ def test_restore_preserves_output_selection_header_flags_and_no_old_output(tmp_p
         )
     )
     env = FernzEnv(game)
-    assert env.reset()[0] == "A"
+    assert plain_text(env.reset()[0]) == "A"
     env.memory.write_byte(0x11, 3)
     saved = env.get_state()
     assert not saved.screen_enabled
-    assert env.step("look")[0] == "B"  # Enter happened while output was disabled.
+    assert plain_text(env.step("look")[0]) == "B"  # Enter happened while output was disabled.
     env.memory.write_byte(0x11, 0)
     env.set_state(saved)
     assert env.memory.read_byte(0x11) == 3
-    assert env.step("look")[0] == "B"  # Neither old A nor old B is replayed.
+    assert plain_text(env.step("look")[0]) == "B"  # Neither old A nor old B is replayed.
 
 
 @pytest.mark.parametrize("operand", (None, -5, -1000))

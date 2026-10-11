@@ -11,9 +11,10 @@ from ._host_io import HostIO, OutputHandler, RestoreHandler, SaveHandler
 from ._machine import Machine, signed
 from ._memory import Memory
 from ._objects import ZObject
+from ._observation import Observation
 from ._profiles import StoryProfile, profile_for
 from ._random import validate_host_seed
-from ._state import GameState
+from ._state import GameState, _integer
 from ._story import Story
 
 
@@ -29,8 +30,11 @@ class FernzEnv:
     save_handler receives Quetzal bytes and returns bool; restore_handler returns
     bytes or None. Missing handlers, cancellation, and OSError report opcode
     failure. Optional output_handler receives text fragments during execution;
-    reset/step still return the complete observation. Handlers belong to the
+    reset/step return Observation(stream, text). The callback receives raw text
+    from both windows, including prompts, without display tags. Handlers belong to the
     receiving environment and are never captured or replaced by checkpoints.
+    screen_width and screen_height configure a finite display in character cells;
+    defaults are 80 by 25. Host checkpoint restore adopts its saved geometry.
     """
 
     def __init__(
@@ -41,8 +45,13 @@ class FernzEnv:
         save_handler: SaveHandler | None = None,
         restore_handler: RestoreHandler | None = None,
         output_handler: OutputHandler | None = None,
+        screen_width: int = 80,
+        screen_height: int = 25,
     ) -> None:
         """Load a game, raising OSError for I/O or ValueError for invalid input."""
+        _integer(screen_width, 1, 255, "Screen width")
+        _integer(screen_height, 1, 254, "Screen height")
+        self._screen_width, self._screen_height = screen_width, screen_height
         self.game_path = Path(game_path)
         self.story = Story.from_file(self.game_path)
         self.memory = Memory(self.story)
@@ -64,21 +73,52 @@ class FernzEnv:
         self._seed = validate_host_seed(seed)
         return self._seed
 
-    def reset(self, *, max_steps: int = 250_000) -> tuple[str, dict[str, object]]:
+    @property
+    def screen_width(self) -> int:
+        """Return the configured display width in fixed-width character cells."""
+        return self._screen_width
+
+    @property
+    def screen_height(self) -> int:
+        """Return the configured display height in character rows."""
+        return self._screen_height
+
+    def reset(self, *, max_steps: int = 250_000) -> tuple[Observation, dict[str, object]]:
         """Run a fresh supported episode to its first input request or quit.
 
-        Return the story's output and status globals. Score games expose score
+        Return an Observation with ordered display commands and a plain transcript,
+        plus status globals. Score games expose score
         and moves; V3 time games expose hours and minutes. V5 stories without a
         profile return empty info because V5 defines no status globals. No input is consumed.
         Other versions and unimplemented opcodes raise NotImplementedError.
         Invalid execution or an exhausted instruction budget raises ExecutionError.
         """
         self._machine = None
-        machine = Machine(self.memory, seed=self._seed, io=self._io)
+        machine = Machine(
+            self.memory,
+            seed=self._seed,
+            io=self._io,
+            screen_width=self.screen_width,
+            screen_height=self.screen_height,
+        )
         observation = machine.run(max_steps=max_steps)
         self._machine = machine
-        self._record_outcomes(observation)
-        return observation, self._info()
+        self._record_outcomes(machine.last_narrative)
+        return self._observation(observation), self._info()
+
+    def _observation(self, text: str) -> Observation:
+        machine = self._require_machine()
+        if (
+            self._profile is not None
+            and self._profile.strip_command_prompt
+            and machine.input_request is not None
+            and machine.display.state.window == 0
+        ):
+            if text.endswith("\n>"):
+                text = text[:-1]
+            elif text.endswith(" >"):
+                text = text[:-2]
+        return Observation(stream=machine.last_stream, text=text)
 
     def _record_outcomes(self, observation: str) -> None:
         self._game_over, self._victory = (
@@ -285,6 +325,8 @@ class FernzEnv:
         machine = Machine.from_state(self.memory, state, io=self._io)
         self._machine = machine
         self._seed = state.rng.host_seed
+        self._screen_width = machine.display.width
+        self._screen_height = machine.display.height
         self._game_over, self._victory = state.game_over, state.victory
 
     def copy(self) -> "FernzEnv":
@@ -310,7 +352,7 @@ class FernzEnv:
 
     def step(
         self, action: str, *, max_steps: int = 250_000
-    ) -> tuple[str, int, bool, dict[str, object]]:
+    ) -> tuple[Observation, int, bool, dict[str, object]]:
         """Submit one line and run to the next input request or quit.
 
         Return new output, score delta (zero for time games), quit status, and
@@ -335,9 +377,9 @@ class FernzEnv:
         self._machine = None  # Execution failure requires a fresh episode.
         observation = machine.run(max_steps=max_steps)
         self._machine = machine
-        self._record_outcomes(observation)
+        self._record_outcomes(machine.last_narrative)
         info = self._info()
-        return observation, info.get("score", 0) - before, self.done, info
+        return self._observation(observation), info.get("score", 0) - before, self.done, info
 
     def close(self) -> None:
         """Release resources; currently an idempotent no-op with no open resources."""

@@ -6,6 +6,7 @@ import pytest
 
 from fernz import FernzEnv
 
+from .observation_helpers import plain_text, text_response
 from .save_story import save_story
 from .test_reference import assert_zork_step
 from .test_reference import zork1 as zork1
@@ -45,10 +46,10 @@ def test_synthetic_quetzal_interchange_in_both_directions(dfrotz, tmp_path, high
     )
     try:
         env.reset()
-        imported = env.step("restore")[0] + env.step("continue")[0]
+        imported = plain_text(env.step("restore")[0]) + plain_text(env.step("continue")[0])
         assert results(imported) == expected
         env.reset()
-        exported = env.step("save")[0] + env.step("continue")[0]
+        exported = plain_text(env.step("save")[0]) + plain_text(env.step("continue")[0])
         assert results(exported) == expected
         fernz_file = tmp_path / "fernz.qzl"
         fernz_file.write_bytes(storage.data)
@@ -71,9 +72,9 @@ def test_zork_quetzal_files_work_in_both_interpreters(dfrotz, zork1, tmp_path):
         for action in prefix:
             donor.step(action)
         saved = donor.step("save")
-        assert saved[0] == "\nOk.\n\n>"
+        assert saved[0].text == "\nOk.\n\n"
         expected = [donor.step(action) for action in suffix]
-        assert "A leaflet" in expected[0][0]
+        assert "A leaflet" in expected[0][0].text
         assert expected[-1][3] == {"score": 10, "moves": 9}
     finally:
         donor.close()
@@ -90,7 +91,9 @@ def test_zork_quetzal_files_work_in_both_interpreters(dfrotz, zork1, tmp_path):
         env = FernzEnv(zork1, seed=12, restore_handler=file.read_bytes)
         try:
             env.reset()
-            assert env.step("restore") == saved
+            restored = env.step("restore")
+            assert text_response(restored) == text_response(saved)
+            assert "<split 0>" in restored[0].stream
             assert [env.step(action) for action in suffix] == expected
         finally:
             env.close()

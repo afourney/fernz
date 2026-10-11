@@ -4,6 +4,7 @@ from fernz import FernzEnv, Memory, Story
 from fernz._machine import Machine
 from fernz._random import RandomGenerator
 
+from .observation_helpers import plain_text
 from .random_story import random_story, results
 
 # Values recorded from our synthetic story through Jericho 3.3.1 and Frotz
@@ -105,8 +106,8 @@ def test_environment_reset_restores_host_seed_and_owns_its_rng(tmp_path):
     first = FernzEnv(game, seed=42)
     other = FernzEnv(game, seed=1)
     for _ in range(2):
-        assert results(first.reset()[0], 6) == [14545, 0, 1, 2, 0, 14545]
-        assert results(other.reset()[0], 6) == [347, 0, 1, 2, 0, 347]
+        assert results(plain_text(first.reset()[0]), 6) == [14545, 0, 1, 2, 0, 14545]
+        assert results(plain_text(other.reset()[0]), 6) == [347, 0, 1, 2, 0, 347]
 
 
 @pytest.mark.parametrize("seed", (-1, 2**31, 2**40))

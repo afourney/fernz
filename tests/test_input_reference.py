@@ -7,6 +7,7 @@ import pytest
 
 from fernz import FernzEnv
 
+from .observation_helpers import plain_text
 from .story_files import READ, program_bytes
 
 pytestmark = pytest.mark.reference
@@ -48,7 +49,9 @@ def test_v3_input_buffers_against_frotz(tmp_path, dfrotz, capacity, line):
     try:
         env.reset()
         expected = [int(n) for n in re.findall(r"^R=(\d+)$", reference.stdout, re.MULTILINE)]
-        actual = [int(n) for n in re.findall(r"^R=(\d+)$", env.step(line)[0], re.MULTILINE)]
+        actual = [
+            int(n) for n in re.findall(r"^R=(\d+)$", plain_text(env.step(line)[0]), re.MULTILINE)
+        ]
         assert len(expected) == len(actual) == len(addresses)
         if line == "X" * 25:
             # This dumb frontend passes all 25 characters despite capacity 20.

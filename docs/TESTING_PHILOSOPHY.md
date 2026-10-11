@@ -53,6 +53,13 @@ The test-only state adapter translates public snapshots into a portable form
 at supported input boundaries. We record canonical fields and hashes rather
 than making another interpreter's native memory layout a portable contract.
 
+Reference fingerprints include only state observable through that public API.
+For example, native snapshots do not expose Fernz's logical display state, so
+VM fingerprint comparisons exclude it. Independent specification-built tests
+check display commands, and Fernz checkpoint replay checks the full state and
+both fields of `Observation`. Existing window-specific game comparisons read
+the public display stream; they do not require private output hooks.
+
 The additional V3 suites also decode full object records independently from
 public snapshot RAM and unchanged story bytes, using Standard §§3 and 12.
 This supplies expectations for unnamed nodes, full names, and property lists

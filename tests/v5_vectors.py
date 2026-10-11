@@ -2,6 +2,7 @@
 
 import re
 
+from .observation_helpers import window_text
 from .v5_queries import query_fingerprint
 from .vector_archive import digest
 
@@ -39,7 +40,7 @@ def reference_observation(observation, *, halted=False):
 
 
 def fernz_observation(observation, mode):
-    observation = observation.replace("\r\n", "\n")
+    observation = window_text(observation).replace("\r\n", "\n")
     assert observation.startswith("\n")
     observation = observation[1:]
     suffixes = {

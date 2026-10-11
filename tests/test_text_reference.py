@@ -6,6 +6,7 @@ import pytest
 
 from fernz import FernzEnv
 
+from .observation_helpers import plain_text
 from .story_files import program_bytes, zchars
 
 pytestmark = pytest.mark.reference
@@ -31,8 +32,8 @@ def test_v3_tab_extension_matches_jericho_transcript(tmp_path):
         reference = FrotzEnv(str(story), seed=12)
     env = FernzEnv(story, seed=12)
     try:
-        assert reference.reset()[0] == expected
-        assert env.reset()[0] == expected
+        assert plain_text(reference.reset()[0]) == expected
+        assert plain_text(env.reset()[0]) == expected
     finally:
         env.close()
         reference.close()

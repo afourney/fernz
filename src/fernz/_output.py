@@ -4,25 +4,53 @@ from dataclasses import replace
 
 from ._errors import ExecutionError
 from ._memory import Memory
+from ._observation import COLOURS
 from ._state import OutputState
 from ._text import Text
 
 
 class Output:
-    """Capture lower-window prose, tracking upper-window cursors separately.
+    """Track logical windows and collect an ordered, escaped display stream.
 
-    This is a transcript interface, not a terminal renderer. Upper-window
-    redraws do not enter observations. Cursor queries still see logical screen
-    coordinates; stream 3 receives text independently of the selected window.
+    This is a display protocol, not a rendered screen buffer. Both windows'
+    writes are retained, even if later overwritten or erased. Stream 3 remains
+    independent of the display and never enters either observation field.
     """
-
-    width = 80
-    height = 25
 
     def __init__(self, memory: Memory, state: OutputState | None = None) -> None:
         """Bind output tables to memory and restore immutable display state."""
         self.memory = memory
         self.state = state if state is not None else OutputState()
+        self._stream: list[str] = []
+
+    @property
+    def width(self) -> int:
+        """Return the logical width in fixed-width characters."""
+        return self.state.width
+
+    @property
+    def height(self) -> int:
+        """Return the logical screen height in rows."""
+        return self.state.height
+
+    def command(self, name: str, *arguments: object) -> None:
+        """Append an interpreter-owned display command."""
+        self._stream.append("<" + " ".join(map(str, (name, *arguments))) + ">")
+
+    def start(self) -> None:
+        """Initialize a consumer's display at an environment reset boundary."""
+        self.command("reset")
+        self.command("size", self.width, self.height)
+        self.command("bottom")
+        if self.memory.story.header.version == 3:
+            self._cursor(self.height, 1)
+            self.command("at", self.height, 1)
+
+    def drain(self) -> str:
+        """Return this call's stream, joining adjacent text without extra tags."""
+        result = "".join(self._stream)
+        self._stream.clear()
+        return result
 
     def emit(self, text: str) -> str:
         """Write redirected ZSCII or advance the cursor and return narrative."""
@@ -35,6 +63,7 @@ class Output:
                 self.state, memory_streams=(*streams[:-1], (address, count + len(data)))
             )
             return ""
+        self._stream.append(text.replace("<", "<<"))
         row, column = self.state.cursors[self.state.window]
         last_row = max(1, self.state.split_lines) if self.state.window else self.height
         for character in text:
@@ -45,7 +74,7 @@ class Output:
                     row, column = min(last_row, row + 1), 1
                 column += 1
         self._cursor(row, column)
-        return text if self.state.window == 0 else ""
+        return text
 
     def memory_stream(self, table: int | None) -> None:
         """Push a stream-3 table, or finish the innermost selected stream."""
@@ -69,24 +98,38 @@ class Output:
         cursors[self.state.window] = (row, column)
         self.state = replace(self.state, cursors=tuple(cursors))
 
+    def _cursor_command(self, window: int) -> None:
+        """Report a cursor move without changing the selected window."""
+        target = () if window == self.state.window else ("top" if window else "bottom",)
+        self.command("at", *self.state.cursors[window], *target)
+
     def split(self, lines: int) -> None:
         """Resize the upper window, retaining separate cursor positions."""
         if not 0 <= lines <= self.height:
             raise ExecutionError("Upper window height is outside the screen")
-        lower, upper = self.state.cursors
+        previous = self.state.cursors
+        lower, upper = previous
         if upper[0] > lines:
             upper = (1, 1)
         if lower[0] <= lines:
             lower = (min(self.height, lines + 1), 1)
         self.state = replace(self.state, split_lines=lines, cursors=(lower, upper))
+        self.command("split", lines)
+        if self.memory.story.header.version == 3:
+            self.command("clear", "top")
+        for window, cursor in enumerate(self.state.cursors):
+            if cursor != previous[window]:
+                self._cursor_command(window)
 
     def select(self, window: int) -> None:
         """Select one of the two text windows, resetting the upper cursor."""
         if window not in (0, 1):
             raise ExecutionError(f"Invalid text window {window}")
         self.state = replace(self.state, window=window)
+        self.command("top" if window else "bottom")
         if window == 1:
             self._cursor(1, 1)
+            self.command("at", 1, 1)
 
     def move(self, row: int, column: int) -> None:
         """Position the upper-window cursor; lower-window positioning is ignored."""
@@ -109,6 +152,7 @@ class Output:
                 raise ExecutionError("Cursor is outside the upper window")
             self.split(row)
         self._cursor(row, column)
+        self.command("at", row, column)
 
     def font(self, number: int) -> int:
         """Choose a supported font for the current window, or query with zero."""
@@ -119,7 +163,53 @@ class Output:
         if number:
             fonts[self.state.window] = number
             self.state = replace(self.state, fonts=tuple(fonts))
+            self.command("font", number)
         return previous
+
+    def style(self, style: int) -> None:
+        """Activate style bits, or clear them all with Roman (zero)."""
+        if not 0 <= style <= 15:
+            raise ExecutionError("Invalid text style")
+        styles = list(self.state.styles)
+        styles[self.state.window] = styles[self.state.window] | style if style else 0
+        self.state = replace(self.state, styles=tuple(styles))
+        if not style:
+            self.command("normal")
+        for bit, name in ((1, "reverse"), (2, "bold"), (4, "italic"), (8, "fixed")):
+            if style & bit:
+                self.command(name)
+
+    def colour(self, foreground: int, background: int, *, true: bool = False) -> None:
+        """Resolve default/current colours and record the selected colour pair."""
+        pair = list(self.state.colours[self.state.window])
+        for i, value in enumerate((foreground, background)):
+            if value == (-2 if true else 0):
+                continue
+            if value == (-1 if true else 1):
+                pair[i] = ("white", "black")[i]
+            elif true and 0 <= value <= 0x7FFF:
+                components = [(value >> shift) & 31 for shift in (0, 5, 10)]
+                pair[i] = "#" + "".join(f"{(c << 3) | (c >> 2):02x}" for c in components)
+            elif not true and 2 <= value <= 12:
+                pair[i] = COLOURS[value - 2]
+            else:
+                raise ExecutionError("Unsupported text colour")
+        colours = list(self.state.colours)
+        colours[self.state.window] = tuple(pair)
+        self.state = replace(self.state, colours=tuple(colours))
+        self.command("color", *pair)
+
+    def buffer(self, enabled: int) -> None:
+        """Record the lower window's buffering policy, irrespective of selection."""
+        if enabled not in (0, 1):
+            raise ExecutionError("Invalid output buffering mode")
+        self.state = replace(self.state, buffered=bool(enabled))
+        self.command("buffer", "on" if enabled else "off")
+
+    def erase_line(self, value: int) -> None:
+        """Clear from the upper cursor to the right edge, without moving it."""
+        if value == 1 and self.state.window == 1:
+            self.command("clear-line")
 
     def erase(self, window: int) -> None:
         """Reset the specified logical window, preserving the emitted transcript."""
@@ -127,6 +217,13 @@ class Output:
             raise ExecutionError(f"Invalid window to erase: {window}")
         if window == -1:
             self.state = replace(self.state, window=0, split_lines=0, cursors=((1, 1), (1, 1)))
+            self.command("clear", "all")
+            self.command("split", 0)
+            self.command("bottom")
+            self._cursor_command(0)
+            self._cursor_command(1)
+        elif window == -2:
+            self.command("clear", "all")
         elif window >= 0:
             cursors = list(self.state.cursors)
             cursors[window] = (
@@ -134,3 +231,5 @@ class Output:
                 1,
             )
             self.state = replace(self.state, cursors=tuple(cursors))
+            self.command("clear", "top" if window else "bottom")
+            self._cursor_command(window)

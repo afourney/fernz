@@ -7,6 +7,7 @@ import pytest
 
 from fernz import FernzEnv, Memory, MemoryAccessError, Story, _cli
 
+from .observation_helpers import plain_text
 from .story_corpus import GAMES
 from .vector_archive import STORYFILES_PATH, digest, read_archive
 
@@ -148,9 +149,10 @@ def test_zork1_runs_to_first_prompt_and_resets(jericho_games):
     try:
         initial = env.reset()
         observation, info = initial
-        assert observation.startswith("ZORK I:")
-        assert "West of House\n" in observation
-        assert observation.endswith("\n\n>")
+        assert observation.text.startswith("ZORK I:")
+        assert "West of House\n" in observation.text
+        assert observation.text.endswith("\n\n")
+        assert observation.stream.endswith("\n\n>")
         assert info == {"score": 0, "moves": 0}
         assert env._machine.input_request is not None
         assert env._machine.halted is False
@@ -176,13 +178,14 @@ def test_zork1_mailbox_leaflet_and_quit(jericho_games):
                 start=1,
             ):
                 observation, reward, done, info = env.step(action)
-                assert text in observation
-                assert observation.startswith("\n")
-                assert observation.endswith("\n>")
+                assert text in observation.text
+                assert observation.text.startswith("\n")
+                assert observation.text.endswith("\n")
+                assert observation.stream.endswith("\n>")
                 assert reward == 0
                 assert done is False
                 assert info == {"score": 0, "moves": move}
-            assert "Do you wish to leave" in env.step("quit")[0]
+            assert "Do you wish to leave" in plain_text(env.step("quit")[0])
             assert env.step("yes")[2] is True
     finally:
         env.close()
