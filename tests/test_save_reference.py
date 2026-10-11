@@ -1,4 +1,4 @@
-"""Quetzal interchange through a packaged Frotz executable; no source access."""
+"""Quetzal interchange through public APIs and executables; no source access."""
 
 import subprocess
 
@@ -7,6 +7,7 @@ import pytest
 from fernz import FernzEnv
 
 from .save_story import save_story
+from .test_reference import assert_zork_step
 from .test_reference import zork1 as zork1
 from .test_save_restore import Storage, results
 
@@ -93,3 +94,37 @@ def test_zork_quetzal_files_work_in_both_interpreters(dfrotz, zork1, tmp_path):
             assert [env.step(action) for action in suffix] == expected
         finally:
             env.close()
+
+
+def test_zork_fernz_save_restores_in_jericho(zork1, tmp_path, monkeypatch):
+    from jericho import FrotzEnv
+
+    story = zork1.resolve()
+    # Measured through public step calls: Jericho 3.3.1 uses this default
+    # filename without prompting. Isolate its file access from other tests.
+    monkeypatch.chdir(tmp_path)
+    storage = Storage()
+    donor = FernzEnv(story, seed=12, save_handler=storage.save)
+    try:
+        donor.reset()
+        donor.step("open mailbox")
+        donor.step("take leaflet")
+        saved = donor.step("save")
+        (tmp_path / "zork1.qzl").write_bytes(storage.data)
+
+        reference = FrotzEnv(str(story), seed=12)
+        try:
+            assert reference.reset()[1] == {"score": 0, "moves": 0}
+            assert_zork_step(saved, reference.step("restore"), final=False)
+            actions = ["inventory", "read leaflet", "north", "east", "open window", "enter", "look"]
+            for action in actions:
+                actual = donor.step(action)
+                expected = reference.step(action)
+                assert_zork_step(actual, expected, final=False)
+                if action == "inventory":
+                    assert "A leaflet" in expected[0]
+            assert expected[3] == {"score": 10, "moves": 9}
+        finally:
+            reference.close()
+    finally:
+        donor.close()

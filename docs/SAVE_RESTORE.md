@@ -142,6 +142,15 @@ position after taking the leaflet and continue into the house; native
 continuations compare complete transcripts with identical display settings.
 The probes pass with the Frotz 2.54 and 2.55 executables.
 
+The reference job also loads a Fernz save directly into Jericho 3.3.1, using
+only its public API. For the Zork fixture, black-box calls establish that
+`step("save")` writes `zork1.qzl` in the current working directory without a
+filename prompt. Put the Fernz save at that path, load the same ROM, call
+`reset()`, then `step("restore")` to resume it. Jericho's documented `load()`
+method loads a story ROM, not a save file. The test isolates the working
+directory and compares all seven continuation turns, including text, reward,
+termination, score, and moves. The file still does not restore RNG state.
+
 A further Zork walkthrough saves and restores after commands 35, 214, and 350,
 modifies score memory before each restore, and compares all 396 gameplay
 commands with the uninterrupted Jericho reference through the 350-point ending.
