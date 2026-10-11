@@ -296,3 +296,37 @@ def test_zork1_cross_interpreter_continuation(zork1, walkthrough_trace, directio
     finally:
         env.close()
         reference.close()
+
+
+def test_zork1_walkthrough_with_save_restore_opcodes(zork1, walkthrough_trace):
+    from .test_save_restore import Storage
+
+    seed, actions, initial, steps = walkthrough_trace
+    storage = Storage()
+    env = FernzEnv(zork1, seed=seed, save_handler=storage.save, restore_handler=storage.restore)
+    try:
+        assert_zork_opening(env.reset()[0], initial[0])
+        for turn, (action, expected) in enumerate(zip(actions, steps, strict=True)):
+            if turn in (35, 214, 350):
+                before = env.get_state()
+                info = env._info()
+                assert env.step("save")[0] == "\nOk.\n\n>"
+                assert env.get_state().rng == before.rng
+                # Change real gameplay memory without taking a turn or drawing
+                # randomness. Restoring must recover it from the saved file.
+                score_address = env.story.header.globals_table + 2
+                env.memory.write_word(score_address, (info["score"] + 123) & 0xFFFF)
+                observation, _, done, restored_info = env.step("restore")
+                assert observation == "\nOk.\n\n>"
+                assert not done
+                assert restored_info == info
+                assert env.get_state().rng == before.rng
+            try:
+                assert_zork_step(env.step(action), expected, final=turn == len(actions) - 1)
+            except (AssertionError, ExecutionError, NotImplementedError) as error:
+                error.add_note(f"Save/restore walkthrough turn {turn + 1}: {action!r}")
+                raise
+        assert env.done
+        assert storage.saves == storage.restores == 3
+    finally:
+        env.close()

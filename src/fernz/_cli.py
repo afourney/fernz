@@ -2,11 +2,57 @@
 
 import argparse
 import json
+import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 from fernz import ExecutionError, FernzEnv
+
+
+def _write_output(text: str) -> None:
+    print(text, end="", flush=True)
+
+
+def _file_path(operation: str) -> Path | None:
+    _write_output(f"{operation} file (blank cancels): ")
+    name = sys.stdin.readline().strip()
+    return Path(name).expanduser() if name else None
+
+
+def _save_file(data: bytes) -> bool:
+    temporary = None
+    try:
+        path = _file_path("Save")
+        if path is None:
+            return False
+        if path.exists():
+            _write_output("Overwrite existing file? [y/N]: ")
+            if sys.stdin.readline().strip().lower() not in ("y", "yes"):
+                return False
+        # Publish only a complete save, leaving an existing file intact if a
+        # write fails. The temporary file is on the same filesystem as the target.
+        with NamedTemporaryFile(dir=path.parent, prefix=f".{path.name}.", delete=False) as file:
+            temporary = Path(file.name)
+            file.write(data)
+        os.replace(temporary, path)
+        return True
+    except OSError as exc:
+        print(f"fernz: {exc}", file=sys.stderr)
+        return False
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def _restore_file() -> bytes | None:
+    try:
+        path = _file_path("Restore")
+        return path.read_bytes() if path is not None else None
+    except OSError as exc:
+        print(f"fernz: {exc}", file=sys.stderr)
+        return None
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -26,7 +72,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        env = FernzEnv(args.game)
+        env = FernzEnv(
+            args.game,
+            save_handler=_save_file,
+            restore_handler=_restore_file,
+            output_handler=_write_output,
+        )
     except (OSError, ValueError) as exc:
         print(f"fernz: {exc}", file=sys.stderr)
         return 2
@@ -53,14 +104,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             )
             return 0
-        observation, _ = env.reset()
-        print(observation, end="", flush=True)
+        env.reset()
         while not env.done:
             line = sys.stdin.readline()
             if not line:
                 break
-            observation, _, _, _ = env.step(line.removesuffix("\n").removesuffix("\r"))
-            print(observation, end="", flush=True)
+            env.step(line.removesuffix("\n").removesuffix("\r"))
     except KeyboardInterrupt:
         print()
         return 130

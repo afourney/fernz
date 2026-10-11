@@ -6,8 +6,8 @@ Jericho-like API and a minimal interactive player.
 Fernz loads **raw V1-V8 story files** and can **complete Zork I (V3)** using
 Jericho's 396-command walkthrough with seed 12, reaching 350 points. It provides
 header metadata, checksums, protected memory, instruction decoding, and V3
-command input. Full V3 conformance, other execution versions, and Blorb
-containers are still ahead.
+command input, immutable checkpoints, and V3 Quetzal save/restore. Full V3
+conformance, other execution versions, and Blorb containers are still ahead.
 
 ## Try it
 
@@ -25,6 +25,8 @@ The inspection reports Z-machine **V3**, release **88**, serial **840726**, and
 a valid checksum for this Zork I file, despite its `.z5` extension.
 The player accepts commands until the story quits or you send EOF (Ctrl-D on
 Unix). Try `look`, `open mailbox`, `take leaflet`, `read leaflet`, and `inventory`.
+The game's `save` and `restore` commands prompt for a filename. A blank filename
+cancels, and overwriting an existing save requires confirmation.
 
 ```python
 from fernz import Memory, Story
@@ -65,7 +67,7 @@ finally:
 prompt, a score delta, quit status, and status globals. Start with `reset()` or
 restore a checkpoint with `set_state()`. Each reset and step has a default
 budget of 250,000 instructions, adjustable with `max_steps=...`. Unsupported
-opcodes fail with their name and address. In-game save/restore, VM restart, and full V3
+opcodes fail with their name and address. VM restart, undo, and full V3
 execution support remain future work; `done` detects the `quit` opcode, not victory
 or death that leaves the story running.
 
@@ -89,6 +91,14 @@ returns `None`, with no execution or output. Fernz uses its own named fields;
 Jericho tuples require conversion, and saved-game files use a separate format.
 The test suite includes a [V3 state converter](docs/STATE_INTEROP.md) for the
 pinned Linux Jericho reference. It is not part of the installed package.
+
+V3 `save` and `restore` opcodes use Quetzal files. Library callers supply
+`save_handler(data: bytes) -> bool` and `restore_handler() -> bytes | None`
+when constructing `FernzEnv`; unavailable storage reports opcode failure.
+Opcode restore leaves the current RNG and output settings intact and preserves
+Flags 2. The existing `get_state()` / `set_state()` methods still restore their
+complete deterministic checkpoints. See [save and restore](docs/SAVE_RESTORE.md)
+for a storage example and the separate contracts.
 
 ## Development
 
@@ -115,6 +125,10 @@ saves, advances, restores, and replays every command in both interpreters.
 Six additional runs transfer state between interpreters after commands 35,
 214, and 350, in both directions, then compare every remaining command through
 the 350-point ending. The recipient does not replay the prefix.
+A further walkthrough inserts actual save/restore opcodes at those three points,
+changes score memory before each restore, and still matches every gameplay turn
+through the ending. Quetzal tests exchange files with standalone Frotz in both
+directions, using independent nested-call probes and Zork.
 
 Fernz preserves the title, input newline, and prompt that Jericho omits; tests
 assert these separately. At the final quit, Jericho adds one newline and reports

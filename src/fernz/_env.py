@@ -5,6 +5,7 @@ from os import PathLike
 from pathlib import Path
 
 from ._errors import ExecutionError
+from ._host_io import HostIO, OutputHandler, RestoreHandler, SaveHandler
 from ._machine import Machine, signed
 from ._memory import Memory
 from ._state import GameState
@@ -19,14 +20,29 @@ class FernzEnv:
     A host seed in 0..2**31-1 selects a reproducible sequence; None uses entropy.
     Positive seeds match the tested Jericho/Frotz sequences. Explicit zero is
     deterministic like Frotz's CLI, unlike Jericho's automatic host seed zero.
+
+    save_handler receives Quetzal bytes and returns bool; restore_handler returns
+    bytes or None. Missing handlers, cancellation, and OSError report opcode
+    failure. Optional output_handler receives text fragments during execution;
+    reset/step still return the complete observation. Handlers belong to the
+    receiving environment and are never captured or replaced by checkpoints.
     """
 
-    def __init__(self, game_path: str | PathLike[str], *, seed: int | None = None) -> None:
+    def __init__(
+        self,
+        game_path: str | PathLike[str],
+        *,
+        seed: int | None = None,
+        save_handler: SaveHandler | None = None,
+        restore_handler: RestoreHandler | None = None,
+        output_handler: OutputHandler | None = None,
+    ) -> None:
         """Load a game, raising OSError for I/O or ValueError for invalid input."""
         self.game_path = Path(game_path)
         self.story = Story.from_file(self.game_path)
         self.memory = Memory(self.story)
         self._seed = seed
+        self._io = HostIO(save_handler, restore_handler, output_handler)
         self._machine: Machine | None = None
 
     def reset(self, *, max_steps: int = 250_000) -> tuple[str, dict[str, object]]:
@@ -38,7 +54,7 @@ class FernzEnv:
         Invalid execution or an exhausted instruction budget raises ExecutionError.
         """
         self._machine = None
-        machine = Machine(self.memory, seed=self._seed)
+        machine = Machine(self.memory, seed=self._seed, io=self._io)
         observation = machine.run(max_steps=max_steps)
         self._machine = machine
         return observation, self._info()
@@ -72,7 +88,7 @@ class FernzEnv:
         states raise TypeError or ValueError without changing the environment.
         This is a host API checkpoint, not the Z-machine restore opcode.
         """
-        machine = Machine.from_state(self.memory, state)
+        machine = Machine.from_state(self.memory, state, io=self._io)
         self._machine = machine
         self._seed = state.rng.host_seed
 

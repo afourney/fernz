@@ -63,7 +63,7 @@ which does not rely on random encounters.
 This replaces Fernz's initial Python `random.Random` implementation, so seeded
 sequences change from that first execution milestone. The constructor's explicit
 zero remains reproducible. RNG instances belong to individual machines and do
-not share process-global state. Story-level save, undo, and VM restart remain future work.
+not share process-global state. Undo and VM restart remain future work.
 
 Host-side `get_state()` / `set_state()` checkpoints capture both generator modes
 and the host seed policy. Restoring neither draws a value nor requests entropy;
@@ -71,6 +71,12 @@ it resumes the saved sequence. The restored host seed also governs later
 `reset()` and `random 0` calls. If that seed is `None`, those later operations
 still request fresh entropy. This host API supports deterministic exploration;
 it has a different contract from the standard's story-level save/restore opcodes.
+
+V3 `save` writes no RNG state into its Quetzal file. `restore` retains the
+receiving machine's current RNG state and host seed, without drawing or reseeding
+during restoration. Any subsequent story instructions can of course draw from
+that sequence. A file loaded into a fresh process therefore does not promise the
+donor's future random outcomes. See [save and restore](SAVE_RESTORE.md).
 
 ## Compatibility evidence
 

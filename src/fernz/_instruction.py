@@ -47,6 +47,19 @@ class Instruction:
     text_address: int | None = None
 
 
+def decode_branch(memory: Memory, address: int) -> tuple[Branch, int]:
+    """Decode a branch suffix and return its continuation address (§4.7)."""
+    value = memory.read_byte(address)
+    address += 1
+    offset = value & 0x3F
+    if not value & 0x40:
+        offset = offset << 8 | memory.read_byte(address)
+        address += 1
+        if offset & 0x2000:
+            offset -= 0x4000
+    return Branch(bool(value & 0x80), offset), address
+
+
 def decode(memory: Memory, address: int) -> Instruction:
     """Decode one instruction without reading variables or changing memory."""
     cursor = address
@@ -104,13 +117,7 @@ def decode(memory: Memory, address: int) -> Instruction:
         store = byte() if spec.store else None
         branch = None
         if spec.branch:
-            value = byte()
-            offset = value & 0x3F
-            if not value & 0x40:
-                offset = offset << 8 | byte()
-                if offset & 0x2000:
-                    offset -= 0x4000
-            branch = Branch(bool(value & 0x80), offset)
+            branch, cursor = decode_branch(memory, cursor)
         text_address = None
         if spec.text:
             text_address = cursor
