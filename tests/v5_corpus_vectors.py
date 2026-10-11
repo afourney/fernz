@@ -62,7 +62,7 @@ def observation_text(text, game, *, opening=False, fernz=False):
     if game == "sherlock" and not fernz:
         # Clock updates are upper-window output, sometimes adjoining narrative.
         text = re.sub(
-            r"(?: {39}[^\n]*?| {1,4}-?\d+)?(?:Saturday|Sunday|Monday) +\d+:\d{2}:\d{2} [ap]\.m\.",
+            r"(?: {39}[A-Za-z0-9][A-Za-z0-9 '.,()/-]{0,38}| {1,4}-?\d+)?(?:Saturday|Sunday|Monday) +\d+:\d{2}:\d{2} [ap]\.m\.",
             "",
             text,
         )

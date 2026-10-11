@@ -99,3 +99,37 @@ def test_v5_breadth_records_store_hashes_not_game_content():
                 assert all(type(value) is int for value in record["rng"])
                 assert type(record["input_address"]) is int
                 assert type(record["character_input"]) is bool
+
+
+def test_full_v5_records_do_not_embed_narrative_or_state_payloads():
+    from .v5_trajectory_cases import GAMES
+
+    fields = {
+        "action",
+        "queries",
+        "reward",
+        "reference_done",
+        "info",
+        "terminal_menu",
+        "input_address",
+        "character_input",
+        "rng",
+        "objects",
+        "upper_window_sha256",
+        "observation_sha256",
+    }
+    for game in GAMES:
+        documents = read_archive(Path(__file__).parent / "vectors" / f"{game}_vectors.zip")
+        for name, document in documents.items():
+            if name in ("manifest.json", "breadth.json"):
+                continue
+            for case in document["cases"]:
+                for record in case["steps"]:
+                    assert set(record) == fields
+                    for value in (record["observation_sha256"], record["upper_window_sha256"]):
+                        assert value is None or re.fullmatch(r"[0-9a-f]{64}", value)
+                    for key, value in record["queries"].items():
+                        if isinstance(value, str):
+                            assert key.endswith("_sha256") and re.fullmatch(r"[0-9a-f]{64}", value)
+                        else:
+                            assert type(value) in (int, bool, list)

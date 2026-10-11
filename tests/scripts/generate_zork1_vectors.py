@@ -46,6 +46,7 @@ from .storyfile_vectors import generate_storyfiles
 from .v3_game_vectors import generate_v3
 from .v5_game_vectors import generate_905
 from .v5_startup_vectors import generate_startup
+from .v5_trajectory_vectors import generate_trajectory
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -295,7 +296,10 @@ def main(argv=None):
                 if args.only == "v5":
                     archives[args.output_dir / "905_vectors.zip"] = generate_905(path)
             else:
-                archives[args.output_dir / f"{game}_vectors.zip"] = generate_startup(path, game)
+                generator = (
+                    generate_trajectory if game in ("balances", "sherlock") else generate_startup
+                )
+                archives[args.output_dir / f"{game}_vectors.zip"] = generator(path, game)
     changed = []
     for path, documents in archives.items():
         if args.check:

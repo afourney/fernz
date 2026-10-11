@@ -154,3 +154,13 @@ V5 objects; the additional 16 are verified by independently decoding the public
 RAM snapshot. Independent V5 API tests use 300 objects, nested inventory,
 attributes 32 and 47, zero slots, large links, malformed chains, unknown profiles,
 and checkpoint/copy restoration through loss and VM quit.
+
+Balances and Sherlock also provide profiled player/location/inventory queries.
+Their full routes and detours compare complete object records decoded
+independently from public reference RAM. Sherlock exposes the same unnamed-child
+inventory truncation observed in V3; Fernz keeps the complete raw chain.
+
+For the exact Sherlock image, raw inspection of object 308 preserves an
+out-of-order encoded property tail. The compatibility rule applies only to that
+object and image. Ordinary malformed order, bounds, and broken tree-link checks
+remain enforced, and executable property lookups still validate traversal.
