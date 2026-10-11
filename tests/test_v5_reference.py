@@ -4,6 +4,7 @@ import pytest
 
 from fernz import FernzEnv
 
+from .observation_helpers import plain_text
 from .v5_cases import SEED_905, STARTUP_ACTIONS, STORY_905
 from .v5_vectors import capture_reference, check_step
 from .vector_archive import digest
@@ -20,15 +21,18 @@ def test_905_first_commands_match_live_reference(jericho_games):
     reference = FrotzEnv(str(path), seed=SEED_905)
     env = FernzEnv(path, seed=SEED_905)
     try:
-        check_step(env, capture_reference(reference, None, reference.reset()[0]))
+        check_step(env, capture_reference(reference, None, plain_text(reference.reset()[0])))
         for action in STARTUP_ACTIONS:
             before, native = env.get_state(), reference.get_state()
-            record = capture_reference(reference, action, reference.step(action)[0])
+            record = capture_reference(reference, action, plain_text(reference.step(action)[0]))
             check_step(env, record)
             expected = env.get_state()
             env.set_state(before)
             reference.set_state(native)
-            assert capture_reference(reference, action, reference.step(action)[0]) == record
+            assert (
+                capture_reference(reference, action, plain_text(reference.step(action)[0]))
+                == record
+            )
             check_step(env, record)
             assert env.get_state() == expected
     finally:
@@ -55,7 +59,7 @@ def test_905_public_copies_branch_without_advancing_the_original(jericho_games):
     env = FernzEnv(path, seed=SEED_905)
     environments = [reference, env]
     try:
-        check_step(env, capture_reference(reference, None, reference.reset()[0]))
+        check_step(env, capture_reference(reference, None, plain_text(reference.reset()[0])))
         route = reference.get_walkthrough()
         for action in route[:11]:
             check_step(env, measure_step(reference, action))

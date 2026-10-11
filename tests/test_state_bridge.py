@@ -8,6 +8,7 @@ import pytest
 
 from fernz import FernzEnv
 
+from .observation_helpers import plain_text
 from .state_bridge import MISSING_OBSERVATION, STACK_WORDS, StateBridge
 from .story_files import READ, program_bytes
 
@@ -126,8 +127,8 @@ def test_synthetic_state_transfer(tmp_path, direction, locals_count, args, read_
                 assert native[8] == MISSING_OBSERVATION
                 reference.reset()  # Discard recipient state before importing.
                 reference.set_state(native)
-            actual = results(env.step("look")[0])
-            expected = results(reference.step("look")[0])
+            actual = results(plain_text(env.step("look")[0]))
+            expected = results(plain_text(reference.step("look")[0]))
             assert actual == expected
             assert len(actual) == (locals_count + 14 if stage == 0 else 2 if stage == 1 else 0)
             if stage == 0:

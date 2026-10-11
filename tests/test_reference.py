@@ -6,6 +6,7 @@ import pytest
 
 from fernz import ExecutionError, FernzEnv
 
+from .observation_helpers import plain_text
 from .zork_scenarios import ZORK1_SHA256
 
 pytestmark = pytest.mark.reference
@@ -68,6 +69,7 @@ def walkthrough_trace(zork1):
 
 
 def assert_observation(actual, expected):
+    actual = plain_text(actual)
     # Accommodate platform line endings only; do not erase gameplay differences.
     assert isinstance(actual, str)
     assert actual.replace("\r\n", "\n") == expected.replace("\r\n", "\n")
@@ -81,25 +83,28 @@ def assert_info(actual, expected):
 
 
 def assert_zork_opening(actual, expected):
+    actual = plain_text(actual)
     # Black-box observation: Jericho 3.3.1 omits this recognized game's title
     # and its final prompt. Preserve both in Fernz; compare every remaining byte.
     # These explicit assertions keep a lost title or prompt from passing unnoticed.
     title = "ZORK I: The Great Underground Empire\n"
     assert actual.startswith(title)
-    assert actual.endswith("\n>")
+    assert actual.endswith("\n")
     assert_observation(actual.removeprefix(title).removesuffix(">"), expected)
 
 
 def assert_zork_turn(actual, expected):
+    actual = plain_text(actual)
     # Jericho omits the input Enter newline and the story's prompt. Assert both
     # explicitly before comparing the complete remaining response.
     assert actual.startswith("\n")
-    assert actual.endswith("\n>")
+    assert actual.endswith("\n")
     assert_observation(actual.removeprefix("\n").removesuffix(">"), expected)
 
 
 def assert_zork_step(actual, expected, *, final):
     observation, reward, done, info = actual
+    observation = plain_text(observation)
     assert type(reward) is int
     assert reward == expected[1]
     assert type(done) is bool
@@ -310,19 +315,19 @@ def test_zork1_walkthrough_with_save_restore_opcodes(zork1, walkthrough_trace):
     storage = Storage()
     env = FernzEnv(zork1, seed=seed, save_handler=storage.save, restore_handler=storage.restore)
     try:
-        assert_zork_opening(env.reset()[0], initial[0])
+        assert_zork_opening(plain_text(env.reset()[0]), initial[0])
         for turn, (action, expected) in enumerate(zip(actions, steps, strict=True)):
             if turn in (35, 214, 350):
                 before = env.get_state()
                 info = env._info()
-                assert env.step("save")[0] == "\nOk.\n\n>"
+                assert plain_text(env.step("save")[0]) == "\nOk.\n\n"
                 assert env.get_state().rng == before.rng
                 # Change real gameplay memory without taking a turn or drawing
                 # randomness. Restoring must recover it from the saved file.
                 score_address = env.story.header.globals_table + 2
                 env.memory.write_word(score_address, (info["score"] + 123) & 0xFFFF)
                 observation, _, done, restored_info = env.step("restore")
-                assert observation == "\nOk.\n\n>"
+                assert observation.text == "\nOk.\n\n"
                 assert not done
                 assert restored_info == info
                 assert env.get_state().rng == before.rng

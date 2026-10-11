@@ -119,8 +119,8 @@ def test_recoverable_and_terminal_deaths_with_copies_and_checkpoints(zork1):
                 assert actual[1] == expected[1] == -10
                 assert actual[3] == {"score": -30, "moves": 16}
                 assert expected[3] == {"score": -30, "moves": 17}
-                assert actual[0].startswith("\n") and expected[0].endswith("\n\n")
-                assert_observation(actual[0].removeprefix("\n") + "\n", expected[0])
+                assert actual[0].text.startswith("\n") and expected[0].endswith("\n\n")
+                assert_observation(actual[0].text.removeprefix("\n") + "\n", expected[0])
             if action == "jump":
                 saved, native_saved = env.get_state(), reference.get_state()
                 fork = env.copy()

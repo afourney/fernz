@@ -8,6 +8,7 @@ import pytest
 from fernz import FernzEnv, Story
 from fernz._random import RandomGenerator
 
+from .observation_helpers import plain_text
 from .random_story import random_story, results
 
 pytestmark = pytest.mark.reference
@@ -42,8 +43,8 @@ def jericho_results(story, operands, seed):
         )
         env = FrotzEnv(str(story), seed=seed)
     try:
-        initial = results(env.reset()[0], len(operands))
-        assert results(env.reset()[0], len(operands)) == initial
+        initial = results(plain_text(env.reset()[0]), len(operands))
+        assert results(plain_text(env.reset()[0]), len(operands)) == initial
         return initial
     finally:
         env.close()
@@ -61,7 +62,7 @@ def compare(tmp_path, dfrotz, operands, version, seed=42):
         env = FernzEnv(story, seed=seed)
         try:
             for _ in range(2):
-                assert results(env.reset()[0], len(operands)) == expected
+                assert results(plain_text(env.reset()[0]), len(operands)) == expected
         finally:
             env.close()
     # V5/V8 exercise the shared generator against those formats in the references;

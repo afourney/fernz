@@ -11,6 +11,7 @@ from fernz._quetzal import SavedGame, dumps, loads
 from fernz._random import RandomGenerator
 from fernz._state import FrameState
 
+from .observation_helpers import plain_text
 from .story_files import READ, program_bytes
 from .test_save_restore import Storage
 from .v5_story import save_story
@@ -24,7 +25,7 @@ def test_v5_save_resume_result_and_discarding_seven_argument_frame(tmp_path, sto
     storage = Storage()
     first = FernzEnv(path, seed=42, save_handler=storage.save)
     first.reset()
-    assert first.step("save")[0] == "\n1\n"
+    assert plain_text(first.step("save")[0]) == "\n1\n"
     saved = loads(first.story, storage.data)
     assert saved.frames[1].store is None
     assert saved.frames[1].argument_count == 7
@@ -33,10 +34,10 @@ def test_v5_save_resume_result_and_discarding_seven_argument_frame(tmp_path, sto
     assert first.memory.read_byte(saved.pc) == store
     assert (saved.pc > 0xFFFF) is high
     expected = first.step("continue")
-    assert expected[0] == "\n8738\n77\n"
+    assert expected[0].text == "\n8738\n77\n"
     second = FernzEnv(path, seed=42, restore_handler=storage.restore)
     second.reset()
-    assert second.step("restore")[0] == "\n2\n"
+    assert plain_text(second.step("restore")[0]) == "\n2\n"
     assert second.step("continue") == expected
 
 
@@ -54,7 +55,7 @@ def test_v5_restore_preserves_rng_output_and_flags_while_snapshots_restore_them(
     env.set_state(replace(env.get_state(), rng=rng.get_state(), screen_enabled=False))
     env.memory.write_byte(0x11, env.memory.read_byte(0x11) | 3)
     before = env.get_state()
-    assert env.step("restore")[0] == ""
+    assert plain_text(env.step("restore")[0]) == ""
     after = env.get_state()
     assert after.rng == before.rng and after.output == before.output
     assert after.ram[0x10:0x12] == before.ram[0x10:0x12]

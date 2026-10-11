@@ -5,6 +5,7 @@ import pytest
 from fernz import ExecutionError, FernzEnv
 
 from .environment_story import seed_story
+from .observation_helpers import plain_text
 from .story_files import READ, program_bytes, put_word, story_bytes
 from .test_save_restore import Storage, results
 from .test_state import game as game
@@ -79,7 +80,7 @@ def test_copy_after_execution_failure_still_requires_reset_or_state(tmp_path):
         with pytest.raises(RuntimeError, match="reset"):
             query()
     other.set_state(saved)
-    assert other.step("look")[0] == "\nA"
+    assert plain_text(other.step("look")[0]) == "\nA"
     with pytest.raises(RuntimeError, match="reset"):
         env.get_state()
 
@@ -100,12 +101,12 @@ def test_copy_retains_host_callback_references_but_not_vm_mutations(tmp_path):
     state = env.get_state()
     other = env.copy()
     assert emitted == []
-    assert other.step("save")[0] == "\nS"
+    assert plain_text(other.step("save")[0]) == "\nS"
     assert "".join(emitted) == "\nS"
     assert storage.saves == 1 and storage.data.startswith(b"FORM")
     assert env.get_state() == state
     emitted.clear()
-    assert other.step("restore")[0] == "\nS"
+    assert plain_text(other.step("restore")[0]) == "\nS"
     assert "".join(emitted) == "\nS"
     assert storage.restores == 1
     assert env.get_state() == state
@@ -113,22 +114,22 @@ def test_copy_retains_host_callback_references_but_not_vm_mutations(tmp_path):
 
 def test_seed_is_deferred_until_host_reset_and_copy_retains_both_policies(seeds):
     env = FernzEnv(seeds, seed=42)
-    assert results(env.reset()[0]) == [14545]
+    assert results(plain_text(env.reset()[0])) == [14545]
     saved = env.get_state()
     assert env.seed(1000) == 1000
     assert env.get_state() == saved
     other = env.copy()
     for candidate in (env, other):
-        assert results(candidate.step("next")[0]) == [24057]
-        assert results(candidate.step("random zero")[0]) == [14545]
-        assert results(candidate.step("restart")[0]) == [14545]
-        assert results(candidate.reset()[0]) == [18626]
+        assert results(plain_text(candidate.step("next")[0])) == [24057]
+        assert results(plain_text(candidate.step("random zero")[0])) == [14545]
+        assert results(plain_text(candidate.step("restart")[0])) == [14545]
+        assert results(plain_text(candidate.reset()[0])) == [18626]
         assert candidate.get_state().rng.host_seed == 1000
     other.seed(1)
-    assert results(other.reset()[0]) == [347]
-    assert results(env.reset()[0]) == [18626]
+    assert results(plain_text(other.reset()[0])) == [347]
+    assert results(plain_text(env.reset()[0])) == [18626]
     env.set_state(saved)
-    assert results(env.reset()[0]) == [14545]  # Existing checkpoint seed contract.
+    assert results(plain_text(env.reset()[0])) == [14545]  # Existing checkpoint seed contract.
 
 
 @pytest.mark.parametrize("explicit", [False, True])
@@ -148,8 +149,8 @@ def test_seed_none_selects_entropy_only_at_reset(seeds, monkeypatch, explicit):
     other = env.copy()
     assert env.get_state() == other.get_state() == saved
     assert requests == []
-    assert results(other.reset()[0]) == [14545]
-    assert results(env.reset()[0]) == [18626]
+    assert results(plain_text(other.reset()[0])) == [14545]
+    assert results(plain_text(env.reset()[0])) == [18626]
     assert requests == [31, 31]
 
 
@@ -166,14 +167,14 @@ def test_invalid_seed_is_rejected_without_changing_current_or_pending_state(seed
     with pytest.raises(error):
         env.seed(value)
     assert env.get_state() == state
-    assert results(env.reset()[0]) == [18626]
+    assert results(plain_text(env.reset()[0])) == [18626]
 
 
 @pytest.mark.parametrize("seed,first", [(0, 1), (2**31 - 1, 32422)])
 def test_seed_accepts_boundaries_and_can_be_set_before_initialization(seeds, seed, first):
     env = FernzEnv(seeds)
     assert env.seed(seed) == seed
-    assert results(env.reset()[0]) == [first]
+    assert results(plain_text(env.reset()[0])) == [first]
 
 
 def test_seed_normalizes_integer_protocol_values(seeds):
@@ -182,9 +183,9 @@ def test_seed_normalizes_integer_protocol_values(seeds):
             return 42
 
     env = FernzEnv(seeds, seed=Seed())
-    assert results(env.reset()[0]) == [14545]
+    assert results(plain_text(env.reset()[0])) == [14545]
     assert type(env.seed(Seed())) is int
-    assert results(env.reset()[0]) == [14545]
+    assert results(plain_text(env.reset()[0])) == [14545]
 
 
 def test_score_and_moves_read_live_status_without_advancing_execution(tmp_path):

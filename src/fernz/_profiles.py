@@ -28,6 +28,7 @@ class StoryProfile:
     victory_score: int | None = None
     ignored_attribute_writes: frozenset[int] = frozenset()
     unordered_inspection_objects: frozenset[int] = frozenset()
+    strip_command_prompt: bool = False
 
     def outcomes(self, observation: str) -> tuple[bool, bool]:
         """Classify the latest response, tolerating differences in whitespace."""
@@ -82,6 +83,7 @@ _PROFILES = {
         loss_lines=frozenset({"**** You have died ****"}),
         victory_lines=frozenset({"Inside the Barrow"}),
         player_object=4,
+        strip_command_prompt=True,
     ),
     # 9:05 release 1, serial 120724. Public observations give a response-based
     # score and elapsed minutes from global 17, starting at 9:05 (545 minutes).

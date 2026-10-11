@@ -16,6 +16,7 @@ executables only.
 | Continuation | Pending decoded input request, or halted state | Saved branch (V3) or result-variable byte (V5) |
 | RNG state and host seed | Captured and restored for deterministic replay | Not written; the recipient's current RNG and host seed are retained |
 | Output selection | Captured and restored | Current setting retained |
+| Logical display state and geometry | Captured and restored (schema 4) | Recipient settings retained; V3 collapses the upper window |
 | Flags 2 | Saved value restored | Current value preserved |
 | Interpreter-owned header fields | Validated for a Fernz checkpoint | Adapted to the receiving interpreter |
 | Representation | Immutable Fernz GameState | Portable Quetzal bytes |
@@ -37,7 +38,9 @@ Supply optional keyword arguments when constructing an environment:
 - `output_handler(text: str) -> None`: optionally receive output fragments as
   execution emits them. This lets a frontend display story output before a
   storage callback prompts for a filename. `reset()` and `step()` still return
-  the complete observation, so a streaming frontend should not print it again.
+  the complete `Observation`, so a streaming frontend should not print it again.
+  This callback receives plain text from both windows, including prompts; the
+  [observation's stream](OBSERVATIONS.md) separately carries display commands.
 
 These callbacks are synchronous, must not re-enter the same environment, and
 remain attached to the receiving environment across reset and checkpoint

@@ -25,8 +25,14 @@ def digest(value):
 
 
 def state_fingerprint(state):
-    """Hash large fields, preserving every other canonical snapshot field."""
+    """Fingerprint VM fields measurable through the public reference snapshot.
+
+    Display state is not exposed by the reference. Fernz's complete display
+    checkpoint is checked separately by replay/copy and protocol tests.
+    """
     result = asdict(state)
+    result.pop("output", None)
+    result["format_version"] = 2
     result["ram_sha256"] = digest(result.pop("ram"))
     result["frames_sha256"] = digest(result.pop("frames"))
     return result
@@ -83,18 +89,20 @@ def query_fingerprint(env, *, fernz=False):
 
 def observation_text(observation, mode):
     """Apply only the explicitly measured presentation differences."""
-    observation = observation.replace("\r\n", "\n")
+    from .observation_helpers import plain_text
+
+    observation = plain_text(observation).replace("\r\n", "\n")
     if mode == "opening":
         title = "ZORK I: The Great Underground Empire\n"
-        assert observation.startswith(title) and observation.endswith("\n>")
-        return observation.removeprefix(title).removesuffix(">")
+        assert observation.startswith(title) and observation.endswith("\n")
+        return observation.removeprefix(title)
     assert observation.startswith("\n")
     if mode == "turn":
-        assert observation.endswith("\n>")
-        return observation[1:-1]
+        assert observation.endswith("\n")
+        return observation[1:]
     if mode == "restart-confirmation":
-        assert observation.endswith(" >")
-        return observation[1:-2]
+        assert not observation.endswith(" >")
+        return observation[1:]
     if mode == "ending":
         assert observation.endswith("\n")
         return observation[1:] + "\n"

@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from hashlib import sha256
 
+from ._observation import COLOURS
 from ._story import Story
 
 
@@ -50,21 +51,49 @@ class OutputState:
     cursors: tuple[tuple[int, int], ...] = ((1, 1), (1, 1))
     fonts: tuple[int, int] = (1, 1)
     memory_streams: tuple[tuple[int, int], ...] = ()
+    width: int = 80
+    height: int = 25
+    styles: tuple[int, int] = (0, 0)
+    colours: tuple[tuple[str, str], ...] = (("white", "black"), ("white", "black"))
+    buffered: bool = True
 
     def _validate(self, story: Story) -> None:
         _integer(self.window, 0, 1, "Selected window")
-        _integer(self.split_lines, 0, 25, "Upper window height")
+        _integer(self.width, 1, 255, "Screen width")
+        _integer(self.height, 1, 254, "Screen height")
+        _integer(self.split_lines, 0, self.height, "Upper window height")
         if type(self.cursors) is not tuple or len(self.cursors) != 2:
             raise TypeError("Expected two immutable window cursors")
         for cursor in self.cursors:
             if type(cursor) is not tuple or len(cursor) != 2:
                 raise TypeError("Expected an immutable row/column cursor")
-            _integer(cursor[0], 1, 25, "Cursor row")
-            _integer(cursor[1], 1, 81, "Cursor column")
+            _integer(cursor[0], 1, self.height, "Cursor row")
+            _integer(cursor[1], 1, self.width + 1, "Cursor column")
         if type(self.fonts) is not tuple or len(self.fonts) != 2:
             raise TypeError("Expected two immutable font selections")
         if any(type(font) is not int or font not in (1, 4) for font in self.fonts):
             raise ValueError("Unsupported text font")
+        if type(self.styles) is not tuple or len(self.styles) != 2:
+            raise TypeError("Expected two immutable text styles")
+        for style in self.styles:
+            _integer(style, 0, 15, "Text style")
+        if type(self.colours) is not tuple or len(self.colours) != 2:
+            raise TypeError("Expected two immutable colour pairs")
+        for pair in self.colours:
+            if type(pair) is not tuple or len(pair) != 2:
+                raise TypeError("Expected an immutable foreground/background pair")
+            for colour in pair:
+                if type(colour) is not str or not (
+                    colour in COLOURS
+                    or (
+                        len(colour) == 7
+                        and colour[0] == "#"
+                        and all(c in "0123456789abcdef" for c in colour[1:])
+                    )
+                ):
+                    raise ValueError("Invalid display colour")
+        if type(self.buffered) is not bool:
+            raise TypeError("Output buffering must be a boolean")
         if type(self.memory_streams) is not tuple or len(self.memory_streams) > 16:
             raise TypeError("Expected at most 16 immutable memory streams")
         for stream in self.memory_streams:
@@ -94,14 +123,15 @@ class RandomState:
 
 @dataclass(frozen=True, slots=True)
 class GameState:
-    """A detached checkpoint returned by FernzEnv.get_state().
+    """Base fields shared by Fernz checkpoints and the legacy V3 test adapter.
 
     RAM contains dynamic memory only, including its current header. Static
     memory comes from the matching story image, identified without file padding.
     Frames, pending input, output selection, randomness, and the most recent
-    response's outcome flags complete the schema-2 snapshot. This versioned
-    Fernz representation is independent of Jericho's tuple layout
-    and of saved-game file formats. Obtain snapshots through the environment.
+    response's outcome flags form the schema-2 base. get_state() returns its
+    schema-4 subclass, ExtendedGameState, including logical display state.
+    This versioned representation is independent of Jericho's tuple layout
+    and saved-game file formats. Obtain snapshots through the environment.
     """
 
     story_sha256: str
@@ -117,7 +147,7 @@ class GameState:
     victory: bool = False
 
     def _validate(self, story: Story) -> None:
-        expected_format = 3 if type(self) is ExtendedGameState else 2
+        expected_format = 4 if type(self) is ExtendedGameState else 2
         _integer(self.format_version, expected_format, expected_format, "Snapshot format version")
         if self.story_sha256 != sha256(story.data[: story.size]).hexdigest():
             raise ValueError("Snapshot belongs to a different story image")
@@ -189,9 +219,9 @@ class GameState:
 
 @dataclass(frozen=True, slots=True)
 class ExtendedGameState(GameState):
-    """Schema-3 checkpoint adding text I/O; schema-2 V3 checkpoints stay intact."""
+    """Schema-4 checkpoint preserving geometry and both windows' display state."""
 
-    format_version: int = 3
+    format_version: int = 4
     output: OutputState = OutputState()
 
     def _validate(self, story: Story) -> None:

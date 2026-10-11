@@ -4,6 +4,7 @@ import re
 from dataclasses import asdict
 from functools import lru_cache
 
+from .observation_helpers import plain_text
 from .v3_cases import BOOT_ACTIONS
 from .vector_archive import digest, state_fingerprint
 
@@ -23,7 +24,7 @@ def reference_text(text, names):
 
 
 def fernz_text(text, *, opening, halted, game):
-    text = text.replace("\r\n", "\n")
+    text = plain_text(text).replace("\r\n", "\n")
     if opening:
         # The public reference removes the first startup line. It can be a
         # title, copyright notice, or introductory paragraph, depending on ROM.
@@ -43,9 +44,10 @@ def fernz_text(text, *, opening, halted, game):
 
 def reset_fernz(env, game):
     observation, info = env.reset()
+    observation = observation.text
     for action in BOOT_ACTIONS.get(game, ()):
         text, _, _, info = env.step(action)
-        observation += text
+        observation += text.text
     return observation, 0, False, info
 
 

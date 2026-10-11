@@ -56,19 +56,26 @@ from fernz import FernzEnv
 env = FernzEnv("games/jericho-game-suite/zork1.z5", seed=42)
 try:
     observation, info = env.reset()
-    print(observation, end="")
+    print(observation.text, end="")
     print(info)  # {"score": 0, "moves": 0}
     for action in ("look", "open mailbox", "take leaflet", "read leaflet", "inventory"):
         observation, reward, done, info = env.step(action)
-        print(observation, end="")
+        print(observation.text, end="")
         if done:
             break
 finally:
     env.close()
 ```
 
-`step()` returns only the new output, including the input newline and story
-prompt, a score delta, quit status, and status globals. Start with `reset()` or
+`reset()` and `step()` return an immutable `Observation` with a plain `.text`
+transcript and an ordered `.stream` containing text and concise display tags.
+Both windows contribute in execution order. The recognized Zork I command prompt
+is omitted from `.text` and retained in `.stream`. Constructor options
+`screen_width=80` and `screen_height=25` configure the display; the CLI accepts
+`--screen-width` and `--screen-height`. See [observations](docs/OBSERVATIONS.md)
+for the protocol, migration, and screen-state responsibilities.
+
+`step()` returns only new output, a score delta, quit status, and status globals. Start with `reset()` or
 restore a checkpoint with `set_state()`. Each reset and step has a default
 budget of 250,000 instructions, adjustable with `max_steps=...`. Unsupported
 opcodes fail with their name and address. Undo and full V3
@@ -101,8 +108,9 @@ env.close()
 ```
 
 The immutable `GameState` includes memory, call frames, PC, pending input, output
-selection, RNG state, and loss/victory response flags. Ordinary V3 snapshots use
-schema 2; V5 and active memory-output snapshots add text I/O state in schema 3.
+selection, RNG state, and loss/victory response flags. V3 and V5 snapshots use
+schema 4, including geometry, cursors, styles, colours, fonts, buffering, and
+nested memory-output state. Checkpoints do not contain rendered screen cells.
 It can also initialize another environment for the
 same story. Restore validates the checkpoint before changing the live game and
 returns `None`, with no execution or output. Fernz uses its own named fields;
@@ -140,8 +148,8 @@ the measured behavior, supported story identity, and reference differences.
 V3 and V5 `save` and `restore` opcodes use Quetzal files. Library callers supply
 `save_handler(data: bytes) -> bool` and `restore_handler() -> bytes | None`
 when constructing `FernzEnv`; unavailable storage reports opcode failure.
-Opcode restore leaves the current RNG and output settings intact and preserves
-Flags 2. The existing `get_state()` / `set_state()` methods still restore their
+Opcode restore keeps the current RNG, screen geometry, and Flags 2; V3 also
+collapses the upper window as required by the specification. The existing `get_state()` / `set_state()` methods still restore their
 complete deterministic checkpoints. See [save and restore](docs/SAVE_RESTORE.md)
 for a storage example and the separate contracts.
 
@@ -196,8 +204,9 @@ and complete converted VM state; detours also replay from saved checkpoints.
 Explicit boundary tests record question-mark and long-input differences without
 filtering them from ordinary comparisons. See the [reference test details](docs/OVERVIEW.md#black-box-reference-tests).
 
-Fernz preserves the title, input newline, and prompt that Jericho omits; tests
-assert these separately. At the final quit, Jericho adds one newline and reports
+Fernz preserves the title and input newline that Jericho omits; tests assert
+these separately. The Zork command prompt remains in `Observation.stream`,
+while `Observation.text` omits it. At the final quit, Jericho adds one newline and reports
 395 moves; Fernz reports the story's 394 moves, also printed by standalone Frotz.
 The test asserts these exact final-turn differences. V3 output accepts legacy
 tabs as three spaces, matching Jericho's plain transcript. Synthetic input probes

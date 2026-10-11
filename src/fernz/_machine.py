@@ -15,7 +15,14 @@ from ._output import Output
 from ._profiles import profile_for
 from ._quetzal import SavedGame, SaveFormatError, dumps, loads
 from ._random import RandomGenerator
-from ._state import ExtendedGameState, FrameState, GameState, InputRequest, StoredInputRequest
+from ._state import (
+    ExtendedGameState,
+    FrameState,
+    GameState,
+    InputRequest,
+    OutputState,
+    StoredInputRequest,
+)
 from ._text import Text
 
 
@@ -39,7 +46,13 @@ class Machine:
     """Execute V3/V5 with a bounded instruction budget and captured output."""
 
     def __init__(
-        self, memory: Memory, *, seed: int | None = None, io: HostIO | None = None
+        self,
+        memory: Memory,
+        *,
+        seed: int | None = None,
+        io: HostIO | None = None,
+        screen_width: int = 80,
+        screen_height: int = 25,
     ) -> None:
         """Start a fresh episode, resetting memory, frames, output, and randomness."""
         if memory.story.header.version not in (3, 5):
@@ -47,7 +60,7 @@ class Machine:
         self.memory = memory
         self.io = io or HostIO()
         self.memory.reset()
-        self.memory._configure_header()
+        self.memory._configure_header(screen_width, screen_height)
         self.pc = memory.story.header.entry_address
         self.frames = [Frame()]
         self.text = Text(memory)
@@ -55,17 +68,19 @@ class Machine:
         self._profile = profile_for(memory.story)
         self.rng = RandomGenerator(seed)
         self.output: list[str] = []
+        self._narrative: list[str] = []
+        self.last_narrative = ""
         self.screen_enabled = True
-        self.display = Output(memory)
+        self.display = Output(memory, OutputState(width=screen_width, height=screen_height))
+        self.display.start()
+        self.last_stream = ""
         self.input_request: InputRequest | None = None
         self.halted = False
 
     def get_state(self) -> GameState:
         """Capture a detached checkpoint at a public input or quit boundary."""
         story = self.memory.story
-        extended = story.header.version >= 5 or bool(self.display.state.memory_streams)
-        state_type = ExtendedGameState if extended else GameState
-        return state_type(
+        return ExtendedGameState(
             story_sha256=sha256(story.data[: story.size]).hexdigest(),
             ram=self.memory.read_bytes(0, story.header.static_memory),
             pc=self.pc,
@@ -74,7 +89,7 @@ class Machine:
             input_request=self.input_request,
             screen_enabled=self.screen_enabled,
             halted=self.halted,
-            **({"output": self.display.state} if extended else {}),
+            output=self.display.state,
         )
 
     def _frame_states(self) -> tuple[FrameState, ...]:
@@ -107,13 +122,16 @@ class Machine:
         result._profile = profile_for(memory.story)
         result.rng = RandomGenerator.from_state(state.rng)
         result.output = []  # Public calls already drained the previous observation.
+        result._narrative = []
+        result.last_narrative = ""
+        result.last_stream = ""
         result.screen_enabled = state.screen_enabled
         result.display = (
             Output(memory, state.output) if type(state) is ExtendedGameState else Output(memory)
         )
         result.input_request = state.input_request
         result.halted = state.halted
-        memory._restore_dynamic(state.ram)
+        memory._restore_dynamic(state.ram, width=result.display.width, height=result.display.height)
         return result
 
     def read_variable(self, number: int, *, indirect: bool = False) -> int:
@@ -194,13 +212,13 @@ class Machine:
                 self.pc += branch.offset - 2
 
     def _emit(self, text: str) -> None:
-        if self.display.state.memory_streams or (
-            self.memory.story.header.version >= 5 and self.screen_enabled
-        ):
+        if self.display.state.memory_streams or self.screen_enabled:
             # Stream 3 is independent of whether screen output is enabled.
             text = self.display.emit(text)
         if text and self.screen_enabled:
             self.output.append(text)
+            if self.display.state.window == 0:
+                self._narrative.append(text)
             if self.io.output is not None:
                 self.io.output(text)
 
@@ -245,9 +263,13 @@ class Machine:
         except (SaveFormatError, MemoryAccessError, ExecutionError):
             return False
         self.memory._restore_dynamic(
-            candidate.memory.read_bytes(0, self.memory.story.header.static_memory)
+            candidate.memory.read_bytes(0, self.memory.story.header.static_memory),
+            width=self.display.width,
+            height=self.display.height,
         )
         self.frames, self.pc = candidate.frames, candidate.pc
+        if self.memory.story.header.version == 3:
+            self.display.split(0)
         return True
 
     def _restart(self) -> None:
@@ -255,7 +277,7 @@ class Machine:
         # Flags 2. Keep the Memory object used by the text/object helpers.
         flags2 = self.memory.read_word(0x10)
         self.memory.reset()
-        self.memory._configure_header()
+        self.memory._configure_header(self.display.width, self.display.height)
         self.memory.write_word(0x10, flags2)
         self.pc = self.memory.story.header.entry_address
         self.frames = [Frame()]
@@ -292,6 +314,9 @@ class Machine:
             raise ExecutionError(f"Instruction budget ({max_steps}) exhausted at {self.pc:#x}")
         output = "".join(self.output)
         self.output.clear()
+        self.last_narrative = "".join(self._narrative)
+        self._narrative.clear()
+        self.last_stream = self.display.drain()
         return output
 
     def accept_input(self, line: str) -> None:
@@ -605,9 +630,9 @@ class Machine:
                 if args[0] == 3 and len(args) < 2:
                     raise ExecutionError("Memory output requires a table operand")
                 self.display.memory_stream(args[1] if args[0] == 3 else None)
-            case "split_window" if self.memory.story.header.version >= 5:
+            case "split_window":
                 self.display.split(args[0])
-            case "set_window" if self.memory.story.header.version >= 5:
+            case "set_window":
                 self.display.select(args[0])
             case "set_cursor":
                 self.display.move(*args)
@@ -616,8 +641,14 @@ class Machine:
                 self.memory.write_bytes(args[0], row.to_bytes(2, "big") + column.to_bytes(2, "big"))
             case "erase_window":
                 self.display.erase(signed(args[0]))
-            case "erase_line" | "set_text_style" | "buffer_mode" | "set_colour" | "set_true_colour":
-                pass  # Presentation controls do not alter a plain transcript.
+            case "erase_line":
+                self.display.erase_line(args[0])
+            case "set_text_style":
+                self.display.style(args[0])
+            case "buffer_mode":
+                self.display.buffer(args[0])
+            case "set_colour" | "set_true_colour":
+                self.display.colour(*map(signed, args), true=name == "set_true_colour")
             case "set_font":
                 store(self.display.font(args[0]))
             case "print_unicode":
@@ -640,8 +671,6 @@ class Machine:
                             for code in self.memory.read_bytes(table + row * (width + skip), width)
                         )
                     )
-            case "split_window" | "set_window" if args[0] == 0:
-                pass  # The only supported window is the unsplit lower window.
             case "input_stream" if args[0] == 0:
                 pass
             case _:

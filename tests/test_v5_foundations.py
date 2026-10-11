@@ -215,14 +215,14 @@ def test_memory_output_depth_and_bounds_are_enforced():
     assert output.state.memory_streams == ()
 
 
-def test_upper_window_cursor_and_lower_transcript_are_separate():
+def test_upper_and_lower_text_share_output_but_keep_separate_cursors():
     output = Output(machine(AREAD).memory)
     assert output.emit("hello") == "hello"
     output.split(2)
     lower = output.state.cursors[0]
     output.select(1)
     output.move(2, 5)
-    assert output.emit("clock") == ""
+    assert output.emit("clock") == "clock"
     assert output.state.cursors == (lower, (2, 10))
     output.select(0)
     assert output.emit("!") == "!"

@@ -5,6 +5,7 @@ import pytest
 from fernz import ExecutionError, FernzEnv, Memory, Story
 from fernz._objects import Objects
 
+from .observation_helpers import plain_text
 from .test_save_restore import results
 from .v5_legacy_story import duplicate_story, long_property_story, zero_story
 
@@ -14,15 +15,15 @@ def test_legacy_long_property_reads_are_bounded_and_repeatable(tmp_path, size, e
     path = tmp_path / "long.z5"
     path.write_bytes(long_property_story(size))
     env = FernzEnv(path)
-    assert results(env.reset()[0]) == [expected]
-    assert results(env.reset()[0]) == [expected]
+    assert results(plain_text(env.reset()[0])) == [expected]
+    assert results(plain_text(env.reset()[0])) == [expected]
 
 
 def test_duplicate_properties_preserve_order_and_update_only_the_first(tmp_path):
     path = tmp_path / "duplicates.z5"
     path.write_bytes(duplicate_story())
     env = FernzEnv(path)
-    assert results(env.reset()[0]) == [11, 9, 33, 99]
+    assert results(plain_text(env.reset()[0])) == [11, 9, 33, 99]
     objects = Objects(env.memory)
     props = list(objects.properties(1))
     assert [p.number for p in props] == [9, 9, 8]
@@ -37,7 +38,7 @@ def test_zero_insertion_does_not_detach_an_existing_child(tmp_path, source, dest
     path = tmp_path / "zero.z5"
     path.write_bytes(zero_story(source, destination))
     env = FernzEnv(path)
-    assert results(env.reset()[0]) == [2, 1]
+    assert results(plain_text(env.reset()[0])) == [2, 1]
     objects = Objects(env.memory)
     assert objects.parent(1) == 2 and objects.child(2) == 1
     assert objects.sibling(1) == 0

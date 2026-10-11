@@ -34,8 +34,8 @@ def vector():
 
 def test_independent_binary_vector_has_expected_bytes_and_state(vector):
     story, header, stack = vector
-    # Only header byte 1 differs: a one-byte zero run, followed by XOR 0x10.
-    data = form(chunk(b"IFhd", header), chunk(b"CMem", b"\x00\x00\x10"), chunk(b"Stks", stack))
+    # Only header byte 1 differs: a one-byte zero run, followed by XOR 0x30.
+    data = form(chunk(b"IFhd", header), chunk(b"CMem", b"\x00\x00\x30"), chunk(b"Stks", stack))
     memory = Memory(story)
     memory._configure_v3_header()
     expected = SavedGame(
@@ -201,7 +201,7 @@ def test_restore_adapts_interpreter_header_and_preserves_flags2(vector):
     machine = Machine(Memory(story), io=HostIO(restore=lambda: data))
     machine.memory.write_byte(0x11, 3)
     assert machine._restore()
-    assert machine.memory.read_byte(1) == 0x10
+    assert machine.memory.read_byte(1) == 0x30
     assert machine.memory.read_word(0x32) == 0
     assert machine.memory.read_word(0x10) == 3
 

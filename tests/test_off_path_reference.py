@@ -28,9 +28,11 @@ COMMANDS = [
 
 
 def assert_state(env, reference, bridge):
-    """Compare all snapshot fields, with useful diagnostics for large RAM blobs."""
+    """Compare reference-visible VM fields, with useful diagnostics for RAM."""
     actual, expected = env.get_state(), bridge.from_jericho(reference.get_state())
-    for field in fields(actual):
+    for field in fields(expected):
+        if field.name == "format_version":
+            continue  # The reference does not expose Fernz's display checkpoint.
         left, right = getattr(actual, field.name), getattr(expected, field.name)
         if field.name == "ram":
             assert len(left) == len(right)
@@ -167,7 +169,7 @@ def test_cellar_chasm_death_replays_and_allows_continued_play(checkpoint_envs):
         reference.set_state(native_ledge)
         result = compare_turn(env, reference, bridge, "jump")
         actual, expected = result
-        assert "You have died" in actual[0]
+        assert "You have died" in actual[0].text
         assert actual[1] == expected[1] == -10
         assert env.get_score() == score_before - 10
         assert env.game_over() is reference.game_over() is True
@@ -207,7 +209,7 @@ def test_combat_detour_with_different_seeds(zork1, seed):
                         f"Combat seed {seed}, episode {episode}, turn {turn}: {action!r}"
                     )
                     raise
-            assert "troll" in trace[12][0][0].lower()
+            assert "troll" in trace[12][0][0].text.lower()
             assert env.get_state().rng != opening_rng
             if episode == 0:
                 first_trace, first_state = trace, env.get_state()
@@ -236,8 +238,8 @@ def test_question_marks_are_an_explicit_reference_input_difference(checkpoint_en
     native_after = reference.get_state()
     substituted = action.replace("?", " ")
     assert native_after[0][text : text + size].tobytes() == substituted.encode() + b"\0"
-    assert "I don't know the word" in actual[0]
-    assert actual[0].removeprefix("\n").removesuffix(">") != expected[0]
+    assert "I don't know the word" in actual[0].text
+    assert actual[0].text.removeprefix("\n").removesuffix(">") != expected[0]
     env.set_state(state)
     equivalent = env.step(substituted)
     assert_zork_turn(equivalent[0], expected[0])
@@ -275,7 +277,7 @@ def test_long_command_limits_are_an_explicit_reference_difference(checkpoint_env
         assert actual[1:] == expected[1:]
         assert_state(env, reference, bridge)
     else:
-        assert actual[0].removeprefix("\n").removesuffix(">") != expected[0]
+        assert actual[0].text.removeprefix("\n").removesuffix(">") != expected[0]
         reference.set_state(native_state)
         bounded = reference.step(accepted)
         assert_zork_turn(actual[0], bounded[0])

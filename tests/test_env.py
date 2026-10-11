@@ -4,6 +4,7 @@ import pytest
 
 from fernz import ExecutionError, FernzEnv, StoryFormatError
 
+from .observation_helpers import text_response
 from .story_files import READ, program_bytes, put_word, story_bytes
 
 
@@ -61,10 +62,10 @@ def test_reset_runs_to_input_and_restores_memory_stack_and_output(tmp_path):
     data = program_bytes(bytes.fromhex("95 11 e8 7f 2a e5 7f 41") + READ)
     game.write_bytes(data)
     env = FernzEnv(game, seed=0)
-    assert env.reset() == ("A", {"score": 1, "moves": 0})
+    assert text_response(env.reset()) == ("A", {"score": 1, "moves": 0})
     memory = env.memory
     env.memory.write_word(env.story.header.globals_table + 2, 999)
-    assert env.reset() == ("A", {"score": 1, "moves": 0})
+    assert text_response(env.reset()) == ("A", {"score": 1, "moves": 0})
     assert env.memory is memory
     assert env._machine.frames[0].stack == [42]
     assert game.read_bytes() == data
@@ -77,7 +78,7 @@ def test_time_game_does_not_mislabel_time_as_score_and_moves(tmp_path):
     put_word(data, 0x104, 59)
     game = tmp_path / "time.z3"
     game.write_bytes(data)
-    assert FernzEnv(game).reset() == ("", {"hours": 23, "minutes": 59})
+    assert text_response(FernzEnv(game).reset()) == ("", {"hours": 23, "minutes": 59})
 
 
 def test_reset_after_execution_failure(tmp_path):
@@ -101,10 +102,10 @@ def test_step_returns_new_output_score_delta_moves_and_quit(tmp_path):
     with pytest.raises(RuntimeError, match="reset"):
         env.step("look")
     for _ in range(2):
-        assert env.reset() == ("A", {"score": 0, "moves": 0})
+        assert text_response(env.reset()) == ("A", {"score": 0, "moves": 0})
         assert not env.done
-        assert env.step("look") == ("\nB", 1, False, {"score": 1, "moves": 1})
-        assert env.step("quit") == ("\n", 0, True, {"score": 1, "moves": 1})
+        assert text_response(env.step("look")) == ("\nB", 1, False, {"score": 1, "moves": 1})
+        assert text_response(env.step("quit")) == ("\n", 0, True, {"score": 1, "moves": 1})
         assert env.done
         with pytest.raises(RuntimeError, match="reset"):
             env.step("look")
@@ -117,7 +118,7 @@ def test_time_game_has_zero_reward(tmp_path):
     game.write_bytes(data)
     env = FernzEnv(game)
     env.reset()
-    assert env.step("wait") == ("\n", 0, True, {"hours": 1, "minutes": 1})
+    assert text_response(env.step("wait")) == ("\n", 0, True, {"hours": 1, "minutes": 1})
 
 
 def test_score_delta_uses_signed_words(tmp_path):
@@ -155,4 +156,4 @@ def test_step_budget_validation_and_failure_requirements(tmp_path):
         env.step("look", max_steps=5)
     with pytest.raises(RuntimeError, match="reset"):
         env.step("look")
-    assert env.reset() == ("", {"score": 0, "moves": 0})
+    assert text_response(env.reset()) == ("", {"score": 0, "moves": 0})

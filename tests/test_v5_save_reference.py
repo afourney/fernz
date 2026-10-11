@@ -6,6 +6,7 @@ import pytest
 
 from fernz import FernzEnv
 
+from .observation_helpers import plain_text, window_text
 from .test_restart_reference import synthetic_reference
 from .test_save_reference import run_reference
 from .test_save_restore import Storage
@@ -31,18 +32,18 @@ def test_v5_quetzal_interchange_with_jericho(tmp_path, monkeypatch, store, high)
     env = FernzEnv(path, seed=SEED_905, save_handler=storage.save, restore_handler=storage.restore)
     try:
         reference.reset()
-        assert reference.step("save")[0] == "\n1\n"
+        assert plain_text(reference.step("save")[0]) == "\n1\n"
         storage.data = (tmp_path / "probe.qzl").read_bytes()
         env.reset()
-        assert env.step("restore")[0] == "\n2\n"
-        assert results(env.step("continue")[0]) == [8738, 77]
-        assert results(reference.step("continue")[0]) == [8738, 77]
+        assert plain_text(env.step("restore")[0]) == "\n2\n"
+        assert results(plain_text(env.step("continue")[0])) == [8738, 77]
+        assert results(plain_text(reference.step("continue")[0])) == [8738, 77]
         env.reset()
-        assert env.step("save")[0] == "\n1\n"
+        assert plain_text(env.step("save")[0]) == "\n1\n"
         (tmp_path / "probe.qzl").write_bytes(storage.data)
         reference.reset()
-        assert reference.step("restore")[0] == "\n2\n"
-        assert results(reference.step("continue")[0]) == [8738, 77]
+        assert plain_text(reference.step("restore")[0]) == "\n2\n"
+        assert results(plain_text(reference.step("continue")[0])) == [8738, 77]
     finally:
         env.close()
         reference.close()
@@ -58,8 +59,8 @@ def test_v5_quetzal_interchange_with_frotz(dfrotz, tmp_path, high):
     storage = Storage()
     env = FernzEnv(path, seed=42, save_handler=storage.save, restore_handler=native.read_bytes)
     env.reset()
-    assert env.step("restore")[0] == "\n2\n"
-    assert results(env.step("continue")[0]) == [8738, 77]
+    assert plain_text(env.step("restore")[0]) == "\n2\n"
+    assert results(plain_text(env.step("continue")[0])) == [8738, 77]
     env.reset()
     env.step("save")
     exported = tmp_path / "fernz.qzl"
@@ -80,22 +81,26 @@ def test_905_files_transfer_midgame_and_continue_to_victory(
     reference = FrotzEnv(str(path), seed=SEED_905)
     try:
         actions = reference.get_walkthrough()
-        check_step(env, capture_reference(reference, None, reference.reset()[0]))
+        check_step(env, capture_reference(reference, None, plain_text(reference.reset()[0])))
         for action in actions[:11]:
-            check_step(env, capture_reference(reference, action, reference.step(action)[0]))
+            check_step(
+                env, capture_reference(reference, action, plain_text(reference.step(action)[0]))
+            )
         if donor == "fernz":
             saved = env.step("save")
             (tmp_path / "905.qzl").write_bytes(storage.data)
             reference.reset()
             restored = reference.step("restore")
-            assert saved[0] == "\n" + restored[0] + "\n\n>"
+            assert window_text(saved[0]) == "\n" + restored[0] + "\n\n>"
         else:
             reference.step("save")
             storage.data = (tmp_path / "905.qzl").read_bytes()
             env.reset()
-            assert env.step("restore")[0] == "\nOk.\n\n>"
+            assert window_text(env.step("restore")[0]) == "\nOk.\n\n>"
         for action in actions[11:]:
-            check_step(env, capture_reference(reference, action, reference.step(action)[0]))
+            check_step(
+                env, capture_reference(reference, action, plain_text(reference.step(action)[0]))
+            )
         assert reference.victory()
     finally:
         env.close()

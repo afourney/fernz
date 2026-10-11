@@ -6,6 +6,7 @@ import pytest
 
 from fernz import FernzEnv
 
+from .observation_helpers import plain_text
 from .restart_story import restart_story
 from .save_story import number
 from .story_files import READ, program_bytes
@@ -41,9 +42,9 @@ def test_nested_restart_reseeds_like_both_references(dfrotz, tmp_path, seed, fir
     assert results(run_reference(dfrotz, story, actions, seed=seed)) == [first] * 3
     for env in (FernzEnv(story, seed=seed), synthetic_reference(story, seed)):
         try:
-            observations = env.reset()[0]
+            observations = plain_text(env.reset()[0])
             for action in actions:
-                observations += env.step(action)[0]
+                observations += plain_text(env.step(action)[0])
             assert results(observations) == expected
         finally:
             env.close()
@@ -58,8 +59,8 @@ def test_restart_preserves_screen_selection_like_both_references(dfrotz, tmp_pat
     assert results(run_reference(dfrotz, story, ["again", "again"])) == expected
     for env in (FernzEnv(story, seed=42), synthetic_reference(story, 42)):
         try:
-            observations = env.reset()[0]
-            observations += env.step("again")[0] + env.step("again")[0]
+            observations = plain_text(env.reset()[0])
+            observations += plain_text(env.step("again")[0]) + plain_text(env.step("again")[0])
             assert results(observations) == expected
         finally:
             env.close()
@@ -82,13 +83,14 @@ def test_zork_restart_confirmation_checkpoints_and_full_walkthrough(zork1, walkt
             actual, expected = env.step("restart"), reference.step("restart")
             # Jericho omits the game's trailing space and '>' at this prompt.
             assert "Do you wish to restart?" in expected[0]
-            assert actual[0] == "\n" + expected[0] + " >"
+            assert actual[0].text == "\n" + expected[0]
+            assert actual[0].stream.endswith(expected[0] + " >")
             assert actual[1:] == expected[1:]
             state, native = env.get_state(), reference.get_state()
             actual, expected = env.step(confirmation), reference.step(confirmation)
             assert_zork_step(actual, expected, final=False)
             if confirmation == "yes":
-                assert actual[0] == "\nRestarting.\n" + initial[0]
+                assert actual[0].text == "\nRestarting.\n" + initial[0].text
                 assert actual[3] == initial[1]
                 # A checkpoint at the confirmation still replays the restart.
                 env.set_state(state)

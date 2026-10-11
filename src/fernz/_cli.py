@@ -67,6 +67,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("game", type=Path, help="Path to a raw Z-machine story file.")
     parser.add_argument(
+        "--screen-width", type=int, default=80, help="Logical columns (default: 80)."
+    )
+    parser.add_argument("--screen-height", type=int, default=25, help="Logical rows (default: 25).")
+    parser.add_argument(
         "--inspect", action="store_true", help="Print story metadata as JSON and exit."
     )
     args = parser.parse_args(argv)
@@ -77,6 +81,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             save_handler=_save_file,
             restore_handler=_restore_file,
             output_handler=_write_output,
+            screen_width=args.screen_width,
+            screen_height=args.screen_height,
         )
     except (OSError, ValueError) as exc:
         print(f"fernz: {exc}", file=sys.stderr)

@@ -78,9 +78,12 @@ consumer's calls.
 Cabin Fever retains the latest observation separately from interpreter state.
 Its server strips leading/trailing whitespace for display; the console strips
 trailing whitespace and adds its own prompt. Neither removes embedded story
-prompts or title text. Fernz currently retains the title, Enter newline, and
-story prompt that the tested Jericho observation omits. A presentation adapter
-can handle this without changing the interpreter's complete transcript contract.
+prompts or title text. Fernz now returns an immutable `Observation` with `.text`
+and `.stream`. Cabin Fever can use `.text` for its existing transcript view or
+apply `.stream` to a display renderer. The text retains the title and Enter
+newline; the recognized Zork command prompt remains only in the stream. Other
+stories' prompts retain their existing semantics. This is a consumer API change;
+no Cabin Fever code is changed here.
 Restoring must show the saved observation without issuing `look`, which could
 advance game state. Fernz checkpoints need no narrative field for this use.
 
