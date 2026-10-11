@@ -1,5 +1,6 @@
 """Validate built distributions and smoke-test an isolated wheel installation."""
 
+import configparser
 import email
 import os
 import shutil
@@ -68,6 +69,13 @@ def main() -> None:
         metadata = email.message_from_bytes(wheel.read(metadata_name))
         assert metadata["Name"] == project["name"], "Incorrect distribution name"
         assert metadata["Version"] == project["version"], "Incorrect distribution version"
+        entry_name = next(name for name in names if name.endswith(".dist-info/entry_points.txt"))
+        entries = configparser.ConfigParser()
+        entries.read_string(wheel.read(entry_name).decode())
+        assert dict(entries["console_scripts"]) == project["scripts"], "Incorrect CLI entry points"
+        assert metadata["Requires-Python"] == project["requires-python"]
+        assert metadata["License-Expression"] == project["license"]
+        assert any(name.endswith(".dist-info/licenses/LICENSE") for name in names)
         assert "textual" in metadata.get_all("Provides-Extra", [])
         requirements = metadata.get_all("Requires-Dist", [])
         assert requirements and all(
@@ -109,6 +117,13 @@ def main() -> None:
             "src/fernz/py.typed",
         ):
             assert required in relative_names, f"Missing from source distribution: {required}"
+        assert "LICENSE" in relative_names, "Missing source distribution license"
+        metadata_name = f"{project['name']}-{project['version']}/PKG-INFO"
+        metadata_file = sdist.extractfile(metadata_name)
+        assert metadata_file is not None, "Missing source distribution metadata"
+        metadata = email.message_from_bytes(metadata_file.read())
+        assert metadata["Name"] == project["name"], "Incorrect source distribution name"
+        assert metadata["Version"] == project["version"], "Incorrect source distribution version"
         check_no_games(names)
 
     uv = shutil.which("uv")

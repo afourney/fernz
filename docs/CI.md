@@ -110,3 +110,10 @@ Trinity. These run its full 610-command winning route, parser detours, loss and
 lifecycle scenarios, plus synthetic Quetzal file interchange on Linux. Fast CI
 adds only archive integrity and the opening plus five commands, including a
 short live reference comparison. See [V4 coverage](V4.md).
+
+## Release packaging
+
+[release.yml](../.github/workflows/release.yml) validates release artifacts on
+relevant PRs and manual runs; publishing runs only on matching `v*` tag pushes.
+See [Publishing Fernz](PUBLISHING.md) for the required GitHub/PyPI setup and
+release checklist. Manual release runs never upload to PyPI.

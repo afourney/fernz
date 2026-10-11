@@ -102,3 +102,6 @@ Specifications: [Z-machine Standard 1.1](https://inform-fiction.org/zmachine/sta
 [annotated edition](https://zspec.jaredreisinger.com/),
 [Quetzal save format](https://inform-fiction.org/zmachine/standards/quetzal/index.html),
 and [Jericho's public API](https://jericho-py.readthedocs.io/en/latest/tutorial_quick.html).
+
+Maintainers: see the [publishing setup and release guide](https://github.com/afourney/fernz/blob/main/docs/PUBLISHING.md)
+for GitHub/PyPI configuration, tag releases, build-only previews and recovery.
