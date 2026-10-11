@@ -105,6 +105,7 @@ def replay_documents(path, documents):
     from .test_save_restore import Storage
     from .v5_cases import CHECKPOINTS, SEED_905
 
+    assert documents["manifest.json"]["record_version"] == 3
     storage = Storage()
     env = FernzEnv(path, seed=SEED_905, save_handler=storage.save, restore_handler=storage.restore)
     try:

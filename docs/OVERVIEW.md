@@ -4,8 +4,9 @@ Fernz is intended to become a Z-machine interpreter for common Z-machine story
 formats. It loads V1-V8 stories and completes the measured winning routes for
 all 16 retained V3 games, including Zork I's 396-command route at seed 12.
 See [V3 gameplay coverage](V3_GAMES.md) for exact builds and limitations. The library and a
-minimal interactive CLI support V3 play. Initial V5 execution reaches 9:05's
-opening and continues through a tested five-command prefix; see [V5](V5.md).
+minimal interactive CLI support V3 play and initial V5 execution. The pinned
+9:05 build completes its winning route, detours and both endings, with save/restore
+and the existing environment APIs; see [V5](V5.md).
 
 ## Mandatory clean-room requirement
 
@@ -390,8 +391,8 @@ behavior of `read`, but does not prescribe where a host API pauses while waiting
 for input. Pausing before or after operand evaluation can both be correct.
 Fernz's decoded input request separates instruction execution from input
 handling and can serve interactive, structured, or asynchronous frontends.
-Future V5/V8 support can extend the request with version-specific completion
-data while retaining this separation. A checkpoint must preserve both the
+V5 extends the request with its result variable and character-input flag while
+retaining this separation; later versions can follow the same design. A checkpoint must preserve both the
 post-evaluation stack and the pending request; resuming it must complete the
 read exactly once before continuing at the saved PC. The test-only
 [state bridge](STATE_INTEROP.md#suspended-input) translates the reference's
@@ -401,8 +402,9 @@ Output is drained after each run, so observations contain only new output.
 Output is a plain transcript without screen wrapping or status-line rendering.
 The header advertises no status line,
 split screen, or variable-pitch font; it does not claim full Standard conformance.
-Stream 1 can be enabled or disabled. Other streams, nonzero window operations,
-and sound currently fail explicitly if encountered.
+Stream 1 can be enabled or disabled, and nested stream 3 captures ZSCII in
+memory. Sound is silent when resources are unavailable. V5 additionally tracks
+logical text windows; its header and rendering scope are documented in [V5](V5.md).
 
 Line input follows Standard [§3.7](https://inform-fiction.org/zmachine/standards/z1point1/sect03.html),
 [§13](https://inform-fiction.org/zmachine/standards/z1point1/sect13.html), and
@@ -418,9 +420,9 @@ Both writes are checked before either buffer changes. Invalid host input or a
 nonpositive step budget can be corrected and retried at the same pending read.
 
 Character encoding, dictionary lookup, input-buffer layout, and execution are
-separate components. V5's counted input, different token offsets, longer keys,
-custom alphabets, and terminating-character result remain future version-specific
-work. The current input path explicitly supports V3 only.
+separate components. V5 supports counted input, token offsets starting at byte 2,
+nine-Z-character keys, custom alphabet/Unicode tables, and the input result
+variable. Timed input remains explicitly unsupported.
 
 ## Host reset and V3 restart
 

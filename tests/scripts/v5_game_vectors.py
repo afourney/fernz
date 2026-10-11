@@ -74,6 +74,7 @@ def _record_905(reference):
     documents["manifest.json"] = {
         "format_version": FORMAT_VERSION,
         "kind": "v5-gameplay",
+        "record_version": 3,
         "story": STORY_905,
         "seed": SEED_905,
         "reference": {
