@@ -1,5 +1,10 @@
 # Cabin Fever compatibility target
 
+For the current migration assessment, see the
+[Cabin Fever readiness review](CABIN_FEVER_READINESS.md) (2026-10-11). The consumer
+inventory below remains useful, but its implementation-progress and game-coverage
+statements describe earlier Fernz milestones.
+
 Cabin Fever x86 is a concrete consumer target for Fernz. This audit covers its
 server, standalone player, persistence layer, and consumer tests at revision
 [`b4933c8`](https://github.com/afourney/cabin-fever-x86/tree/b4933c8b167635c9ffbd7cd8ffd1307fc0b3d52e).
