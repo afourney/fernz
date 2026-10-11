@@ -33,8 +33,9 @@ The Jericho repository link below identifies the upstream project only. It is
 ## Project goals
 
 - Provide an installable Python package that can be used as a library.
-- Mirror Jericho's Python API, or get as close as practical. The exact compatibility
-  scope has not yet been decided.
+- Mirror Jericho's Python API, or get as close as practical. Include the
+  [Cabin Fever consumer requirements](CABIN_FEVER_COMPATIBILITY.md) as a concrete
+  compatibility target alongside the broader public API.
 - Implement the interpreter in pure Python as much as possible.
 - Potentially provide a minimal interactive CLI for manual testing and playing
   through test games.
@@ -341,6 +342,14 @@ behavior; Jericho treats that constructor value as automatic seeding. With
 `seed=None`, Fernz uses system entropy. The RNG component is shared across
 versions; see [RNG compatibility](RNG.md).
 
+`seed(value)` validates and returns a host seed for the next `reset()`, without
+advancing execution or changing the running RNG. `random 0` and in-game restart
+keep using the active episode's host seed until that reset. `seed()` and
+`seed(None)` select automatic seeding and return `None`; entropy is requested
+only when a reseed actually executes. Zero remains a deterministic host seed.
+The constructor and setter both accept integer values in `0..2**31-1` and reject
+invalid values immediately. Fernz has no automatic walkthrough-seed selection.
+
 The V3 `restart` opcode follows Standard
 [§6.1.3](https://inform-fiction.org/zmachine/standards/z1point1/sect06.html),
 [§11](https://inform-fiction.org/zmachine/standards/z1point1/sect11.html), and
@@ -402,6 +411,10 @@ With host seed `None`, restoring preserves the current random sequence, but a
 later reset, `random 0`, or restart still obtains fresh entropy. Use an explicit seed for
 replays that include reseeding.
 
+The pending next-reset choice from `seed()` is environment configuration, outside
+the unchanged checkpoint schema. `set_state()` restores the checkpoint's active
+host seed and uses that for future resets, replacing any pending choice.
+
 This API follows Jericho's public save/restore workflow using Fernz's own state
 representation. Jericho's API page documents a seven-entry tuple; black-box
 inspection of the returned value in 3.3.1 shows nine entries. Its first entry is
@@ -419,6 +432,38 @@ defines the VM's saved state and special header-restoration rules; its remarks
 exclude RNG and I/O settings from that state. Host checkpoints instead restore
 the complete captured environment, including Flags 2. Host callbacks and their
 external storage belong to the recipient and are not captured or rewound.
+
+## Environment copies and status queries
+
+`copy()` creates an independent environment at the same execution boundary,
+including after quit. Memory, frames, stacks, and RNG are independent; the
+immutable story is shared. Copying executes no instructions, emits no text,
+requests no entropy, and does not reread the original file. An environment that
+has not initialized, or has failed execution, stays uninitialized in its copy
+and needs `reset()` or `set_state()` before play. Loading-only copies also work
+for story versions whose execution is not yet supported.
+
+Copies retain references to the configured storage and output callbacks.
+External files, callback closure state, and output destinations remain owned by
+the caller. Forking VM memory does not duplicate those resources. Copies also
+preserve both the active RNG host seed and the pending next-reset seed; see the
+documented [Jericho copy/seed difference](RNG.md#host-seeding-and-reset).
+
+`get_score()` returns the signed V3 score global and `get_moves()` returns the
+unsigned V3 move-count global. Both read live state without advancing execution
+or altering snapshots, and work after quit. They agree with the values in
+`reset()` / `step()` info, including after restoration and restart. Construction
+and execution failure require a successful reset or checkpoint restore first.
+Time-based V3 games raise `NotImplementedError` for these two queries: the
+standard provides hours and minutes in those globals, and Fernz does not yet
+provide game-specific score/move metadata for such games.
+
+The required reference job forks Zork after command 35, compares the copy's
+remaining walkthrough and status queries with Jericho through the ending, and
+verifies that both original environments remain unchanged. The known final
+move-count difference remains explicit: Fernz reads 394 from the story, while
+Jericho reports 395. Further checks query status after save, restore, restart,
+reset, and host checkpoint restoration.
 
 ## Story-level save and restore
 
@@ -536,6 +581,9 @@ The deliberately small public contract is:
 | `FernzEnv(game_path, *, seed=None, save_handler=None, restore_handler=None, output_handler=None)` | Accepts a string or text path-like object, stores a `Path` in `game_path`, and loads a raw V1-V8 story without executing it. Missing/inaccessible paths raise `OSError` subclasses; non-regular paths raise `ValueError`; invalid story data raises `StoryFormatError`. Optional synchronous callbacks supply storage and streaming output; see [save and restore](SAVE_RESTORE.md). |
 | `env.story`, `env.memory` | Immutable story image and independent protected memory instance. |
 | `env.reset(*, max_steps=250_000)` | Run fresh V3 startup through input or quit and return `(observation: str, info: dict[str, object])`. The observation retains all story text, including title and prompt. Score games expose integer `score` and `moves`; time games expose `hours` and `minutes`. |
+| `env.seed(seed=None)` | Validate and return `int` in `0..2**31-1`, or `None` for automatic seeding, to apply on the next host reset. Does not change the active episode. An omitted argument selects automatic seeding. |
+| `env.copy()` | Fork mutable execution state and both active/pending seed policies without executing or reading files. Share immutable story data and host callback references. |
+| `env.get_score()`, `env.get_moves()` | Read the current V3 score and move-count globals as integers, including after quit. Require initialized state; time-based status games raise `NotImplementedError`. |
 | `env.step(action: str, *, max_steps=250_000)` | Complete a pending V3 read and return `(observation: str, reward: int, done: bool, info: dict[str, object])`. Reward is the signed score delta, or zero for time games. The observation contains new output, including the Enter newline and any story prompt. |
 | `env.get_state()` | Return an immutable `GameState` after reset, step, or a successful restore. Raises `RuntimeError` before initialization or after execution failure. |
 | `env.set_state(state)` | Validate and restore a Fernz checkpoint for the same story, including RNG and host seed; return `None`. May be called before reset, after quit, or after execution failure. Invalid input leaves the environment unchanged. |
@@ -554,13 +602,16 @@ available for compatibility with the initial package scaffold.
 Calling `step()` before a successful reset or restore, after quit, or after
 execution fails raises `RuntimeError`; reset or restore a runnable checkpoint.
 
-Caller-side context was limited to the root
-[`play_jericho.py` in cabin-fever-x86](https://github.com/afourney/cabin-fever-x86/blob/b4933c8b167635c9ffbd7cd8ffd1307fc0b3d52e/play_jericho.py).
-That consumer uses construction, reset, text steps, and cleanup. Its additional
-direct binary-save API, location lookup, score/move queries, and game-over/victory
-queries are deferred. Quetzal files are currently loaded by the story's `restore`
-opcode through the host callback. Private native-library access is outside this
-public contract.
+The [Cabin Fever compatibility audit](CABIN_FEVER_COMPATIBILITY.md) covers the
+server, standalone player, and custom snapshot persistence at a pinned consumer
+revision. In addition to current V3 interaction and score/move queries, it needs
+maximum score, room objects with stable numbers and names, and loss/victory
+queries. Its `.bin` saves wrap the nine-field reference checkpoint, so they need
+a migration path separate from Quetzal. Its optional change of RNG trajectory on
+server reload also needs an explicit adapter policy, preserving deterministic
+Fernz checkpoint restoration. The audit records every call, behavioral gaps, and
+CI acceptance requirements. Private native-library access remains outside the
+public contract; the consumer's two such calls require public replacements.
 
 API tests use temporary synthetic files without requesting the game fixture
 or downloading ROMs. Package validation also exercises the installed command and
