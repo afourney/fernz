@@ -149,6 +149,8 @@ class FernzEnv:
                         score -= 0x100
                 elif profile.score_signed:
                     score = signed(score)
+                if profile.score_negated:
+                    score = signed(-score & 0xFFFF)
             moves = self._machine.read_variable(16 + profile.moves_global)
             if profile.moves_byte:
                 moves &= 0xFF

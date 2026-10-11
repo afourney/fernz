@@ -172,11 +172,11 @@ queries; raw object inspection remains independent.
 
 ## V8 profiles
 
-The pinned Lost Pig and Snack Time builds now support score, moves, maximum
-score, player, location, inventory and outcome queries. Their complete winning
-routes compare every query through public reference behavior and portable
-hash vectors. Counter locations and widths come from independent public RAM
-mutation probes, rather than assuming every later-version game uses the same
-globals. Lost Pig's winning menu is reported as victory without also reporting
-loss, following the existing Fernz outcome contract. See [V8 coverage](V8.md)
-for exact builds, boundaries and the four other V8 stories still without profiles.
+All six retained V8 builds support score, moves, maximum score, player, location,
+inventory and measured outcome queries. Their complete winning routes compare
+public reference behavior against portable hash vectors. Counter locations,
+widths and conventions are measured individually: Afflicted negates its signed
+sanitation rating, while Party Foul scores its winning response. Anchorhead's
+99-point ending is explicitly a win, although the reference reports it as a
+loss. See [V8 coverage](V8.md) for the raw evidence and comparison boundaries,
+and the [complete corpus inventory](CORPUS.md) for all 57 retained profiles.

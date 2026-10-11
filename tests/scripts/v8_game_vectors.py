@@ -63,7 +63,7 @@ def generate_v8(path, game):
     documents["manifest.json"] = {
         "format_version": FORMAT_VERSION,
         "kind": "v8-game",
-        "record_version": 1,
+        "record_version": 2,
         "story": story_identity(game),
         "boot_actions": list(BOOT_ACTIONS.get(game, ())),
         "geometry": geometry,

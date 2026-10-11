@@ -6,12 +6,12 @@ from .v8_cases import BOOT_ACTIONS, SEED, story_identity
 from .vector_archive import digest
 
 
-def text_content(observation, game, *, opening=False, fernz=False):
+def text_content(observation, game, *, opening=False, after_character=False, fernz=False):
     """Project measured prompt clipping, preserving both windows and punctuation."""
     text = observation.text if fernz else observation
     if fernz:
-        if opening:
-            text = text[1:]  # Public reset clips its first character.
+        if opening or after_character:
+            text = text[1:]  # Public reset/character responses clip their first character.
         # Snack Time prints a literal > in its opening sound description.
         end = text.find("\n>") + 1 if game == "snacktime" else text.find(">")
         if end > 0 and not text.lstrip().startswith(">"):
@@ -51,7 +51,7 @@ def globals_digest(ram):
     return digest(ram[base : base + 480])
 
 
-def assert_record(env, game, record, observation):
+def assert_record(env, game, record, observation, *, check_text=True):
     state = env.get_state()
     assert not env.done
     assert state.input_request.character == record["character_input"]
@@ -59,8 +59,9 @@ def assert_record(env, game, record, observation):
     assert [state.rng.state, state.rng.period, state.rng.position] == record["rng"]
     assert object_fingerprint(state.ram, object_layout(env.story.data)) == record["objects"]
     assert globals_digest(state.ram) == record["globals_sha256"]
-    text = text_content(observation, game, opening=record["action"] is None, fernz=True)
-    assert digest(text.encode()) == record["text_sha256"], (game, record["action"], text)
+    if check_text:
+        text = text_content(observation, game, opening=record["action"] is None, fernz=True)
+        assert digest(text.encode()) == record["text_sha256"], (game, record["action"], text)
 
 
 def replay_opening(path, game, documents):

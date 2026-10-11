@@ -22,6 +22,7 @@ class StoryProfile:
     moves_global: int = 2
     score_byte: bool = False
     score_signed: bool = True
+    score_negated: bool = False
     loss_hashes: frozenset[str] = frozenset()
     victory_hashes: frozenset[str] = frozenset()
     moves_offset: int = 0
@@ -143,6 +144,63 @@ def profile_for(story: Story) -> StoryProfile | None:
 # Exact-image V8 metadata from public API probes; see docs/V8.md.
 _PROFILES.update(
     {
+        # Afflicted release 1, serial 080906: negate its signed sanitation rating.
+        "f68f7686380ba104f638946693dc4e5686edf7ef7a0be239a77f6278043a0967": StoryProfile(
+            max_score=75,
+            player_object=57,
+            score_global=26,
+            score_negated=True,
+            moves_global=3,
+            loss_lines=frozenset(),
+            victory_lines=frozenset(),
+            victory_hashes=frozenset(
+                {"a9cb91961da0ab9c2b4c970664745fed4e213cb29ae78a2f4098037401e18d5b"}
+            ),
+        ),
+        # Anchorhead release 5, serial 990206: its 99-point ending is a victory,
+        # although the public reference classifies it as a loss.
+        "d2b6b44e96cfdda0f83999d6bc631973721d2e3ed7be910bc7d60f143ce5f34d": StoryProfile(
+            max_score=100,
+            player_object=20,
+            score_global=16,
+            score_byte=True,
+            score_signed=False,
+            moves_global=4,
+            loss_lines=frozenset(),
+            victory_lines=frozenset(),
+            loss_hashes=frozenset(
+                {"d0d315b93630d583d3517bd77046c817a1bbbc2ba4b885258b161be053f9f129"}
+            ),
+            victory_hashes=frozenset(
+                {"0d16f9bc6f52536416b303975143cfc6f5b8b0d4689be47e784679b32117f65d"}
+            ),
+        ),
+        # Party Foul release 4, serial 100208: one on the winning response.
+        "d6fb556faf4a18502719802eaa43fc952f763c4d31f3a7913bd54642f61df6d6": StoryProfile(
+            max_score=1,
+            player_object=48,
+            moves_global=3,
+            victory_score=1,
+            loss_lines=frozenset(),
+            victory_lines=frozenset(),
+            victory_hashes=frozenset(
+                {"a9cb91961da0ab9c2b4c970664745fed4e213cb29ae78a2f4098037401e18d5b"}
+            ),
+        ),
+        # Yomomma release 3, serial 100228: public counter and ending probes.
+        "85070c9147b33d08966dded1b1531248b2a4900a33aced505a84d2938aeff8fc": StoryProfile(
+            max_score=35,
+            player_object=59,
+            score_global=2,
+            score_byte=True,
+            score_signed=False,
+            moves_global=3,
+            loss_lines=frozenset(),
+            victory_lines=frozenset(),
+            victory_hashes=frozenset(
+                {"a9cb91961da0ab9c2b4c970664745fed4e213cb29ae78a2f4098037401e18d5b"}
+            ),
+        ),
         # Lost Pig release 2, serial 080406.
         "e07146727dfe66fb7fe1cef5e8d1e7e403a9cc80465d50f2ca7861a5c266cd56": StoryProfile(
             max_score=7,

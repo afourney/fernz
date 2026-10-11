@@ -4,7 +4,7 @@ from dataclasses import replace
 
 from .v5_trajectory_vectors import fernz_queries, reference_queries
 from .v8_cases import ROUTES, SEED
-from .v8_vectors import assert_record, capture, reset_fernz
+from .v8_vectors import assert_record, capture, reset_fernz, text_content
 from .vector_archive import digest
 
 
@@ -16,6 +16,13 @@ def capture_turn(env, original, game, action, response):
     assert queries["world_count"] == case["objects"]
     assert queries["player"] == case["player"] and queries["max_score"] == case["max_score"]
     record["reference_outcomes"] = {key: queries[key] for key in ("victory", "game_over")}
+    if game == "anchor":
+        # The story explicitly reports a win at 99/100, whereas the reference
+        # labels that ending a loss. Keep the raw flags and recognize its text.
+        hashes = {digest(" ".join(line.split()).encode()) for line in observation.splitlines()}
+        queries["victory"] = (
+            "0d16f9bc6f52536416b303975143cfc6f5b8b0d4689be47e784679b32117f65d" in hashes
+        )
     # Follow Fernz's existing loss/victory contract: a winning restart menu
     # does not also classify the response as a loss. Retain the raw evidence.
     if queries["victory"]:
@@ -36,7 +43,7 @@ def check_turn(env, game, turn, record):
     else:
         response = env.step(record["action"], max_steps=2_000_000)
     before = env.get_state()
-    assert_record(env, game, record, response[0])
+    assert_record(env, game, record, response[0], check_text=False)
     expected = record["queries"]
     count = expected["world_count"]
     direct = {1, count - 1, 1 + turn % (count - 1), expected["player"], expected["location"]}
@@ -63,11 +70,27 @@ def replay_walkthrough(path, game, documents):
     assert route["seed"] == SEED and len(route["steps"]) == case["length"] + 1
     checkpoints = {1, case["length"] // 3, 2 * case["length"] // 3, case["length"]}
     env = FernzEnv(path, seed=SEED, **header["geometry"])
+    text = []
     try:
         for turn, record in enumerate(route["steps"]):
             before = env.get_state() if turn in checkpoints else None
             try:
                 response = check_turn(env, game, turn, record)
+                text.append(
+                    text_content(
+                        response[0],
+                        game,
+                        opening=turn == 0,
+                        after_character=record["after_character"],
+                        fernz=True,
+                    )
+                )
+                if record["text_group_end"]:
+                    normalized = " ".join(" ".join(text).split())
+                    assert digest(normalized.encode()) == record["text_sha256"], normalized
+                    text.clear()
+                else:
+                    assert record["text_sha256"] is None
                 if before is not None:
                     after = env.get_state()
                     fork = env.copy()
@@ -81,7 +104,7 @@ def replay_walkthrough(path, game, documents):
             except (AssertionError, RuntimeError, ValueError) as error:
                 error.add_note(f"{game}: turn {turn}, action {record['action']!r}")
                 raise
-        assert env.victory() and not env.game_over() and not env.done
+        assert not text and env.victory() and not env.game_over() and not env.done
         assert env.get_score() == case["score"]
         final = env.get_state()
         reset_fernz(env, game)
@@ -106,7 +129,7 @@ def replay_counters(path, game, document):
             ram[address : address + 2] = record["value"].to_bytes(2, "big")
             changed = replace(saved, ram=bytes(ram))
             env.set_state(changed)
-            assert (env.get_score(), env.get_moves()) == (record["score"], record["moves"])
+            assert (env.get_score(), env.get_moves()) == (record["score"], record["moves"]), record
             assert env.get_state() == changed
     finally:
         env.close()

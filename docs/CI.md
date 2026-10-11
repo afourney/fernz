@@ -100,8 +100,9 @@ gameplay archives are regenerated through public Jericho calls on Linux; portabl
 jobs replay the same records without Jericho. Quick checks include synthetic
 V8 execution, archive integrity and a short Lost Pig opening; see [V8 compatibility](V8.md).
 
-The V8 comprehensive group includes the 146-command Lost Pig and 34-command
-Snack Time winning routes, their query/counter checks and checkpoint replay.
+The V8 comprehensive group includes all six winning routes (966 inputs), their
+query/counter checks and checkpoint replay. The fast suite also audits all 57
+profiles and recorded winning-route metadata without executing full routes.
 These full routes are excluded from automatic PR smoke checks.
 
 V4 has a dedicated comprehensive reference/freshness job and portable group for

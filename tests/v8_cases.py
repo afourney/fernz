@@ -9,6 +9,24 @@ GAMES = tuple(name.removesuffix(".z8") for name in CORPUS[8])
 SEED = 42
 BOOT_ACTIONS = {"anchor": ("", "", ""), "snacktime": ("",), "partyfoul": ("", "no")}
 ROUTES = {
+    "afflicted": {
+        "length": 98,
+        "score": 75,
+        "max_score": 75,
+        "player": 57,
+        "objects": 238,
+        "score_global": 26,
+        "moves_global": 3,
+    },
+    "anchor": {
+        "length": 531,
+        "score": 99,
+        "max_score": 100,
+        "player": 20,
+        "objects": 765,
+        "score_global": 16,
+        "moves_global": 4,
+    },
     "lostpig": {
         "length": 146,
         "score": 6,
@@ -24,6 +42,23 @@ ROUTES = {
         "max_score": 50,
         "player": 44,
         "objects": 85,
+        "score_global": 2,
+        "moves_global": 3,
+    },
+    "partyfoul": {
+        "length": 59,
+        "score": 1,
+        "max_score": 1,
+        "player": 48,
+        "objects": 142,
+        "moves_global": 3,
+    },
+    "yomomma": {
+        "length": 98,
+        "score": 34,
+        "max_score": 35,
+        "player": 59,
+        "objects": 140,
         "score_global": 2,
         "moves_global": 3,
     },

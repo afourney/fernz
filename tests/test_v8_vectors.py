@@ -11,7 +11,7 @@ from .vector_archive import REFERENCE_VERSION, read_archive
 @pytest.mark.parametrize("game", GAMES)
 def test_v8_archive_integrity(game):
     header = read_archive(archive_path(game))["manifest.json"]
-    assert header["kind"] == "v8-game" and header["record_version"] == 1
+    assert header["kind"] == "v8-game" and header["record_version"] == 2
     assert header["story"] == story_identity(game)
     assert header["boot_actions"] == list(BOOT_ACTIONS.get(game, ()))
     assert header["reference"]["version"] == REFERENCE_VERSION
