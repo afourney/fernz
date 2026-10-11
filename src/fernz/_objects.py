@@ -182,7 +182,7 @@ class Objects:
         return Text(self.memory).decode(table + 1, words=words)
 
     def properties(self, obj: int) -> Iterator[Property]:
-        """Walk the strictly descending property list, checking its bounds."""
+        """Walk descending properties, allowing legacy V5 duplicates within bounds."""
         table = self._table(obj)
         address = table + 1 + 2 * self.memory.read_byte(table)
         previous = self.max_property + 1
@@ -195,7 +195,11 @@ class Objects:
                 size = self.memory.read_byte(self._dynamic(address + 1, 1)) & 63 or 64
             else:
                 size = 2 if size_byte & 0x40 else 1
-            if not 0 < number < previous:
+            # Several older Inform V5 images repeat a property number. Keep
+            # both entries in physical order: lookup/update uses the first,
+            # and get_next_prop can return the same number. Increasing lists
+            # remain invalid, as do duplicates in the early object format.
+            if not 0 < number <= previous or (self.early and number == previous):
                 raise ExecutionError(f"Invalid property order for object {obj}")
             yield Property(number, self._dynamic(address + header_size, size), size)
             previous = number

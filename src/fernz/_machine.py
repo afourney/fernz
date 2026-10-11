@@ -466,7 +466,10 @@ class Machine:
                 if args[0]:
                     self.objects.attribute(*args, value=name == "set_attr")
             case "insert_obj":
-                self.objects.insert(*args)
+                # Legacy games sometimes move to/from the absent object.
+                # Public executable probes leave the entire tree unchanged.
+                if args[0] and args[1]:
+                    self.objects.insert(*args)
             case "remove_obj":
                 if args[0]:
                     self.objects.remove(args[0])
