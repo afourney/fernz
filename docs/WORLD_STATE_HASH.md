@@ -184,12 +184,12 @@ this story, not a Z-machine grammar specification or a portable action
 generator. No grammar templates were extracted from reference implementation
 files.
 
-### Deferred execution discrepancy
+### Object-zero execution discrepancy (resolved)
 
 Exploratory command trials also found a separate compatibility issue at the
 opening prompt:
 
-- Fernz `step("enter door")` raises
+- Before the fix, Fernz `step("enter door")` raised
   `ExecutionError: jin at 0x8be7: Invalid V3 object number 0`.
 - Jericho responds `You should supply a direction!` and continues.
 - An independent synthetic story run through standalone Frotz observed
@@ -197,9 +197,12 @@ opening prompt:
   warning followed by continued execution.
 
 Standard 1.1 defines object zero as meaning nothing, rather than a formal
-object. The reference observation needs a deliberate compatibility decision
-and a focused regression test; it is not permission to accept object zero in
-all object operations. No fix has been made.
+object. Fernz now applies the measured behavior narrowly to V3 `jin`: a zero
+first operand is treated as having parent zero. Other object operations retain
+their validation. Synthetic reference tests check both branch polarities;
+the Zork regression compares the rejected command, continued play, and complete
+converted checkpoints against Jericho. This execution fix does not resume
+world hashing or action discovery.
 
 ## Open questions when this work resumes
 
@@ -213,7 +216,7 @@ all object operations. No fix has been made.
    been made.
 4. Establish action validity and effect deduplication independently from hash
    equality, including incidental changes, score, and game outcomes.
-5. Resolve the object-zero execution discrepancy before broad speculative
-   command tests, and define behavior for unprofiled games.
+5. Define behavior for unprofiled games. The object-zero `jin` discrepancy
+   found during this investigation has been resolved separately, as above.
 
 Implementation and further investigation are paused pending user direction.

@@ -330,6 +330,13 @@ offsets 0 and 1 return from the current routine. Routine defaults and arguments,
 object links and properties, Z-strings, abbreviations, and default ZSCII output
 characters are implemented independently from the standard.
 
+V3 `jin` accepts a zero first operand as a compatibility extension: `jin 0 0`
+is true, and `jin 0 n` is false for nonzero `n`. This matches standalone reference
+probes and lets Zork reject `enter door` normally instead of raising an execution
+error. Only this containment test treats zero as having no parent; ordinary
+object access retains its validation. Required tests cover both branch
+polarities and continued Zork play, including checkpoint replay against Jericho.
+
 Zork I's boat label emits ZSCII 9 even though Standard
 [§3.8.2.3](https://inform-fiction.org/zmachine/standards/z1point1/sect03.html)
 defines tabs only for V6. The V3 text path accepts this legacy character as three

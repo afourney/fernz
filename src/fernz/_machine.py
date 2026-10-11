@@ -379,7 +379,9 @@ class Machine:
                 store(value)
                 branch(value != 0)
             case "jin":
-                branch(self.objects.parent(args[0]) == args[1])
+                # V3 compatibility: treat object zero as parentless for jin only.
+                parent = self.objects.parent(args[0]) if args[0] else 0
+                branch(parent == args[1])
             case "test_attr":
                 branch(self.objects.attribute(*args))
             case "set_attr" | "clear_attr":
