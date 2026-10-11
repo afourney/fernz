@@ -10,7 +10,7 @@ from fernz import FernzEnv, Memory, MemoryAccessError, Story, _cli
 from .story_corpus import GAMES
 from .vector_archive import STORYFILES_PATH, digest, read_archive
 
-pytestmark = pytest.mark.rom
+pytestmark = [pytest.mark.rom, pytest.mark.smoke]
 
 
 @pytest.fixture(scope="module")

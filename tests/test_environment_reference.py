@@ -32,6 +32,7 @@ def test_reference_zero_selects_the_games_recommended_seed(zork1):
         reference.close()
 
 
+@pytest.mark.smoke
 def test_seed_is_deferred_and_copy_preserves_fernz_active_host_policy(tmp_path):
     story = tmp_path / "seeds.z3"
     story.write_bytes(seed_story())
@@ -105,6 +106,7 @@ def test_zork_copy_replays_walkthrough_and_status_queries(zork1, walkthrough_tra
             candidate.close()
 
 
+@pytest.mark.smoke
 def test_zork_status_queries_follow_save_restore_restart_and_checkpoints(
     zork1, tmp_path, monkeypatch
 ):

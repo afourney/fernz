@@ -120,6 +120,7 @@ def assert_zork_step(actual, expected, *, final):
         assert_info(expected[3], {"score": 350, "moves": 395})
 
 
+@pytest.mark.smoke
 def test_jericho_reference_runs(reference_trace):
     """Fail independently if the reference cannot run the pinned Zork I story."""
     (observation, info), steps = reference_trace
@@ -136,6 +137,7 @@ def test_jericho_reference_runs(reference_trace):
     assert steps[-1][3]["moves"] > 0
 
 
+@pytest.mark.smoke
 def test_zork1_reset_matches_jericho(zork1, reference_trace):
     expected, _ = reference_trace
     env = FernzEnv(zork1, seed=42)
@@ -149,6 +151,7 @@ def test_zork1_reset_matches_jericho(zork1, reference_trace):
         env.close()
 
 
+@pytest.mark.smoke
 def test_zork1_short_sequence_matches_jericho(zork1, reference_trace):
     initial, expected_steps = reference_trace
     env = FernzEnv(zork1, seed=42)
@@ -170,6 +173,7 @@ def test_zork1_short_sequence_matches_jericho(zork1, reference_trace):
         env.close()
 
 
+@pytest.mark.smoke
 def test_zork1_command_parsing_matches_jericho(zork1):
     from jericho import FrotzEnv
 

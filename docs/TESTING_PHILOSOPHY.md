@@ -21,9 +21,10 @@ Linux CI executes Jericho through its public Python API as a black-box test
 oracle. It supplies the same inputs to Jericho and Fernz, then compares their
 observed outputs and publicly exposed state. We do not read, inspect, or use
 Jericho or Frotz implementation source to develop Fernz or its tests. These
-live comparisons remain required. Linux also checks committed gameplay vectors
-against fresh results from those public API calls, so recorded expectations
-cannot silently drift away from the reference.
+live comparisons remain required in their selected suite: short traces on every
+PR and all scenarios in the manual comprehensive workflow. The comprehensive
+Linux jobs also check committed gameplay vectors against fresh results from
+those public API calls, so stale expectations fail validation.
 
 The macOS and Windows jobs use committed test vectors containing hashes of
 expected results. They run Fernz on the actual story files and compare its
@@ -36,6 +37,13 @@ The two forms of testing are selected explicitly. A missing or broken Linux
 reference is a test failure, not a reason to fall back to recorded vectors.
 The ordinary synthetic tests also run on every platform and cover small,
 independently constructed examples and error conditions.
+
+Fast PR checks use bounded gameplay prefixes with lightweight fixtures and
+reuse the same assertions and vectors. They verify every archive's integrity;
+complete replay and reference freshness checks belong to the manual suite.
+Run comprehensive validation on the current PR commit before merging changes
+to interpreter behavior or test expectations. See [CI](CI.md) for the selection,
+timing budgets, and how to start a full run.
 
 ## Record independent expectations
 

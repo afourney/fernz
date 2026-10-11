@@ -1,0 +1,105 @@
+name: check
+
+# Every push to a PR gets bounded checks; ci.yml retains the manual full suite.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+          version: "0.12.23"
+          enable-cache: true
+      - run: uv lock --check
+      - run: uv sync --frozen
+      - run: uv run --no-sync poe check
+        timeout-minutes: 2
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          version: "0.12.23"
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run --no-sync poe test --durations=10
+        timeout-minutes: 2
+
+  reference:
+    name: reference smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+          version: "0.12.23"
+          enable-cache: true
+      # Only the public Jericho API is used. No Frotz installation or vector
+      # regeneration on the fast path. Cache dependencies, never ROMs.
+      - run: uv sync --frozen --group reference
+      - run: uv run --no-sync poe test-fast
+        timeout-minutes: 2
+      - run: uv run --no-sync poe test-fast-reference
+        timeout-minutes: 2
+
+  portable:
+    name: portable smoke (${{ matrix.os }}, Python 3.12)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-2025, windows-11-arm]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          version: "0.12.23"
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run --no-sync python -c "import importlib.util; assert importlib.util.find_spec('jericho') is None"
+      # All offline tests and 56 story files; only five gameplay commands per
+      # V3 route plus short replay/reset checks. ZIP hashes are still verified.
+      # The fixture downloads ROMs if absent; never cache or upload them.
+      - run: uv run --no-sync poe test-fast
+        timeout-minutes: 2
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+          version: "0.12.23"
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run --no-sync poe build-check
+        timeout-minutes: 2

@@ -1,0 +1,83 @@
+# Fast checks and comprehensive validation
+
+Pull requests run [fast.yml](../.github/workflows/fast.yml), named **check** in
+GitHub Actions. The complete matrix remains in [ci.yml](../.github/workflows/ci.yml),
+named **comprehensive**, and runs only when explicitly dispatched. Pushes to
+`main` also run the fast checks. There is no scheduled comprehensive run.
+
+## Fast means bounded work
+
+The PR workflow aims to finish within **three minutes of runner execution**,
+including installation and fixture setup. Queue time is outside this budget.
+Every job has a five-minute safety limit, and each test command has a two-minute
+limit. A timeout fails the check; it does not silently skip remaining tests.
+These are guardrails, not a reason to grow the suite to fill the available time.
+
+The automatic checks keep:
+
+- Formatting, lint, spelling, lockfile validation, and package build checks.
+- All offline tests on Linux/Python 3.11–3.14 and on macOS, Windows Server 2025
+  x64, and Windows 11 ARM with Python 3.12.
+- Loading, memory, and CLI inspection checks for all 56 retained stories.
+- Each of the 16 V3 games' opening and first five walkthrough commands, with
+  full observation, VM-state, and object/query hashes. Short copy, restore,
+  and reset checks reuse those same records.
+- Integrity checks of every member in all 17 committed vector ZIPs.
+- Short live Jericho comparisons on Linux for all 16 V3 games, plus focused
+  seed, copy, save/restore, and restart comparisons.
+
+The short gameplay tests have their own fixtures. They never request full-route
+checkpoint fixtures: those execute an entire walkthrough before a test begins.
+The five-command limit is fixed, and the selection does not rotate or sample
+randomly. Existing assertions and expectations are shared with the full suite.
+
+Poe commands print the slowest tests, including fixture setup. Measure changes
+on the hosted runners too, especially Windows x64, before enlarging the fast
+selection. Dependency downloads may be cached; game ROMs are never cached or
+uploaded. A fresh fixture download is included in the test-step time limit.
+
+## Comprehensive runs are explicit
+
+The manual workflow retains the full Python/platform matrix, all winning
+walkthroughs, detours, deaths, alternate seeds, game-specific mechanics,
+checkpoint replays, snapshot transfers, and Quetzal file interchange. Linux
+compares directly with Jericho through its documented public API and with the
+standalone Frotz executable. It also checks every vector archive against fresh
+independent measurements. No interpreter implementation source is inspected.
+
+To validate a PR, open **Actions → comprehensive → Run workflow**, select the
+PR branch, and run it. The CLI equivalent is:
+
+```sh
+gh workflow run ci.yml --ref YOUR_PR_BRANCH
+```
+
+Check that the run's commit SHA matches the PR head. Later pushes run the fast
+suite automatically but need a new explicit comprehensive run. Run the full
+suite before merging interpreter, reference-adapter, scenario, or vector changes,
+and before releases. Documentation-only changes normally need only fast checks.
+The manual workflow is not an automatic PR merge gate.
+
+Both suites fail when a requested reference or fixture is unavailable. Neither
+falls back to a different oracle or rewrites vectors to make a comparison pass.
+
+## Local commands
+
+```sh
+uv run poe test          # Offline unit/API tests only; no downloads
+uv run poe test-fast     # Offline tests, all story files, short portable gameplay
+```
+
+On Linux, after installing the reference dependencies:
+
+```sh
+sudo apt-get install --no-install-recommends frotz
+uv sync --frozen --python 3.11 --group reference
+uv run --no-sync poe test-fast-reference # Short live Jericho checks; no Frotz needed
+uv run --no-sync poe test-full           # All tests and vector freshness checks
+```
+
+`test-full` runs the existing offline, ROM, live-reference, portable-vector, and
+archive-verification tasks. It is intentionally exhaustive. `poe check` and
+`poe build-check` remain separate local quality and packaging commands; both
+workflows include them.

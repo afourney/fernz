@@ -145,28 +145,32 @@ for a storage example and the separate contracts.
 
 ```sh
 uv run poe check-all    # Offline tests, quality checks, and package validation
+uv run poe test-fast    # PR selection: unit tests, all story files, short gameplay
 uv run poe test-roms    # All 56 loading checks, plus Zork mailbox play and reset
 uv run poe test-vectors # All 56 stories' metadata plus all 16 V3 gameplay archives
 ```
 
-Black-box Jericho and Frotz comparisons run in Linux CI. To run them locally on
+Short black-box Jericho comparisons run on every PR. The full Jericho and Frotz
+suite runs through the manual **comprehensive** workflow. To run it locally on
 Debian or Ubuntu:
 
 ```sh
 sudo apt-get install --no-install-recommends frotz
 uv sync --frozen --python 3.11 --group reference
-uv run --no-sync poe test-reference
+uv run --no-sync poe test-full
 ```
 
-A Python 3.12 matrix runs the offline suite and recorded gameplay on macOS,
+A Python 3.12 matrix runs the offline suite and short recorded gameplay on macOS,
 Windows x64, and Windows ARM. It reads `tests/vectors/<rom>_vectors.zip` for each
 V3 game and `storyfiles.zip` directly through `zipfile`, without Jericho or disk
-extraction. Linux CI keeps the live public-API comparisons and checks every
-archive against fresh measurements. Three groups of five games keep the
-additional V3 suites manageable. See [vectors](docs/VECTORS.md) and
+extraction. The manual workflow keeps all live public-API comparisons and checks
+every archive against fresh measurements, with complete vector replay on all
+three platforms. Three groups of five games partition the additional V3 suites.
+See [fast and comprehensive CI](docs/CI.md) for timing budgets and manual runs,
+[vectors](docs/VECTORS.md), and
 [testing philosophy](docs/TESTING_PHILOSOPHY.md) for regeneration and content rules.
 
-The Zork opening, mailbox, and full walkthrough comparisons are required to pass,
+The comprehensive suite requires the Zork opening, mailbox, and full walkthrough comparisons,
 including a second complete episode after reset. Tests obtain the walkthrough
 and its seed through Jericho's documented `get_walkthrough()` and `seed()` calls
 and generate reference observations at runtime. Every turn compares the
