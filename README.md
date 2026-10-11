@@ -115,9 +115,14 @@ retain their existing seed semantics, described in [RNG compatibility](docs/RNG.
 after quit. Time-based status games raise `NotImplementedError` for these
 queries; their `info` continues to expose hours and minutes.
 
-`get_player_location()` returns an immutable `Location` with `.num` and `.name`,
-using complete story names. A known player profile uses its immediate container
+`get_object(n)` and `get_world_objects()` return detached, locally mutable
+`ZObject` snapshots with full names, containment links, attributes, and property
+numbers. `get_player_object()` and `get_inventory()` use the recognized story's
+player identity. `get_player_location()` now returns the same `ZObject` type,
+including `.num` and `.name`. A known player profile uses its immediate container
 (including vehicles); other V3 games use the status-line location convention.
+See [object inspection](docs/OBJECT_INSPECTION.md) for traversal examples, layout
+requirements, and measured differences from Jericho. Cleaning remains deferred.
 The retained Zork I build also supports `get_max_score()` (350), `game_over()`,
 and `victory()`. Outcome queries describe the latest response, including
 recoverable deaths, and survive checkpoint restoration and copying. `done`

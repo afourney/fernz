@@ -1,11 +1,11 @@
 """Story metadata, detached locations, and checkpointed response outcomes."""
 
-from dataclasses import FrozenInstanceError, replace
+from dataclasses import replace
 from hashlib import sha256
 
 import pytest
 
-from fernz import ExecutionError, FernzEnv, Location, _profiles
+from fernz import ExecutionError, FernzEnv, ZObject, _profiles
 from fernz._profiles import StoryProfile
 
 from .story_files import READ, program_bytes, zchars
@@ -39,6 +39,12 @@ def outcomes(env):
     return env.game_over(), env.victory()
 
 
+def location(env):
+    room = env.get_player_location()
+    assert isinstance(room, ZObject)
+    return room.num, room.name
+
+
 def test_queries_are_detached_and_do_not_execute_or_change_rng(profiled_story):
     output = []
     env = FernzEnv(profiled_story, seed=42, output_handler=output.append)
@@ -51,16 +57,17 @@ def test_queries_are_detached_and_do_not_execute_or_change_rng(profiled_story):
     output.clear()
     for _ in range(2):
         room = env.get_player_location()
-        assert room == Location(1, "abc")
+        assert isinstance(room, ZObject)
+        assert (room.num, room.name) == (1, "abc")
         assert outcomes(env) == (True, False)
         assert env.get_max_score() == 77
         assert env.get_state() == saved
     assert output == []
-    with pytest.raises(FrozenInstanceError):
-        room.name = "edited"
+    room.name = "edited"
+    assert location(env) == (1, "abc")
     env.memory.write_bytes(0x201, zchars(29, 30, 31))
-    assert env.get_player_location() == Location(1, "xyz")
-    assert room == Location(1, "abc")
+    assert location(env) == (1, "xyz")
+    assert (room.num, room.name) == (1, "edited")
 
 
 def test_outcomes_copy_restore_reset_and_failed_input(profiled_story, monkeypatch):
@@ -126,7 +133,7 @@ def test_profile_identifies_addressable_bytes_not_filename_or_header(profiled_st
     for query in (env.get_max_score, env.game_over, env.victory):
         with pytest.raises(NotImplementedError, match="story profile"):
             query()
-    assert env.get_player_location() == Location(1, "abc")
+    assert location(env) == (1, "abc")
 
 
 def test_known_player_location_is_its_immediate_container(profiled_story, monkeypatch):
@@ -138,7 +145,7 @@ def test_known_player_location_is_its_immediate_container(profiled_story, monkey
     env.reset()
     env.memory.write_word(0x100, 255)  # Status room differs from the container.
     env.memory.write_byte(0x87 + 4, 1)  # Player 2 is inside object 1.
-    assert env.get_player_location() == Location(1, "abc")
+    assert location(env) == (1, "abc")
     env.memory.write_byte(0x87 + 4, 0)
     assert env.get_player_location() is None
 
@@ -153,7 +160,7 @@ def test_unprofiled_location_uses_v3_status_and_handles_absent_or_invalid_data(t
     env.reset()
     assert env.get_player_location() is None
     env.memory.write_word(0x100, 1)
-    assert env.get_player_location() == Location(1, "")
+    assert location(env) == (1, "")
     env.memory.write_word(0x100, 256)
     before = env.get_state()
     with pytest.raises(ExecutionError, match="object number"):

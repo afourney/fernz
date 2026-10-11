@@ -10,7 +10,7 @@ from ._errors import ExecutionError
 from ._host_io import HostIO, OutputHandler, RestoreHandler, SaveHandler
 from ._machine import Machine, signed
 from ._memory import Memory
-from ._objects import Location
+from ._objects import ZObject
 from ._profiles import StoryProfile, profile_for
 from ._random import validate_host_seed
 from ._state import GameState
@@ -136,8 +136,70 @@ class FernzEnv:
         """
         return self._require_profile().max_score
 
-    def get_player_location(self) -> Location | None:
-        """Read the player's location as a detached number and full story name.
+    def get_object(self, obj_num: int) -> ZObject | None:
+        """Return a detached object, or None for zero or an absent object number.
+
+        Require initialized V3 execution and an enumerable initial object table.
+        The result is locally mutable; editing it never writes to the game.
+        Non-integer numbers raise TypeError. Malformed object data raises an
+        execution or memory error; unsupported table layouts raise NotImplementedError.
+        """
+        objects = self._require_machine().objects
+        number = index(obj_num)
+        if number < 1 or number > objects.max_number or number > objects.count:
+            return None
+        return objects.snapshot(number)
+
+    def get_world_objects(self, clean: bool = False) -> list[ZObject]:
+        """Return detached V3 objects in number order, with an empty slot zero.
+
+        Include disconnected and invisible objects, not just the current room.
+        Enumeration uses the initial layout convention described in §12's
+        remarks. Unsupported layouts raise NotImplementedError. Story-specific
+        cleaning is deferred; clean=True explicitly raises NotImplementedError.
+        """
+        objects = self._require_machine().objects
+        if clean:
+            raise NotImplementedError("Cleaned world-object inspection is not implemented")
+        return [ZObject(0, ""), *(objects.snapshot(n) for n in range(1, objects.count + 1))]
+
+    def get_player_object(self) -> ZObject:
+        """Return the profile's player as a detached, locally mutable object.
+
+        The Z-machine has no universal player identity. Require initialized
+        execution and a story profile that identifies the player.
+        """
+        objects = self._require_machine().objects
+        number = self._require_profile().player_object
+        if number is None:
+            raise NotImplementedError("No player object is known for this story profile")
+        return objects.snapshot(number)
+
+    def get_inventory(self) -> list[ZObject]:
+        """Return the player's immediate children, in sibling order.
+
+        Items inside carried containers are not flattened into this list.
+        Require a known player. Return independent snapshots and reject cycles
+        or inconsistent parent links without changing interpreter state.
+        """
+        player = self.get_player_object()
+        objects = self._require_machine().objects
+        inventory = []
+        number = player.child
+        seen = {player.num}
+        while number:
+            if number in seen:
+                raise ExecutionError("Broken inventory sibling chain")
+            seen.add(number)
+            obj = objects.snapshot(number)
+            if obj.parent != player.num:
+                raise ExecutionError("Inconsistent inventory parent link")
+            inventory.append(obj)
+            number = obj.sibling
+        return inventory
+
+    def get_player_location(self) -> ZObject | None:
+        """Read the player's location as a complete, detached object snapshot.
 
         Require reset() or set_state(); work for both score and time games.
         A profile's known player object supplies its immediate parent, which
@@ -150,7 +212,7 @@ class FernzEnv:
             number = machine.objects.parent(self._profile.player_object)
         else:
             number = machine.read_variable(16)
-        return Location(number, machine.objects.name(number)) if number else None
+        return machine.objects.snapshot(number) if number else None
 
     def game_over(self) -> bool:
         """Whether the latest response reported a loss in a supported story.

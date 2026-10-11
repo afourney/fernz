@@ -2,7 +2,7 @@
 
 import pytest
 
-from fernz import FernzEnv, Location
+from fernz import FernzEnv, ZObject
 
 from .test_reference import assert_observation, assert_zork_step, assert_zork_turn
 from .test_reference import walkthrough_trace as walkthrough_trace
@@ -26,7 +26,7 @@ ROOM_NAMES = {
 def assert_queries(env, reference):
     before, native_before = env.get_state(), reference.get_state()
     room, native_room = env.get_player_location(), reference.get_player_location()
-    assert isinstance(room, Location)
+    assert isinstance(room, ZObject)
     assert room.num == native_room.num
     if room.num in ROOM_NAMES:
         assert (room.name, native_room.name) == ROOM_NAMES[room.num]
@@ -59,7 +59,8 @@ def test_queries_through_winning_walkthrough_and_snapshot_restore(zork1, walkthr
             if turn == 387:
                 assert env.get_score() == 350 and not env.victory()
             if turn == 218:
-                assert env.get_player_location() == Location(156, "magic boat")
+                room = env.get_player_location()
+                assert (room.num, room.name) == (156, "magic boat")
                 assert env.memory.read_word(env.story.header.globals_table) == 33
             if turn in (35, 387, 395, 396):
                 saved, native_saved = env.get_state(), reference.get_state()
