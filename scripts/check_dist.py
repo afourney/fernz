@@ -55,6 +55,7 @@ def main() -> None:
             "fernz/_quetzal.py",
             "fernz/_host_io.py",
             "fernz/_cli.py",
+            "fernz/_games.py",
             "fernz/_simple_cli.py",
             "fernz/_rich_cli.py",
             "fernz/_screen.py",
@@ -99,6 +100,7 @@ def main() -> None:
             "src/fernz/_quetzal.py",
             "src/fernz/_host_io.py",
             "src/fernz/_cli.py",
+            "src/fernz/_games.py",
             "src/fernz/_simple_cli.py",
             "src/fernz/_rich_cli.py",
             "src/fernz/_screen.py",
@@ -162,11 +164,31 @@ def main() -> None:
         data[0x301] = 4  # Empty dictionary.
         data[0x1C:0x1E] = (sum(data[64:]) & 0xFFFF).to_bytes(2, "big")
         game.write_bytes(data)
+        # Exercise the packaged downloader without network access or real ROMs.
+        archive_path = Path(tmp) / "synthetic-games.zip"
+        with ZipFile(archive_path, "w") as archive:
+            archive.writestr("z-machine-games-master/jericho-game-suite/zork1.z5", data)
+        subprocess.run(
+            [
+                str(python),
+                "-I",
+                "-c",
+                (
+                    "from pathlib import Path; from fernz import _cli, _games; "
+                    "_games.urlopen = lambda *a, **kw: Path('synthetic-games.zip').open('rb'); "
+                    "raise SystemExit(_cli.main(['--download-games']))"
+                ),
+            ],
+            cwd=tmp,
+            check=True,
+            timeout=15,
+        )
         # Exercise both installed entry points outside the checkout, including
         # path validation, inspection, and an interactive input/quit cycle.
         for entry_point in ([str(command)], [str(python), "-I", "-m", "fernz"]):
             for args, code, message in (
-                (["--help"], 0, "usage: fernz"),
+                (["--help"], 0, "--download-games"),
+                (["--simple", "jericho-game-suite/zork1.z5"], 0, "A\n>\nl"),
                 ([str(Path(tmp) / "missing.z3")], 2, "fernz:"),
                 (["--inspect", str(game)], 0, '"version": 3'),
                 ([str(game)], 0, "A\n>\nl"),

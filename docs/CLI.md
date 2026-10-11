@@ -16,6 +16,23 @@ loop. `--rich` and `--simple` explicitly select a frontend and are mutually
 exclusive. Requesting `--rich` without Textual reports an installation hint.
 `--inspect` prints metadata as JSON without loading either player UI.
 
+## Download games
+
+Run `fernz --download-games` to extract the test fixture's game suite into
+`./games/jericho-game-suite/`, then play with `fernz jericho-game-suite/zork1.z5`.
+Use `fernz --download-games DESTINATION` for another destination and pass the
+resulting story path explicitly. Download mode needs no story argument and
+cannot be combined with a story or `--inspect`, `--simple`, or `--rich`.
+Existing destinations containing a suite are reused without modification;
+other existing destinations report an error. Failed downloads/extractions
+leave no partially installed suite and can be retried.
+
+Playing and inspection first use the exact supplied path. Only a missing
+relative path is retried under `./games`, with the same filename and extension.
+There is no recursive search or extension discovery; existing-path errors
+are preserved. Both missing paths and download failures report an error and
+exit with status 2.
+
 ## Textual player
 
 The upper window stays above the lower window, which has scrollback. The player
