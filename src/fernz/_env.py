@@ -1,4 +1,4 @@
-"""Public story environment with V3 and initial V5 text interaction."""
+"""Public story environment with V3, V5 and V8 text interaction."""
 
 from copy import copy as shallow_copy
 from dataclasses import replace

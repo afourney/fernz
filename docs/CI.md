@@ -91,3 +91,8 @@ Groups are balanced by approximate route/object-inspection work. Run them locall
 `poe test-v5-vectors`. The reference job also runs `poe check-vectors --only v5`.
 They belong only to the manual comprehensive workflow; the fast workload is
 unchanged. See [V5 validation](V5.md) for its exact comparison boundaries.
+
+V8 has dedicated comprehensive Linux reference and portable jobs. The six
+opening archives are regenerated through public Jericho calls on Linux; portable
+jobs replay the same records without Jericho. Quick checks include synthetic
+V8 execution and archive integrity; see [V8 compatibility](V8.md).

@@ -47,7 +47,7 @@ memory.reset()
 
 `Story(data)` also accepts a byte buffer. `FernzEnv(path)` exposes the loaded
 image as `env.story` and an independent memory instance as `env.memory`.
-Its `reset()` runs supported V3/V5 startup and returns the complete opening transcript and
+Its `reset()` runs supported V3/V5/V8 startup and returns the complete opening transcript and
 status information:
 
 ```python
@@ -108,7 +108,7 @@ env.close()
 ```
 
 The immutable `GameState` includes memory, call frames, PC, pending input, output
-selection, RNG state, and loss/victory response flags. V3 and V5 snapshots use
+selection, RNG state, and loss/victory response flags. V3, V5 and V8 snapshots use
 schema 5, including geometry, cursors, styles, colours, fonts, buffering,
 nested memory-output state, and the active predictable or Python RNG state.
 Checkpoints do not contain rendered screen cells.
@@ -218,7 +218,7 @@ V3/V5/V8 stories, including cycle rollover and reseeding. Use a positive constru
 seed for shared reproducibility: Jericho treats host seed 0 as automatic, whereas
 Fernz preserves a deterministic sequence for explicit zero, like Frotz. See
 [RNG compatibility](docs/RNG.md) for the contract and test setup, including
-`FERNZ_DFROTZ` for a separately installed binary. Fernz executes V3 and initial V5; V8 execution remains deferred.
+`FERNZ_DFROTZ` for a separately installed binary. Fernz executes V3, V5 and V8; see [V8 compatibility](docs/V8.md) for its staged coverage.
 
 **Do not inspect Frotz or Jericho implementation source.** Implement from the
 Z-machine specification and documented public APIs. Running Jericho through its

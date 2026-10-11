@@ -63,7 +63,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     """
     parser = argparse.ArgumentParser(
         prog="fernz",
-        description="Inspect V1-V8 stories or play supported V3/V5 games. Use EOF to exit.",
+        description="Inspect V1-V8 stories or play supported V3/V5/V8 games. Use EOF to exit.",
     )
     parser.add_argument("game", type=Path, help="Path to a raw Z-machine story file.")
     parser.add_argument(

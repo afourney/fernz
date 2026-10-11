@@ -12,10 +12,10 @@ from .test_restart_reference import synthetic_reference
 pytestmark = [pytest.mark.reference, pytest.mark.smoke]
 
 
-@pytest.mark.parametrize("version", (3, 5))
+@pytest.mark.parametrize("version", (3, 5, 8))
 def test_both_windows_emit_in_order_like_public_reference(tmp_path, version):
     code = say("LOWER-A\n") + bytes.fromhex("ea 7f 03 eb 7f 01") + say("UPPER-A\n")
-    if version == 5:
+    if version >= 5:
         code += bytes.fromhex("ef 5f 01 01 f1 7f 02") + say("UPPER-B\n")
         code += bytes.fromhex("ee 7f 01 ed 7f 01")
     code += bytes.fromhex("ea 7f 00 eb 7f 00") + say("LOWER-B\n") + b"\xba"

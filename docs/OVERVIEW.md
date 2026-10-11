@@ -780,3 +780,10 @@ player, location, inventory, counters, outcomes, input and RNG. Display geometry
 character-pause text grouping, reference truncation, and terminal-state exceptions
 are explicit in the tests and documentation. Three V5 groups keep this work in
 the manual comprehensive workflow; the fast PR workload remains bounded.
+
+### V8 opening milestone
+
+V8 execution reaches all six retained opening screens. It shares V5 semantics
+with eight-byte packed addresses and file-length units. High-address synthetic
+tests and public-reference opening hashes cover this first stage; see
+[V8 compatibility](V8.md) for exact scope and startup pause conventions.
