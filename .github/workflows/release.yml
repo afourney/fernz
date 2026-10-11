@@ -1,16 +1,9 @@
 name: release
 
-# Push v0.0.1 to publish version 0.0.1. PR/manual runs only build and validate.
+# Push v0.0.1 to publish version 0.0.1. Only release tag pushes run this workflow.
 on:
   push:
     tags: ["v*"]
-  pull_request:
-    paths:
-      - .github/workflows/release.yml
-      - scripts/check_dist.py
-      - pyproject.toml
-      - uv.lock
-  workflow_dispatch:
 
 permissions:
   contents: read

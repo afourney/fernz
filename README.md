@@ -104,4 +104,4 @@ Specifications: [Z-machine Standard 1.1](https://inform-fiction.org/zmachine/sta
 and [Jericho's public API](https://jericho-py.readthedocs.io/en/latest/tutorial_quick.html).
 
 Maintainers: see the [publishing setup and release guide](https://github.com/afourney/fernz/blob/main/docs/PUBLISHING.md)
-for GitHub/PyPI configuration, tag releases, build-only previews and recovery.
+for GitHub/PyPI configuration, tag releases, local packaging checks and recovery.
