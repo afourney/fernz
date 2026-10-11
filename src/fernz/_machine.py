@@ -36,7 +36,7 @@ class Frame:
 
 
 class Machine:
-    """Execute V3/V5 with a bounded instruction budget and captured output."""
+    """Execute V3/V5/V8 with a bounded instruction budget and captured output."""
 
     def __init__(
         self,
@@ -48,8 +48,8 @@ class Machine:
         screen_height: int = 25,
     ) -> None:
         """Start a fresh episode, resetting memory, frames, output, and randomness."""
-        if memory.story.header.version not in (3, 5):
-            raise NotImplementedError("Story execution currently supports V3 and V5")
+        if memory.story.header.version not in (3, 5, 8):
+            raise NotImplementedError("Story execution currently supports V3, V5 and V8")
         self.memory = memory
         self.io = io or HostIO()
         self.memory.reset()
@@ -94,8 +94,8 @@ class Machine:
     @classmethod
     def from_state(cls, memory: Memory, state: GameState, *, io: HostIO | None = None) -> "Machine":
         """Restore a checkpoint, validating everything before changing memory."""
-        if memory.story.header.version not in (3, 5):
-            raise NotImplementedError("Story execution currently supports V3 and V5")
+        if memory.story.header.version not in (3, 5, 8):
+            raise NotImplementedError("Story execution currently supports V3, V5 and V8")
         if type(state) is not GameState:
             raise TypeError("Expected a GameState returned by get_state()")
         state._validate(memory.story)

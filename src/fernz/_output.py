@@ -141,14 +141,15 @@ class Output:
             # Saves made on wider displays can retain story-owned cursor
             # columns. V4/V5 executable probes move to column 1 on the
             # requested row, rather than storing an off-screen position.
-            if self.memory.story.header.version in (4, 5):
+            if self.memory.story.header.version in (4, 5, 7, 8):
                 column = 1
             else:
                 raise ExecutionError("Cursor is outside the upper window")
         if row > self.state.split_lines:
             # §8 remarks recommend an implicit split for V4/V5 box quotes
+            # (also V7/V8 under §1 remarks)
             # whose requested cursor extends below the current upper window.
-            if self.memory.story.header.version not in (4, 5):
+            if self.memory.story.header.version not in (4, 5, 7, 8):
                 raise ExecutionError("Cursor is outside the upper window")
             self.split(row)
         self._cursor(row, column)

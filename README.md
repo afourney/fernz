@@ -11,7 +11,10 @@ command input and immutable checkpoints. **V5 execution** completes winning rout
 per-game score, move, player and outcome profiles. 9:05, Balances and Sherlock
 also have detours, loss paths and V5 Quetzal save/restore coverage. Linux compares public reference behavior; portable
 vectors cover other platforms. See [V5 milestones](docs/V5.md) for exact scope
-and remaining features. Full conformance and Blorb containers are still ahead.
+and remaining features. **V8 execution** covers openings, commands and persistence
+in all six retained games, plus complete winning routes and query APIs for
+Lost Pig and Snack Time; see [V8 compatibility](docs/V8.md).
+Full conformance and Blorb containers are still ahead.
 
 ## Try it
 
@@ -47,7 +50,7 @@ memory.reset()
 
 `Story(data)` also accepts a byte buffer. `FernzEnv(path)` exposes the loaded
 image as `env.story` and an independent memory instance as `env.memory`.
-Its `reset()` runs supported V3/V5 startup and returns the complete opening transcript and
+Its `reset()` runs supported V3/V5/V8 startup and returns the complete opening transcript and
 status information:
 
 ```python
@@ -82,7 +85,7 @@ opcodes fail with their name and address. Undo and full V3
 execution support remain future work; `done` detects the `quit` opcode, not victory
 or death that leaves the story running.
 
-V3 and V5 `restart` are supported through the game's own RESTART command and confirmation.
+V3, V5 and V8 `restart` are supported through the game's own RESTART command and confirmation.
 It resets game memory, frames, and randomness while preserving Flags 2 and the
 current output stream selection. With an explicit host seed, the restarted
 episode repeats that seed's sequence; `seed=None` requests fresh entropy.
@@ -108,7 +111,7 @@ env.close()
 ```
 
 The immutable `GameState` includes memory, call frames, PC, pending input, output
-selection, RNG state, and loss/victory response flags. V3 and V5 snapshots use
+selection, RNG state, and loss/victory response flags. V3, V5 and V8 snapshots use
 schema 5, including geometry, cursors, styles, colours, fonts, buffering,
 nested memory-output state, and the active predictable or Python RNG state.
 Checkpoints do not contain rendered screen cells.
@@ -146,7 +149,7 @@ continues to indicate VM quit. Unknown builds raise `NotImplementedError` for
 score limits and outcome queries. See [story queries](docs/STORY_QUERIES.md) for
 the measured behavior, supported story identity, and reference differences.
 
-V3 and V5 `save` and `restore` opcodes use Quetzal files. Library callers supply
+V3, V5 and V8 `save` and `restore` opcodes use Quetzal files. Library callers supply
 `save_handler(data: bytes) -> bool` and `restore_handler() -> bytes | None`
 when constructing `FernzEnv`; unavailable storage reports opcode failure.
 Opcode restore keeps the current RNG, screen geometry, and Flags 2; V3 also
@@ -160,7 +163,7 @@ for a storage example and the separate contracts.
 uv run poe check-all    # Offline tests, quality checks, and package validation
 uv run poe test-fast    # PR selection: unit tests, all story files, short gameplay
 uv run poe test-roms    # All 56 loading checks, plus Zork mailbox play and reset
-uv run poe test-vectors # All 56 stories' metadata plus V3 and V5 gameplay archives
+uv run poe test-vectors # All 56 stories' metadata plus V3, V5 and V8 gameplay archives
 ```
 
 Short black-box Jericho comparisons run on every PR. The full Jericho and Frotz
@@ -218,7 +221,7 @@ V3/V5/V8 stories, including cycle rollover and reseeding. Use a positive constru
 seed for shared reproducibility: Jericho treats host seed 0 as automatic, whereas
 Fernz preserves a deterministic sequence for explicit zero, like Frotz. See
 [RNG compatibility](docs/RNG.md) for the contract and test setup, including
-`FERNZ_DFROTZ` for a separately installed binary. Fernz executes V3 and initial V5; V8 execution remains deferred.
+`FERNZ_DFROTZ` for a separately installed binary. Fernz executes V3, V5 and V8; see [V8 compatibility](docs/V8.md) for its staged coverage.
 
 **Do not inspect Frotz or Jericho implementation source.** Implement from the
 Z-machine specification and documented public APIs. Running Jericho through its

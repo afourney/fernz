@@ -185,7 +185,7 @@ def test_v5_objects_have_word_links_48_attributes_and_long_properties():
     assert objects.get(1, 63) == 0xC000  # Legacy long-property scalar read.
 
 
-@pytest.mark.parametrize("version", (3, 5))
+@pytest.mark.parametrize("version", (3, 5, 8))
 def test_nested_memory_output_survives_snapshot_and_ignores_screen_selection(version):
     read = READ if version == 3 else AREAD
     prefix = bytes.fromhex("f3 3f ff ff f3 4f 03 02 40 e5 7f 41 f3 4f 03 02 50 e5 7f 42")

@@ -21,6 +21,7 @@ from ..v3_cases import GAMES as V3_GAMES
 from ..v3_cases import selected_games
 from ..v5_corpus import GAMES as V5_GAMES
 from ..v5_shards import selected_games as selected_v5_games
+from ..v8_cases import GAMES as V8_GAMES
 from ..vector_archive import (
     ARCHIVE_PATH,
     FORMAT_VERSION,
@@ -48,6 +49,7 @@ from .v3_game_vectors import generate_v3
 from .v5_game_vectors import generate_905
 from .v5_trajectory_vectors import generate_trajectory
 from .v5_walkthrough_vectors import generate_walkthrough
+from .v8_game_vectors import generate_v8
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -244,7 +246,7 @@ def main(argv=None):
     )
     parser.add_argument(
         "--only",
-        choices=("zork1", "storyfiles", "v3", "v5", *V3_GAMES, *V5_GAMES),
+        choices=("zork1", "storyfiles", "v3", "v5", "v8", *V3_GAMES, *V5_GAMES, *V8_GAMES),
         help="Limit recording/checking to one archive or the additional V3 group (default: all)",
     )
     parser.add_argument("--output", type=Path, default=ARCHIVE_PATH)
@@ -305,6 +307,13 @@ def main(argv=None):
                     else generate_walkthrough
                 )
                 archives[args.output_dir / f"{game}_vectors.zip"] = generator(path, game)
+    if args.only in (None, "v8", *V8_GAMES):
+        for game in V8_GAMES:
+            if args.only in V8_GAMES and game != args.only:
+                continue
+            path = (suite / f"{game}.z8").resolve()
+            with TemporaryDirectory(prefix="fernz-record-") as tmp, chdir(tmp):
+                archives[args.output_dir / f"{game}_vectors.zip"] = generate_v8(path, game)
     changed = []
     for path, documents in archives.items():
         if args.check:

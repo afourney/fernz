@@ -1,4 +1,4 @@
-"""V5 Quetzal interoperability through public reference interfaces."""
+"""V5/V8 Quetzal interoperability through public reference interfaces."""
 
 import re
 
@@ -23,9 +23,10 @@ def results(text):
 
 @pytest.mark.parametrize("store", (0, 8))
 @pytest.mark.parametrize("high", (False, True))
-def test_v5_quetzal_interchange_with_jericho(tmp_path, monkeypatch, store, high):
-    path = tmp_path / "probe.z5"
-    path.write_bytes(save_story(store=store, high=high))
+@pytest.mark.parametrize("version", (5, 8))
+def test_v5_quetzal_interchange_with_jericho(tmp_path, monkeypatch, store, high, version):
+    path = tmp_path / f"probe.z{version}"
+    path.write_bytes(save_story(store=store, high=high, version=version))
     monkeypatch.chdir(tmp_path)
     reference = synthetic_reference(path, SEED_905)
     storage = Storage()
@@ -50,9 +51,10 @@ def test_v5_quetzal_interchange_with_jericho(tmp_path, monkeypatch, store, high)
 
 
 @pytest.mark.parametrize("high", (False, True))
-def test_v5_quetzal_interchange_with_frotz(dfrotz, tmp_path, high):
-    path = tmp_path / "probe.z5"
-    path.write_bytes(save_story(high=high))
+@pytest.mark.parametrize("version", (5, 8))
+def test_v5_quetzal_interchange_with_frotz(dfrotz, tmp_path, high, version):
+    path = tmp_path / f"probe.z{version}"
+    path.write_bytes(save_story(high=high, version=version))
     native = tmp_path / "native.qzl"
     output = run_reference(dfrotz, path, ["save", str(native), "continue"])
     assert "]: 1\n" in output and results(output) == [8738, 77]

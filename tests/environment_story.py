@@ -1,4 +1,4 @@
-"""Independent V3/V5 probe for deferred host seeds and environment copies."""
+"""Independent V3/V5/V8 probe for deferred host seeds and environment copies."""
 
 from .save_story import number
 from .story_files import READ, program_bytes
