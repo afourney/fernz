@@ -34,6 +34,48 @@ class InputRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class StoredInputRequest(InputRequest):
+    """A V5 line or character read with its already decoded result variable."""
+
+    store: int
+    character: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class OutputState:
+    """Logical text windows and nested memory-output continuations."""
+
+    window: int = 0
+    split_lines: int = 0
+    cursors: tuple[tuple[int, int], ...] = ((1, 1), (1, 1))
+    fonts: tuple[int, int] = (1, 1)
+    memory_streams: tuple[tuple[int, int], ...] = ()
+
+    def _validate(self, story: Story) -> None:
+        _integer(self.window, 0, 1, "Selected window")
+        _integer(self.split_lines, 0, 25, "Upper window height")
+        if type(self.cursors) is not tuple or len(self.cursors) != 2:
+            raise TypeError("Expected two immutable window cursors")
+        for cursor in self.cursors:
+            if type(cursor) is not tuple or len(cursor) != 2:
+                raise TypeError("Expected an immutable row/column cursor")
+            _integer(cursor[0], 1, 25, "Cursor row")
+            _integer(cursor[1], 1, 81, "Cursor column")
+        if type(self.fonts) is not tuple or len(self.fonts) != 2:
+            raise TypeError("Expected two immutable font selections")
+        if any(type(font) is not int or font not in (1, 4) for font in self.fonts):
+            raise ValueError("Unsupported text font")
+        if type(self.memory_streams) is not tuple or len(self.memory_streams) > 16:
+            raise TypeError("Expected at most 16 immutable memory streams")
+        for stream in self.memory_streams:
+            if type(stream) is not tuple or len(stream) != 2:
+                raise TypeError("Expected an immutable memory stream")
+            address, count = stream
+            _integer(address, 64, story.header.static_memory - 2, "Output table")
+            _integer(count, 0, story.header.static_memory - address - 2, "Output count")
+
+
+@dataclass(frozen=True, slots=True)
 class RandomState:
     """Current generator state and the host seed used for subsequent reseeding."""
 
@@ -75,7 +117,8 @@ class GameState:
     victory: bool = False
 
     def _validate(self, story: Story) -> None:
-        _integer(self.format_version, 2, 2, "Snapshot format version")
+        expected_format = 3 if type(self) is ExtendedGameState else 2
+        _integer(self.format_version, expected_format, expected_format, "Snapshot format version")
         if self.story_sha256 != sha256(story.data[: story.size]).hexdigest():
             raise ValueError("Snapshot belongs to a different story image")
         if type(self.ram) is not bytes:
@@ -98,7 +141,9 @@ class GameState:
                     _integer(value, 0, 0xFFFF, "Frame value")
             if len(frame.locals) > 15:
                 raise ValueError("A frame cannot have more than 15 locals")
-            _integer(frame.argument_count, 0, 3, "V3 argument count")
+            _integer(
+                frame.argument_count, 0, 3 if story.header.version == 3 else 7, "Argument count"
+            )
             if number == 0:
                 if (
                     frame.locals
@@ -106,10 +151,11 @@ class GameState:
                     or frame.store is not None
                     or frame.argument_count
                 ):
-                    raise ValueError("Invalid initial V3 execution frame")
+                    raise ValueError("Invalid initial execution frame")
             else:
                 _integer(frame.return_address, 0, story.size, "Return address")
-                _integer(frame.store, 0, 255, "Return store variable")
+                if frame.store is not None or story.header.version == 3:
+                    _integer(frame.store, 0, 255, "Return store variable")
         if type(self.rng) is not RandomState:
             raise TypeError("Snapshot contains an invalid RNG state")
         self.rng._validate()
@@ -121,8 +167,16 @@ class GameState:
             if self.input_request is not None:
                 raise ValueError("A halted snapshot cannot have pending input")
         else:
-            if type(self.input_request) is not InputRequest:
+            if type(self.input_request) not in (InputRequest, StoredInputRequest):
                 raise TypeError("A running snapshot must have a pending input request")
+            if type(self.input_request) is StoredInputRequest:
+                _integer(self.input_request.store, 0, 255, "Input result variable")
+                if type(self.input_request.character) is not bool:
+                    raise TypeError("Character-input flag must be a boolean")
+                if story.header.version < 5:
+                    raise ValueError("Stored input requires V5 or later")
+            elif story.header.version >= 5:
+                raise ValueError("V5 input must have a result variable")
             _integer(self.input_request.text, 0, 0xFFFF, "Text buffer address")
             _integer(self.input_request.parse, 0, 0xFFFF, "Parse buffer address")
             _integer(
@@ -131,3 +185,17 @@ class GameState:
                 story.size - 1,
                 "Input instruction address",
             )
+
+
+@dataclass(frozen=True, slots=True)
+class ExtendedGameState(GameState):
+    """Schema-3 checkpoint adding text I/O; schema-2 V3 checkpoints stay intact."""
+
+    format_version: int = 3
+    output: OutputState = OutputState()
+
+    def _validate(self, story: Story) -> None:
+        GameState._validate(self, story)
+        if type(self.output) is not OutputState:
+            raise TypeError("Snapshot contains an invalid output state")
+        self.output._validate(story)

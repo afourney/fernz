@@ -8,7 +8,10 @@ for **all 16 retained V3 games**, including Zork I. See the [game inventory and
 coverage](docs/V3_GAMES.md) for exact builds, seeds, and limitations. It provides
 header metadata, checksums, protected memory, instruction decoding, and V3
 command input, immutable checkpoints, and V3 Quetzal save/restore. Full V3
-conformance, other execution versions, and Blorb containers are still ahead.
+conformance and Blorb containers are still ahead. Initial **V5 execution** runs
+9:05 to its first prompt and through five tested commands, with deterministic
+snapshot replay and portable vectors. See [V5 milestones](docs/V5.md) for scope
+and the planned complete-game and API follow-ups.
 
 ## Try it
 

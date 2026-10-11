@@ -43,6 +43,7 @@ from ..zork_scenarios import (
 )
 from .storyfile_vectors import generate_storyfiles
 from .v3_game_vectors import generate_v3
+from .v5_game_vectors import generate_905
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -239,7 +240,7 @@ def main(argv=None):
     )
     parser.add_argument(
         "--only",
-        choices=("zork1", "storyfiles", "v3", *V3_GAMES),
+        choices=("zork1", "storyfiles", "v3", "905", *V3_GAMES),
         help="Limit recording/checking to one archive or the additional V3 group (default: all)",
     )
     parser.add_argument("--output", type=Path, default=ARCHIVE_PATH)
@@ -279,6 +280,10 @@ def main(argv=None):
             path = (suite / V3_GAMES[game]["filename"]).resolve()
             with TemporaryDirectory(prefix="fernz-record-") as tmp, chdir(tmp):
                 archives[args.output_dir / f"{game}_vectors.zip"] = generate_v3(path, game)
+    if args.only in (None, "905"):
+        path = (suite / "905.z5").resolve()
+        with TemporaryDirectory(prefix="fernz-record-") as tmp, chdir(tmp):
+            archives[args.output_dir / "905_vectors.zip"] = generate_905(path)
     changed = []
     for path, documents in archives.items():
         if args.check:

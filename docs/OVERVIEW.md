@@ -4,7 +4,8 @@ Fernz is intended to become a Z-machine interpreter for common Z-machine story
 formats. It loads V1-V8 stories and completes the measured winning routes for
 all 16 retained V3 games, including Zork I's 396-command route at seed 12.
 See [V3 gameplay coverage](V3_GAMES.md) for exact builds and limitations. The library and a
-minimal interactive CLI support V3 play.
+minimal interactive CLI support V3 play. Initial V5 execution reaches 9:05's
+opening and continues through a tested five-command prefix; see [V5](V5.md).
 
 ## Mandatory clean-room requirement
 

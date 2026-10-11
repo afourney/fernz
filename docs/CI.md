@@ -22,9 +22,12 @@ The automatic checks keep:
 - Each of the 16 V3 games' opening and first five walkthrough commands, with
   full observation, VM-state, and object/query hashes. Short copy, restore,
   and reset checks reuse those same records.
-- Integrity checks of every member in all 17 committed vector ZIPs.
+- Integrity checks of every member in all committed vector ZIPs.
 - Short live Jericho comparisons on Linux for all 16 V3 games, plus focused
   seed, copy, save/restore, and restart comparisons.
+
+The initial V5 milestone adds the same bounded first-prompt checks for 9:05,
+using `905_vectors.zip` portably and live public Jericho calls on Linux.
 
 The short gameplay tests have their own fixtures. They never request full-route
 checkpoint fixtures: those execute an entire walkthrough before a test begins.

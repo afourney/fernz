@@ -78,6 +78,7 @@ jobs:
       # story metadata in memory. Require both ZIPs to match without rewriting.
       - run: uv run --no-sync poe check-vectors --only storyfiles
       - run: uv run --no-sync poe check-vectors --only zork1
+      - run: uv run --no-sync poe check-vectors --only 905
       - run: uv run --no-sync poe test-vectors-core
 
   reference-v3:

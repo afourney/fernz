@@ -172,6 +172,11 @@ vector format version change and coordinated reader/generator updates.
 
 ## CI
 
+Initial V5 startup coverage adds `905_vectors.zip`, generated with
+`poe generate-vectors --only 905` and verified with `poe check-vectors --only 905`.
+It contains six observation/object-memory fingerprints for the opening and five
+commands. See [V5 milestones](V5.md) for its deliberately narrower initial scope.
+
 Every PR runs the offline suite, all 56 story files' loading and inspection
 checks, and bounded gameplay prefixes for all 16 V3 games. It verifies every
 archive member's integrity and compares short live traces on Linux. Short
