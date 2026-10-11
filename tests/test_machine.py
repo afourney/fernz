@@ -283,6 +283,47 @@ def test_object_opcodes_and_store_before_branch():
     assert [m.read_variable(i) for i in range(16, 23)] == [2, 3, 1, 0x1234, 0, 7, 0]
 
 
+@pytest.mark.parametrize("branch_on_true", [True, False])
+@pytest.mark.parametrize(
+    "obj,parent,contained",
+    [
+        (0, 0, True),
+        (0, 1, False),
+        (0, 65535, False),
+        (1, 0, True),
+        (1, 1, False),
+        (2, 0, False),
+        (2, 1, True),
+        (2, 3, False),
+    ],
+)
+def test_jin_zero_and_real_objects(obj, parent, contained, branch_on_true):
+    # Large operands cover the whole word range; either branch polarity skips
+    # only the X marker. Y proves execution continues after either outcome.
+    code = b"\xc6\x0f" + obj.to_bytes(2, "big") + parent.to_bytes(2, "big")
+    code += bytes((0xC5 if branch_on_true else 0x45,))
+    code += bytes.fromhex("e5 7f 58 e5 7f 59") + READ
+    data = bytearray(object_memory().story.data)
+    data[0x401 : 0x401 + len(code)] = code
+    m = Machine(Memory(Story(data)))
+    before = m.memory.read_bytes(0x40, 0x240)
+    assert m.run() == ("Y" if contained == branch_on_true else "XY")
+    assert m.input_request is not None
+    assert m.memory.read_bytes(0x40, 0x240) == before
+
+
+@pytest.mark.parametrize("obj", [256, 65535])
+def test_jin_still_rejects_invalid_nonzero_objects(obj):
+    code = b"\xc6\x0f" + obj.to_bytes(2, "big") + b"\x00\x00\xc2"
+    with pytest.raises(ExecutionError, match="jin at 0x401: Invalid V3 object number"):
+        machine(code + READ).run()
+
+
+def test_get_parent_still_rejects_object_zero():
+    with pytest.raises(ExecutionError, match="get_parent at 0x401: Invalid V3 object number 0"):
+        run_hex("93 00 10")
+
+
 def test_execution_reloads_modified_instructions():
     # Rewrite a dynamic-memory quit into sread, then jump into the changed code.
     code = bytes.fromhex("e2 17 02 40 00 e4 8c fe 38")

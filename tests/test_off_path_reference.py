@@ -217,6 +217,11 @@ SCENARIOS = (
     ),
     pytest.param(
         "west-house",
+        ("enter door", "look", "open mailbox", "take leaflet", "inventory", "north"),
+        id="zero-object-jin-and-continued-play",
+    ),
+    pytest.param(
+        "west-house",
         (
             "take leaflet",
             "open mailbox",
