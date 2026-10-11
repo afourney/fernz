@@ -92,8 +92,22 @@ class Output:
         """Position the upper-window cursor; lower-window positioning is ignored."""
         if self.state.window == 0:
             return
-        if not 1 <= row <= self.state.split_lines or not 1 <= column <= self.width:
+        if not 1 <= row <= self.height or column < 1:
             raise ExecutionError("Cursor is outside the upper window")
+        if column > self.width:
+            # Saves made on wider displays can retain story-owned cursor
+            # columns. V4/V5 executable probes move to column 1 on the
+            # requested row, rather than storing an off-screen position.
+            if self.memory.story.header.version in (4, 5):
+                column = 1
+            else:
+                raise ExecutionError("Cursor is outside the upper window")
+        if row > self.state.split_lines:
+            # §8 remarks recommend an implicit split for V4/V5 box quotes
+            # whose requested cursor extends below the current upper window.
+            if self.memory.story.header.version not in (4, 5):
+                raise ExecutionError("Cursor is outside the upper window")
+            self.split(row)
         self._cursor(row, column)
 
     def font(self, number: int) -> int:

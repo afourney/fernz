@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from ..v5_cases import CHECKPOINTS, DETOURS, SCENARIOS, SEED_905, STARTUP_ACTIONS, STORY_905
 from ..v5_vectors import capture_reference, measure_step
 from ..vector_archive import FORMAT_VERSION, REFERENCE_VERSION, digest, json_bytes
+from .v5_startup_vectors import startup_document
 
 
 def generate_905(path):
@@ -18,7 +19,15 @@ def generate_905(path):
         os.chdir(directory)
         reference = FrotzEnv(str(path), seed=SEED_905)
         try:
-            return _record_905(reference)
+            documents = _record_905(reference)
+            breadth = startup_document(path, "905")
+            documents["breadth.json"] = breadth
+            documents["manifest.json"]["files"]["breadth.json"] = {
+                "sha256": digest(json_bytes(breadth)),
+                "cases": len(breadth["cases"]),
+                "records": sum(len(case["steps"]) for case in breadth["cases"]),
+            }
+            return documents
         finally:
             reference.close()
             os.chdir(previous)

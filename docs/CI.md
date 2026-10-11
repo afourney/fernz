@@ -84,3 +84,9 @@ uv run --no-sync poe test-full           # All tests and vector freshness checks
 archive-verification tasks. It is intentionally exhaustive. `poe check` and
 `poe build-check` remain separate local quality and packaging commands; both
 workflows include them.
+
+The V5 corpus expansion adds a dedicated `reference V5` job and a `v5` portable
+group on each hosted OS. Run them locally with `poe test-v5-reference` and
+`poe test-v5-vectors`. The reference job also runs `poe check-vectors --only v5`.
+They belong only to the manual comprehensive workflow; the fast workload is
+unchanged. See [V5 validation](V5.md) for its exact comparison boundaries.
