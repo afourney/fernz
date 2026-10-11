@@ -1,4 +1,4 @@
-"""Portable, hash-only Zork expectations; no reference dependency on replay."""
+"""Portable ZIP expectations and Zork fingerprints; no reference dependency on replay."""
 
 import json
 from dataclasses import asdict
@@ -9,6 +9,7 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 from .zork_compat import NAME_DIFFERENCES, UNNAMED_OBJECTS
 
 ARCHIVE_PATH = Path(__file__).parent / "vectors" / "zork1_vectors.zip"
+STORYFILES_PATH = Path(__file__).parent / "vectors" / "storyfiles.zip"
 FORMAT_VERSION = 1
 REFERENCE_VERSION = "3.3.1"
 
@@ -129,7 +130,9 @@ def read_archive(path=ARCHIVE_PATH):
             if sha256(payload).hexdigest() != metadata["sha256"]:
                 raise ValueError(f"Vector member checksum mismatch: {name}")
             document = json.loads(payload)
-            if (
+            # Trace members carry case/record counts. Story metadata members
+            # contain one document each and need only the content checksum.
+            if ("cases" in metadata or "records" in metadata) and (
                 len(document["cases"]) != metadata["cases"]
                 or sum(len(case["steps"]) for case in document["cases"]) != metadata["records"]
             ):

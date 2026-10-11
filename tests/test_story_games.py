@@ -1,77 +1,27 @@
 """Loading coverage for every retained ROM, without importing an interpreter."""
 
+import json
+from dataclasses import fields
+
 import pytest
 
-from fernz import FernzEnv, Memory, MemoryAccessError, Story
+from fernz import FernzEnv, Memory, MemoryAccessError, Story, _cli
+
+from .story_corpus import GAMES
+from .vector_archive import STORYFILES_PATH, digest, read_archive
 
 pytestmark = pytest.mark.rom
 
-# Explicit cases keep each game's result visible and stable in CI. Versions
-# were read from the retained corpus headers, not inferred from filenames.
-GAMES = {
-    3: (
-        "ballyhoo.z3",
-        "cutthroat.z3",
-        "enchanter.z3",
-        "hhgg.z3",
-        "hollywood.z3",
-        "infidel.z3",
-        "lurking.z3",
-        "planetfall.z3",
-        "plundered.z3",
-        "seastalker.z3",
-        "sorcerer.z3",
-        "spellbrkr.z3",
-        "wishbringer.z3",
-        "zork1.z5",
-        "zork2.z5",
-        "zork3.z5",
-    ),
-    4: ("trinity.z4",),
-    5: (
-        "905.z5",
-        "acorncourt.z5",
-        "advent.z5",
-        "adventureland.z5",
-        "awaken.z5",
-        "balances.z5",
-        "curses.z5",
-        "deephome.z5",
-        "detective.z5",
-        "dragon.z5",
-        "enter.z5",
-        "gold.z5",
-        "huntdark.z5",
-        "inhumane.z5",
-        "jewel.z5",
-        "karn.z5",
-        "library.z5",
-        "loose.z5",
-        "ludicorp.z5",
-        "moonlit.z5",
-        "murdac.z5",
-        "night.z5",
-        "omniquest.z5",
-        "pentari.z5",
-        "reverb.z5",
-        "sherlock.z5",
-        "spirit.z5",
-        "temple.z5",
-        "theatre.z5",
-        "tryst205.z5",
-        "weapon.z5",
-        "zenon.z5",
-        "ztuu.z5",
-    ),
-    8: (
-        "afflicted.z8",
-        "anchor.z8",
-        "lostpig.z8",
-        "partyfoul.z8",
-        "snacktime.z8",
-        "yomomma.z8",
-    ),
-}
+
+@pytest.fixture(scope="module")
+def story_vectors():
+    documents = read_archive(STORYFILES_PATH)
+    manifest = documents["manifest.json"]
+    filenames = {name for names in GAMES.values() for name in names}
+    assert manifest["kind"] == "storyfiles"
+    assert manifest["story_count"] == len(filenames) == 56
+    assert set(documents) == {"manifest.json", *(name + ".json" for name in filenames)}
+    return documents
 
 
 @pytest.mark.parametrize(
@@ -92,6 +42,88 @@ def test_load_retained_story(jericho_games, filename, version):
     memory.reset()
     assert memory.read_word(story.header.globals_table) == original
     assert story.verify_checksum() is True
+
+
+@pytest.mark.vectors
+@pytest.mark.parametrize(
+    ("filename", "version"), [(name, version) for version, names in GAMES.items() for name in names]
+)
+def test_retained_story_vector(jericho_games, story_vectors, filename, version):
+    expected = story_vectors[filename + ".json"]
+    story = Story.from_file(jericho_games / filename)
+    header = story.header
+    assert digest(story.data) == expected["file_sha256"], f"Unexpected ROM bytes: {filename}"
+    assert len(story.data) == expected["file_size"]
+    assert story.size == expected["story_size"]
+    assert header.version == expected["header"]["version"] == version
+    public_fields = {field.name for field in fields(header) if not field.name.startswith("_")}
+    assert public_fields == expected["header"].keys()
+    for name, value in expected["header"].items():
+        assert getattr(header, name) == value, name
+    for name in ("entry_address", "entry_is_routine", "packed_address_scale"):
+        assert getattr(header, name) == expected[name], name
+    extension_words = expected["extension_words"]
+    assert [header.extension_word(i) for i in range(len(extension_words))] == extension_words
+    assert header.extension_word(len(extension_words)) == 0
+    assert story.verify_checksum() is expected["checksum_valid"] is True
+    assert header.checksum == expected["calculated_checksum"]
+    memory = Memory(story)
+    assert len(memory) == expected["story_size"]
+    assert memory.read_byte(0) == version
+    assert digest(memory.read_bytes(0, len(memory))) == expected["memory_sha256"]
+    assert digest(memory.read_bytes(0, header.static_memory)) == expected["dynamic_sha256"]
+    assert (
+        digest(memory.read_bytes(header.static_memory, len(memory) - header.static_memory))
+        == expected["static_sha256"]
+    )
+    assert digest(memory.read_bytes(header.globals_table, 480)) == expected["globals_sha256"]
+    original = memory.read_word(header.globals_table)
+    assert original == expected["first_global"]
+    memory.write_word(header.globals_table, original ^ 0xFFFF)
+    assert memory.read_word(header.globals_table) == original ^ 0xFFFF
+    assert Memory(story).read_word(header.globals_table) == original
+    copy = memory.copy()
+    assert copy.read_word(header.globals_table) == original ^ 0xFFFF
+    copy.reset()
+    assert digest(copy.read_bytes(0, len(copy))) == expected["memory_sha256"]
+    assert memory.read_word(header.globals_table) == original ^ 0xFFFF
+    with pytest.raises(MemoryAccessError, match="read-only"):
+        memory.write_byte(header.static_memory, 0)
+    with pytest.raises(MemoryAccessError, match="outside memory"):
+        memory.read_byte(expected["story_size"])
+    memory.reset()
+    assert digest(memory.read_bytes(0, len(memory))) == expected["memory_sha256"]
+    assert digest(story.data) == expected["file_sha256"]
+    assert story.verify_checksum() is True
+
+
+@pytest.mark.vectors
+@pytest.mark.parametrize("filename", [name for names in GAMES.values() for name in names])
+def test_retained_story_info(jericho_games, story_vectors, filename, capsys):
+    expected = story_vectors[filename + ".json"]
+    env = FernzEnv(jericho_games / filename)
+    try:
+        assert digest(env.story.data) == expected["file_sha256"]
+        assert len(env.memory) == expected["story_size"]
+        assert digest(env.memory.read_bytes(0, len(env.memory))) == expected["memory_sha256"]
+    finally:
+        env.close()
+    # --inspect loads metadata through the environment without executing the
+    # game; this is supported for all retained versions, not just V3.
+    assert _cli.main(["--inspect", str(jericho_games / filename)]) == 0
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert json.loads(captured.out) == {
+        **{
+            name: expected["header"][name]
+            for name in ("version", "release", "serial", "static_memory", "high_memory")
+        },
+        **{
+            name: expected[name]
+            for name in ("file_size", "story_size", "entry_address", "checksum_valid")
+        },
+        "entry_kind": "routine" if expected["entry_is_routine"] else "instruction",
+    }
 
 
 def test_zork1_metadata_through_environment(jericho_games):
