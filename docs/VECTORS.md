@@ -266,3 +266,17 @@ and another ROM stem individually. Comprehensive Linux jobs compare public
 reference behavior directly and check archive freshness; the V8 portable jobs
 run the same assertions without Jericho. Full walkthroughs stay outside fast PR
 checks. See [V8 compatibility](V8.md) for exact coverage and presentation rules.
+
+## V4 Trinity
+
+`trinity_vectors.zip` contains the 610-command winning route at seed 0, 318 parser
+branches across six checkpoints, a loss sequence, lifecycle scenarios, three
+alternate-seed prefixes and counter-width probes. Its seven members store
+commands, numeric measurements and hashes only. Comparisons cover both windows,
+all dynamic RAM outside the header, RNG, input boundaries and public query APIs.
+See [V4 compatibility](V4.md) for the exact presentation and outcome conventions.
+
+Regenerate with `poe generate-vectors --only trinity` in the Linux Python 3.11
+reference environment; `--check` or `poe check-vectors --only trinity` validates
+freshness. `--only v4` selects the same archive. Fast CI replays only the opening
+and five commands; comprehensive V4 jobs replay all records on every platform.

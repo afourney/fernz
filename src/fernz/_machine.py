@@ -36,7 +36,7 @@ class Frame:
 
 
 class Machine:
-    """Execute V3/V5/V8 with a bounded instruction budget and captured output."""
+    """Execute V3/V4/V5/V8 with a bounded instruction budget and captured output."""
 
     def __init__(
         self,
@@ -48,8 +48,8 @@ class Machine:
         screen_height: int = 25,
     ) -> None:
         """Start a fresh episode, resetting memory, frames, output, and randomness."""
-        if memory.story.header.version not in (3, 5, 8):
-            raise NotImplementedError("Story execution currently supports V3, V5 and V8")
+        if memory.story.header.version not in (3, 4, 5, 8):
+            raise NotImplementedError("Story execution currently supports V3, V4, V5 and V8")
         self.memory = memory
         self.io = io or HostIO()
         self.memory.reset()
@@ -94,8 +94,8 @@ class Machine:
     @classmethod
     def from_state(cls, memory: Memory, state: GameState, *, io: HostIO | None = None) -> "Machine":
         """Restore a checkpoint, validating everything before changing memory."""
-        if memory.story.header.version not in (3, 5, 8):
-            raise NotImplementedError("Story execution currently supports V3, V5 and V8")
+        if memory.story.header.version not in (3, 4, 5, 8):
+            raise NotImplementedError("Story execution currently supports V3, V4, V5 and V8")
         if type(state) is not GameState:
             raise TypeError("Expected a GameState returned by get_state()")
         state._validate(memory.story)
@@ -213,7 +213,7 @@ class Machine:
 
     def _save(self, instruction: Instruction) -> bool:
         # Quetzal §5.8: before applying the result, save the branch address in
-        # V3 or the store-variable address in V5. Host checkpoints pause later.
+        # V3 or the store-variable address in V4+. Host checkpoints pause later.
         saved = SavedGame(
             self.memory.read_bytes(0, self.memory.story.header.static_memory),
             self._frame_states(),
@@ -543,10 +543,14 @@ class Machine:
             case "random":
                 store(self.rng.random(signed(args[0])))
             case "sread":
-                self.input_request = InputRequest(*args, instruction_address=instruction.address)
+                if len(args) == 4 and all(args[2:]):
+                    raise UnsupportedOpcodeError("Timed input is not supported")
+                self.input_request = InputRequest(
+                    *args[:2], instruction_address=instruction.address
+                )
             case "aread" | "read_char":
                 timing = args[2:] if name == "aread" else args[1:]
-                if any(timing):
+                if len(timing) == 2 and all(timing):
                     raise UnsupportedOpcodeError("Timed input is not supported")
                 if name == "read_char" and args[0] != 1:
                     raise ExecutionError("Only keyboard character input is supported")

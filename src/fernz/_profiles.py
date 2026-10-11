@@ -50,6 +50,21 @@ class StoryProfile:
 # Zork I release 88, serial 840726. See docs/STORY_QUERIES.md for the
 # independent black-box evidence and the limits of response-based outcomes.
 _PROFILES = {
+    # Trinity release 12, serial 860926: public counter-width, object and
+    # outcome probes. Its winning menu also sets the reference's loss flag.
+    "367a95f056ac7ae00e0f73230c9c3e0e4ab24a06ff775b66cc42765d42491bc0": StoryProfile(
+        max_score=100,
+        player_object=103,
+        score_global=154,
+        moves_global=133,
+        loss_lines=frozenset(),
+        victory_lines=frozenset(),
+        loss_hashes=frozenset({"daa295096fdb87c3acc367119e7affa07aae06cb05ceaf6a019faff63e8b9ddf"}),
+        victory_hashes=frozenset(
+            {"25821b62fa9676a08657a1ebe0b5cd04ef2176806e5a44e72ca020018c2c6c46"}
+        ),
+        victory_overrides_loss=True,
+    ),
     # Balances release 5, serial 961216: public counter and outcome probes.
     "b21a405597b1988ac1726fe143dbd1c9076f27f450885bb8f0080f8e0cac7b2a": StoryProfile(
         max_score=51,

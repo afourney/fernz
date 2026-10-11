@@ -46,6 +46,7 @@ from ..zork_scenarios import (
 )
 from .storyfile_vectors import generate_storyfiles
 from .v3_game_vectors import generate_v3
+from .v4_game_vectors import generate_v4
 from .v5_game_vectors import generate_905
 from .v5_trajectory_vectors import generate_trajectory
 from .v5_walkthrough_vectors import generate_walkthrough
@@ -246,8 +247,19 @@ def main(argv=None):
     )
     parser.add_argument(
         "--only",
-        choices=("zork1", "storyfiles", "v3", "v5", "v8", *V3_GAMES, *V5_GAMES, *V8_GAMES),
-        help="Limit recording/checking to one archive or the additional V3 group (default: all)",
+        choices=(
+            "zork1",
+            "storyfiles",
+            "v3",
+            "v4",
+            "trinity",
+            "v5",
+            "v8",
+            *V3_GAMES,
+            *V5_GAMES,
+            *V8_GAMES,
+        ),
+        help="Limit recording/checking to one archive or a version group (default: all)",
     )
     parser.add_argument("--output", type=Path, default=ARCHIVE_PATH)
     parser.add_argument("--storyfiles-output", type=Path, default=STORYFILES_PATH)
@@ -288,6 +300,10 @@ def main(argv=None):
             path = (suite / V3_GAMES[game]["filename"]).resolve()
             with TemporaryDirectory(prefix="fernz-record-") as tmp, chdir(tmp):
                 archives[args.output_dir / f"{game}_vectors.zip"] = generate_v3(path, game)
+    if args.only in (None, "v4", "trinity"):
+        path = (suite / "trinity.z4").resolve()
+        with TemporaryDirectory(prefix="fernz-record-") as tmp, chdir(tmp):
+            archives[args.output_dir / "trinity_vectors.zip"] = generate_v4(path)
     if args.only in (None, "905") and "905" in v5_games:
         path = (suite / "905.z5").resolve()
         with TemporaryDirectory(prefix="fernz-record-") as tmp, chdir(tmp):

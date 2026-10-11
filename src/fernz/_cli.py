@@ -20,7 +20,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     """
     parser = argparse.ArgumentParser(
         prog="fernz",
-        description="Inspect V1-V8 stories or play supported V3/V5/V8 games. Defaults to Textual when installed, otherwise simple mode.",
+        description="Inspect V1-V8 stories or play supported V3/V4/V5/V8 games. Defaults to Textual when installed, otherwise simple mode.",
     )
     parser.add_argument("game", type=Path, help="Path to a raw Z-machine story file.")
     parser.add_argument(

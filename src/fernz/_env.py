@@ -1,4 +1,4 @@
-"""Public story environment with V3, V5 and V8 text interaction."""
+"""Public story environment with V3, V4, V5 and V8 text interaction."""
 
 from copy import copy as shallow_copy
 from dataclasses import replace
@@ -88,7 +88,7 @@ class FernzEnv:
 
         Return an Observation with ordered display commands and a plain transcript,
         plus status globals. Score games expose score
-        and moves; V3 time games expose hours and minutes. V5/V8 stories without a
+        and moves; V3 time games expose hours and minutes. V4/V5/V8 stories without a
         profile return empty info because these versions define no status globals. No input is consumed.
         Other versions and unimplemented opcodes raise NotImplementedError.
         Invalid execution or an exhausted instruction budget raises ExecutionError.
@@ -168,7 +168,7 @@ class FernzEnv:
         if self._machine is None:
             raise RuntimeError("Call reset() or set_state() before reading game status")
         if self.story.header.version >= 4 and self._profile is None:
-            raise NotImplementedError("Score and move queries require a story profile for V5/V8")
+            raise NotImplementedError("Score and move queries require a story profile for V4/V5/V8")
         if self.story.header.flags1 & 2 and self._profile is None:
             raise NotImplementedError("Score and move queries are unavailable for V3 time games")
         return self._info()[name]
@@ -177,7 +177,7 @@ class FernzEnv:
         """Return the profile's score or the standard V3 score, including after quit.
 
         Require reset() or set_state() after construction or execution failure.
-        Unprofiled V5/V8 and V3 time games raise NotImplementedError.
+        Unprofiled V4/V5/V8 and V3 time games raise NotImplementedError.
         """
         return self._status_value("score")
 
@@ -185,7 +185,7 @@ class FernzEnv:
         """Return the profile's moves or the standard V3 counter, including after quit.
 
         Require reset() or set_state() after construction or execution failure.
-        Unprofiled V5/V8 and V3 time games raise NotImplementedError.
+        Unprofiled V4/V5/V8 and V3 time games raise NotImplementedError.
         This reports the story's counter, not the number of host step() calls.
         """
         return self._status_value("moves")
@@ -276,7 +276,7 @@ class FernzEnv:
         if self._profile is not None and self._profile.player_object is not None:
             number = machine.objects.parent(self._profile.player_object)
         elif self.story.header.version >= 4:
-            raise NotImplementedError("Player location requires a story profile for V5/V8")
+            raise NotImplementedError("Player location requires a story profile for V4/V5/V8")
         else:
             number = machine.read_variable(16)
         return machine.objects.snapshot(number) if number else None

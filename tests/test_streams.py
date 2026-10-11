@@ -15,7 +15,7 @@ def environment(tmp_path, code, version):
     return FernzEnv(path, seed=42)
 
 
-@pytest.mark.parametrize("version", (3, 5))
+@pytest.mark.parametrize("version", (3, 4, 5))
 @pytest.mark.parametrize(
     "selection",
     ("f3 7f 02", "f3 3f ff fe", "f3 7f 04", "f3 3f ff fc", "f4 7f 01"),
@@ -35,7 +35,7 @@ def test_unavailable_streams_allow_output_input_and_checkpoint_replay(tmp_path, 
     assert env.step("look") == expected
 
 
-@pytest.mark.parametrize("version", (3, 5))
+@pytest.mark.parametrize("version", (3, 4, 5))
 @pytest.mark.parametrize("write", ("e2 57 10 01 03", "e1 57 10 00 03"), ids=("storeb", "storew"))
 def test_direct_transcript_flag_requests_report_unavailable_before_next_instruction(
     tmp_path, version, write
@@ -51,7 +51,7 @@ def test_direct_transcript_flag_requests_report_unavailable_before_next_instruct
     assert env.memory.read_word(0x10) == 2
 
 
-@pytest.mark.parametrize("version", (3, 5))
+@pytest.mark.parametrize("version", (3, 4, 5))
 def test_checkpoint_cannot_enable_an_unavailable_transcript(tmp_path, version):
     read = READ + (b"\x10" if version == 5 else b"")
     env = environment(tmp_path, read, version)
