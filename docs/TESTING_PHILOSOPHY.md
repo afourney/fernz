@@ -45,6 +45,12 @@ The test-only state adapter translates public snapshots into a portable form
 at supported input boundaries. We record canonical fields and hashes rather
 than making another interpreter's native memory layout a portable contract.
 
+The additional V3 suites also decode full object records independently from
+public snapshot RAM and unchanged story bytes, using Standard §§3 and 12.
+This supplies expectations for unnamed nodes, full names, and property lists
+that native convenience queries omit or truncate. Only fingerprints enter the
+archives; the decoder does not call Fernz's object or text implementation.
+
 Story-file metadata has a different independent source: original file bytes
 decoded according to the specification. These vectors check Fernz's loader
 without using that same loader to generate its expected answers. They cover

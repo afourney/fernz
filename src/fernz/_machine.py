@@ -305,7 +305,14 @@ class Machine:
             case "ret":
                 self._return(args[0])
             case "ret_popped":
-                self._return(self.read_variable(0))
+                frame = self.frames[-1]
+                # Seastalker uses ret_popped with an empty evaluation stack.
+                # Executable probes return the last local in this historical
+                # case. Keep other stack underflows strict.
+                value = (
+                    frame.locals[-1] if not frame.stack and frame.locals else self.read_variable(0)
+                )
+                self._return(value)
             case "call":
                 assert instruction.store is not None
                 self._call(args[0], args[1:], instruction.store)
@@ -369,12 +376,16 @@ class Machine:
                 else:
                     self.memory.write_byte(address, args[2] & 0xFF)
             case "get_parent":
-                store(self.objects.parent(args[0]))
+                store(self.objects.parent(args[0]) if args[0] else 0)
             case "get_child" | "get_sibling":
                 value = (
-                    self.objects.child(args[0])
-                    if name == "get_child"
-                    else self.objects.sibling(args[0])
+                    0
+                    if not args[0]
+                    else (
+                        self.objects.child(args[0])
+                        if name == "get_child"
+                        else self.objects.sibling(args[0])
+                    )
                 )
                 store(value)
                 branch(value != 0)
@@ -383,22 +394,27 @@ class Machine:
                 parent = self.objects.parent(args[0]) if args[0] else 0
                 branch(parent == args[1])
             case "test_attr":
-                branch(self.objects.attribute(*args))
+                # Historical V3 stories also query the absent object. Like
+                # jin, this opcode treats zero as empty without dereferencing it.
+                branch(self.objects.attribute(*args) if args[0] else False)
             case "set_attr" | "clear_attr":
-                self.objects.attribute(*args, value=name == "set_attr")
+                if args[0]:
+                    self.objects.attribute(*args, value=name == "set_attr")
             case "insert_obj":
                 self.objects.insert(*args)
             case "remove_obj":
-                self.objects.remove(args[0])
+                if args[0]:
+                    self.objects.remove(args[0])
             case "get_prop":
-                store(self.objects.get(*args))
+                store(self.objects.get(*args) if args[0] else 0)
             case "get_prop_addr":
-                prop = self.objects.find(*args)
+                # A property above the V3 range cannot be present (§12.4.1).
+                prop = self.objects.find(*args) if args[0] and args[1] <= 31 else None
                 store(prop.address if prop else 0)
             case "get_prop_len":
                 store((self.memory.read_byte(args[0] - 1) >> 5) + 1 if args[0] else 0)
             case "get_next_prop":
-                store(self.objects.next_property(*args))
+                store(self.objects.next_property(*args) if args[0] else 0)
             case "put_prop":
                 self.objects.put(*args)
             case "print" | "print_ret":
@@ -415,7 +431,17 @@ class Machine:
                 )
                 self._emit(self.text.decode(address))
             case "print_obj":
-                self._emit(self.objects.name(args[0]))
+                if args[0]:
+                    self._emit(self.objects.name(args[0]))
+                else:
+                    # Historical print_obj 0 addresses the word immediately
+                    # before object 1 as its name-table pointer. Cutthroats
+                    # exercises this on an unresolved pronoun. Keep the text
+                    # bounded by the addressable story image in this case.
+                    table = self.memory.read_word(self.objects.base + 60)
+                    self._emit(
+                        self.text.decode(table + 1) if self.memory.read_byte(table) else "object#0"
+                    )
             case "print_char":
                 self._emit(zscii(args[0]))
             case "print_num":
@@ -430,6 +456,10 @@ class Machine:
                 self.halted = True
             case "nop" | "show_status":
                 pass  # This transcript interface advertises no status-line display.
+            case "sound_effect":
+                # Sound resources are external (§9). This text-only host has
+                # none to play; preparation, playback and cleanup are silent.
+                pass
             case "verify":
                 branch(self.memory.story.verify_checksum() is not False)
             case "output_stream" if signed(args[0]) in (-1, 1):

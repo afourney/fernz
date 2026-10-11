@@ -81,13 +81,24 @@ def test_bad_tree_and_property_operations_raise():
         lambda: objects.get(1, 0),
         lambda: objects.put(1, 5, 0),
         lambda: objects.next_property(1, 5),
-        lambda: objects.insert(1, 2),
     ):
         with pytest.raises(ExecutionError):
             operation()
     objects.memory.write_byte(0x87 + 5, 2)
     with pytest.raises(ExecutionError, match="Broken sibling"):
         objects.remove(3)
+
+
+def test_game_can_temporarily_rearrange_objects_through_a_cycle():
+    objects = Objects(object_memory())
+    objects.insert(1, 2)
+    assert objects.parent(1) == 2
+    assert objects.child(2) == 1
+    assert objects.parent(2) == 1
+    objects.remove(2)
+    assert objects.parent(2) == 0
+    assert objects.child(2) == 1
+    assert objects.child(1) == 3
 
 
 def test_properties_must_stay_in_dynamic_memory_and_descend():

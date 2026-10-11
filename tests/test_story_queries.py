@@ -211,3 +211,53 @@ def test_profile_matches_complete_lines_with_flexible_whitespace():
     assert profile.outcomes("Someone said win marker.\n") == (False, False)
     assert profile.outcomes("win marker\n") == (False, True)
     assert profile.outcomes("ordinary\n") == (False, False)
+
+
+@pytest.mark.parametrize(
+    "byte,signed,value,expected",
+    [
+        (False, True, 0xFFFF, -1),
+        (False, False, 0xFFFF, 65535),
+        (True, True, 0xABFF, -1),
+        (True, False, 0xABFF, 255),
+    ],
+)
+def test_profiled_score_and_move_globals_override_status_clock(
+    profiled_story, monkeypatch, byte, signed, value, expected
+):
+    data = bytearray(profiled_story.read_bytes())
+    data[1] |= 2  # V3 status line is a clock, not score/moves.
+    profiled_story.write_bytes(data)
+    monkeypatch.setitem(
+        _profiles._PROFILES,
+        sha256(data).hexdigest(),
+        StoryProfile(
+            400,
+            frozenset(),
+            frozenset(),
+            score_global=115,
+            moves_global=225,
+            score_byte=byte,
+            score_signed=signed,
+        ),
+    )
+    env = FernzEnv(profiled_story, seed=0)
+    env.reset()
+    globals_ = env.story.header.globals_table
+    env.memory.write_word(globals_ + 2 * 115, value)
+    env.memory.write_word(globals_ + 2 * 225, 0xFEDC)
+    before = env.get_state()
+    assert env.get_score() == expected
+    assert env.get_moves() == 0xFEDC
+    assert env.get_state() == before
+    env.close()
+
+
+def test_hashed_outcomes_match_complete_normalized_lines():
+    fingerprint = sha256(b"test outcome").hexdigest()
+    profile = StoryProfile(1, frozenset(), frozenset(), victory_hashes=frozenset({fingerprint}))
+    assert profile.outcomes("test   outcome\n>") == (False, True)
+    assert profile.outcomes("test outcome>") == (False, True)
+    assert profile.outcomes("prefix test outcome") == (False, False)
+    assert profile.outcomes("test outcome suffix") == (False, False)
+    assert profile.outcomes("") == (False, False)

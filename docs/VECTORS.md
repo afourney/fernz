@@ -4,7 +4,7 @@ Our [testing philosophy](TESTING_PHILOSOPHY.md) explains the roles of live
 references and recorded hashes, independent expectations, and the rule against
 including copyrighted game content in vector archives.
 
-`tests/vectors/zork1_vectors.zip` records expectations from public Jericho 3.3.1
+`tests/vectors/<rom>_vectors.zip` records each V3 game's expectations from public Jericho 3.3.1
 calls on little-endian Linux/Python 3.11. Python's standard `zipfile` library
 reads JSON members into memory; replay never extracts the archives to disk
 and requires neither Jericho nor NumPy. This supplements the live Linux
@@ -36,8 +36,7 @@ without bundling ROMs or memory dumps.
 There are two portable cases per story: one compares the loader and memory
 against these expectations, including isolated writes, copying, reset, and
 read-only/bounds enforcement; the other checks environment construction and
-the CLI's `--inspect` JSON. This adds **112 portable tests** to the 967 Zork
-tests. It checks loading and metadata across all versions in the corpus,
+the CLI's `--inspect` JSON. This adds **112 portable tests** alongside the gameplay tests. It checks loading and metadata across all versions in the corpus,
 without claiming execution support beyond V3. Missing files, changed ROM
 identities, missing archive records, or incomplete corpus coverage fail.
 
@@ -45,15 +44,15 @@ The existing direct ROM smoke tests remain available through `poe test-roms`.
 
 ## Zork I gameplay
 
-The archive contains **35 JSON members**, **962 cases**, and **3,474 recorded
-boundaries**, occupying about **344 KB** compressed:
+The archive contains **38 JSON members**, **965 cases**, and **3,494 recorded
+boundaries**, occupying about **350 KB** compressed:
 
 | Members | Contents |
 | --- | --- |
 | 1 | Manifest: format version, reference version/platform, ROM SHA-256, checkpoint locations, and member checksums/counts. |
 | 1 | Complete 396-command winning walkthrough plus its opening, seed 12. |
 | 11 | 85 independent three-command detours at each checkpoint, followed by `look` and `inventory`. |
-| 19 | Longer parser, container, vehicle, exploration, and recoverable-death scenarios. |
+| 22 | Longer parser, container, vehicle, exploration, wait/current, and recoverable-death scenarios. |
 | 1 | Cellar-to-chasm death and continued play. |
 | 1 | Save, rejected restart, confirmed restart, restore, and continued play. |
 | 1 | Combat at seeds 1, 12, 42, 1000, and 32767, including each opening. |
@@ -101,7 +100,18 @@ but leaves Fernz runnable. These cases do not loosen ordinary comparisons.
 
 Question-mark substitution, overlong input, synthetic reference probes, and
 terminal-death differences retain their existing live tests. This corpus does
-not claim to replace every Linux reference test or execute other games.
+not claim to replace every Linux reference test. The additional archives cover
+the remaining retained V3 games as described below.
+
+## Other V3 games
+
+Each of the other 15 ROMs has `<rom stem>_vectors.zip`, including
+`zork2_vectors.zip` and `zork3_vectors.zip` despite their misleading `.z5`
+filenames. Each has nine JSON members: manifest, full walkthrough, five detour
+checkpoints, scenarios, and seeds. Together the 17 archives occupy about
+**2.5 MB** compressed and hold over **26,000 gameplay boundaries**. See
+[V3 games](V3_GAMES.md) for exact seeds, maximum scores, player identities,
+coverage, independent object expectations, and narrow comparison differences.
 
 ## Run and regenerate
 
@@ -123,8 +133,10 @@ uv run --no-sync poe test-vectors
 ```
 
 The helper is `tests/scripts/generate_zork1_vectors.py`. Invoke it as a module
-from the repository root. Both generation and checking now process **both
-archives by default**. Use `--only zork1` or `--only storyfiles` to select one.
+from the repository root. Generation and checking process **all 17 archives by default**. Use
+`--only zork1`, `--only storyfiles`, or another ROM stem to select one.
+`--only v3` selects the 15 additional games; `--v3-shard 1/3` selects five.
+`--output-dir` changes the additional gameplay archives' destination.
 Story metadata can be generated and checked on any platform, without Jericho:
 
 ```sh
@@ -160,13 +172,14 @@ vector format version change and coordinated reader/generator updates.
 
 ## CI
 
-The required Linux reference job keeps all existing live comparisons, checks
-both committed ZIPs against fresh reference/specification measurements, and
-runs both portable suites.
-An additional Python 3.12 matrix runs the ordinary offline suite and portable
-vectors on `macos-latest`, `windows-2025` (x64), and `windows-11-arm`.
-Those jobs explicitly check that Jericho is not installed. They download the
-ROM fixture independently and do not cache or upload game files.
+The core Linux reference job keeps existing comparisons, checks Zork I and
+story metadata archives, and replays those vectors. Three additional Linux
+jobs partition the other 15 games and run live comparisons plus archive
+freshness checks. The Python 3.12 portable matrix has a core group and the
+same three V3 groups on `macos-latest`, `windows-2025` (x64), and
+`windows-11-arm`. Core runs the ordinary offline suite too. Every portable
+job verifies Jericho is absent. ROM fixtures are downloaded independently
+and are never cached or uploaded as artifacts.
 
 GitHub's standard hosted x64 Windows image is Windows Server 2025; the ARM
 image is Windows 11. See the [hosted runner labels](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).

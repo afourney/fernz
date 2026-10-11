@@ -3,8 +3,9 @@
 A Z-machine interpreter library in Python, working toward a
 Jericho-like API and a minimal interactive player.
 
-Fernz loads **raw V1-V8 story files** and can **complete Zork I (V3)** using
-Jericho's 396-command walkthrough with seed 12, reaching 350 points. It provides
+Fernz loads **raw V1-V8 story files** and completes the measured winning routes
+for **all 16 retained V3 games**, including Zork I. See the [game inventory and
+coverage](docs/V3_GAMES.md) for exact builds, seeds, and limitations. It provides
 header metadata, checksums, protected memory, instruction decoding, and V3
 command input, immutable checkpoints, and V3 Quetzal save/restore. Full V3
 conformance, other execution versions, and Blorb containers are still ahead.
@@ -111,9 +112,11 @@ storage and output destinations remain caller-owned. `seed(n)` returns the
 selected value and applies it on the next `reset()`. Calling `seed()` or
 `seed(None)` selects fresh entropy; zero remains deterministic. Checkpoints
 retain their existing seed semantics, described in [RNG compatibility](docs/RNG.md).
-`get_score()` and `get_moves()` read the current V3 status globals, including
-after quit. Time-based status games raise `NotImplementedError` for these
-queries; their `info` continues to expose hours and minutes.
+`get_score()` and `get_moves()` read the measured per-game globals (falling back
+to V3 status globals for unprofiled score games), including
+after quit. Unprofiled time-based games raise `NotImplementedError` for these
+queries; their `info` exposes hours and minutes. Profiled time games use the
+measured conventions listed in [V3 games](docs/V3_GAMES.md).
 
 `get_object(n)` and `get_world_objects()` return detached, locally mutable
 `ZObject` snapshots with full names, containment links, attributes, and property
@@ -123,7 +126,7 @@ including `.num` and `.name`. A known player profile uses its immediate containe
 (including vehicles); other V3 games use the status-line location convention.
 See [object inspection](docs/OBJECT_INSPECTION.md) for traversal examples, layout
 requirements, and measured differences from Jericho. Cleaning remains deferred.
-The retained Zork I build also supports `get_max_score()` (350), `game_over()`,
+All 16 retained V3 builds support `get_max_score()`, `game_over()`,
 and `victory()`. Outcome queries describe the latest response, including
 recoverable deaths, and survive checkpoint restoration and copying. `done`
 continues to indicate VM quit. Unknown builds raise `NotImplementedError` for
@@ -143,7 +146,7 @@ for a storage example and the separate contracts.
 ```sh
 uv run poe check-all    # Offline tests, quality checks, and package validation
 uv run poe test-roms    # All 56 loading checks, plus Zork mailbox play and reset
-uv run poe test-vectors # All 56 stories' metadata plus recorded Zork comparisons
+uv run poe test-vectors # All 56 stories' metadata plus all 16 V3 gameplay archives
 ```
 
 Black-box Jericho and Frotz comparisons run in Linux CI. To run them locally on
@@ -155,14 +158,13 @@ uv sync --frozen --python 3.11 --group reference
 uv run --no-sync poe test-reference
 ```
 
-An additional Python 3.12 matrix runs the offline suite and recorded Zork
-comparisons on macOS, hosted Windows x64, and Windows 11 ARM. The tests read
-`tests/vectors/zork1_vectors.zip` and `tests/vectors/storyfiles.zip` directly
-with `zipfile`, with no Jericho installation. The metadata suite loads and
-checks all 56 retained stories, including environment and CLI inspection.
-Linux CI checks both archives against fresh reference/specification measurements.
-See [portable vectors](docs/VECTORS.md) for coverage, comparison limits, and
-the `poe generate-vectors` / `poe check-vectors` maintenance commands.
+A Python 3.12 matrix runs the offline suite and recorded gameplay on macOS,
+Windows x64, and Windows ARM. It reads `tests/vectors/<rom>_vectors.zip` for each
+V3 game and `storyfiles.zip` directly through `zipfile`, without Jericho or disk
+extraction. Linux CI keeps the live public-API comparisons and checks every
+archive against fresh measurements. Three groups of five games keep the
+additional V3 suites manageable. See [vectors](docs/VECTORS.md) and
+[testing philosophy](docs/TESTING_PHILOSOPHY.md) for regeneration and content rules.
 
 The Zork opening, mailbox, and full walkthrough comparisons are required to pass,
 including a second complete episode after reset. Tests obtain the walkthrough

@@ -66,13 +66,14 @@ new seed at its next `random 0` or restart. Fernz's copy retains the source's
 active host policy until host reset. Both use the new seed after `reset()`.
 The reference suite asserts these exact sequences through public calls.
 
-**Explicit host seed 0 differs between the references.** Frotz's `-s 0` gives a
-fixed sequence, whereas Jericho's constructor `seed=0` was observed to use
-automatic seeding. Fernz retains deterministic behavior for an explicit zero,
-matching Frotz. Use a positive host seed for comparisons involving all three
-interpreters, or a negative opcode operand to enter predictable mode in the
-story. This distinction does not affect the existing Zork opening comparison,
-which does not rely on random encounters.
+**Zero selects different host policies.** Frotz's `-s 0` and Fernz's explicit
+`seed=0` select a reproducible zero sequence. Jericho 3.3.1's public `seed(0)`
+selects the supported game's recommended default: 12 for our Zork I build,
+10 for Cutthroats, 4 for HHGG, and zero for the other retained V3 games. Those
+zero-default games produce reproducible trajectories. For an unsupported
+synthetic story, Jericho returns -1 and selects automatic seeding. The earlier
+observation on an unsupported probe did not generalize to supported games.
+Use the measured per-game seed explicitly in reference comparisons.
 
 This replaces Fernz's initial Python `random.Random` implementation, so seeded
 sequences change from that first execution milestone. The constructor's explicit

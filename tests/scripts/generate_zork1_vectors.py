@@ -17,6 +17,8 @@ from fernz import Story
 
 from ..game_files import ensure_jericho_games
 from ..state_bridge import StateBridge
+from ..v3_cases import GAMES as V3_GAMES
+from ..v3_cases import selected_games
 from ..vector_archive import (
     ARCHIVE_PATH,
     FORMAT_VERSION,
@@ -40,6 +42,7 @@ from ..zork_scenarios import (
     ZORK1_SHA256,
 )
 from .storyfile_vectors import generate_storyfiles
+from .v3_game_vectors import generate_v3
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -236,14 +239,20 @@ def main(argv=None):
     )
     parser.add_argument(
         "--only",
-        choices=("zork1", "storyfiles"),
-        help="Limit recording/checking to one archive (default: both)",
+        choices=("zork1", "storyfiles", "v3", *V3_GAMES),
+        help="Limit recording/checking to one archive or the additional V3 group (default: all)",
     )
     parser.add_argument("--output", type=Path, default=ARCHIVE_PATH)
     parser.add_argument("--storyfiles-output", type=Path, default=STORYFILES_PATH)
     parser.add_argument("--suite", type=Path, help="Use an existing retained-story suite directory")
     parser.add_argument("--story", type=Path, help="Use an existing copy of the pinned ROM")
+    parser.add_argument("--v3-shard", help="Select a disjoint V3 group, e.g. 1/3")
+    parser.add_argument("--output-dir", type=Path, default=ARCHIVE_PATH.parent)
     args = parser.parse_args(argv)
+    try:
+        games = selected_games(args.v3_shard)
+    except ValueError as error:
+        parser.error(str(error))
     if args.only is None and args.output.resolve() == args.storyfiles_output.resolve():
         parser.error("The Zork and storyfiles archives need distinct output paths")
     if args.only != "storyfiles":
@@ -257,12 +266,19 @@ def main(argv=None):
     if suite is None and (args.only != "zork1" or args.story is None):
         suite = ensure_jericho_games(ROOT / "games")
     archives = {}
-    if args.only != "zork1":
+    if args.only in (None, "storyfiles"):
         archives[args.storyfiles_output] = generate_storyfiles(suite)
-    if args.only != "storyfiles":
+    if args.only in (None, "zork1"):
         story_path = (args.story or suite / "zork1.z5").resolve()
         with TemporaryDirectory(prefix="fernz-record-") as tmp, chdir(tmp):
             archives[args.output] = generate(story_path)
+    if args.only in (None, "v3", *V3_GAMES):
+        for game in games:
+            if args.only in V3_GAMES and game != args.only:
+                continue
+            path = (suite / V3_GAMES[game]["filename"]).resolve()
+            with TemporaryDirectory(prefix="fernz-record-") as tmp, chdir(tmp):
+                archives[args.output_dir / f"{game}_vectors.zip"] = generate_v3(path, game)
     changed = []
     for path, documents in archives.items():
         if args.check:

@@ -2,7 +2,7 @@
 
 The encoding is measured through public get_state()/set_state() calls on our
 hand-assembled stories. No foreign interpreter source or native APIs are used.
-Both environments must load the same story and use the supplied positive host
+Both environments must load the same story and use the supplied deterministic host
 seed, with screen output enabled. Exchange is supported at line-input boundaries.
 See docs/STATE_INTEROP.md for the measurements and limits of this adapter.
 """
@@ -52,7 +52,7 @@ class StateBridge:
         if story.header.version != 3:
             raise ValueError("State interchange currently supports V3 only")
         self.story = story
-        self.seed = integer(seed, 1, 2**31 - 1, "host seed")
+        self.seed = integer(seed, 0, 2**31 - 1, "host seed")
         ram, *_ = self._parts(template)
         self._native_header = ram[:64]
         self._import_memory(ram)  # Check the template against the supplied story.
@@ -86,8 +86,11 @@ class StateBridge:
         memory._configure_v3_header()
         data = bytearray(ram)
         # Standard §11: capabilities and advertised Standard version belong to
-        # the destination interpreter. Keep every other byte, including Flags 2.
+        # the destination interpreter. Retain gameplay bits of Flags 2.
         data[1] = (data[1] & ~0x70) | (memory.read_byte(1) & 0x70)
+        # Bit 4 of Flags 2 has no V3 meaning. The reference clears it in the
+        # retained Lurking Horror image; Fernz preserves the original value.
+        data[0x11] = (data[0x11] & ~0x10) | (memory.read_byte(0x11) & 0x10)
         data[0x32:0x34] = memory.read_bytes(0x32, 2)
         memory.write_bytes(0, data)
         return memory
@@ -228,6 +231,7 @@ class StateBridge:
                 push(value)
         ram = bytearray(state.ram)
         ram[1] = (ram[1] & ~0x70) | (self._native_header[1] & 0x70)
+        ram[0x11] = (ram[0x11] & ~0x10) | (self._native_header[0x11] & 0x10)
         ram[0x32:0x34] = self._native_header[0x32:0x34]
         return (
             np.frombuffer(bytes(ram), dtype=np.uint8).copy(),

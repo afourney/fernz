@@ -1,8 +1,9 @@
 # Fernz overview
 
 Fernz is intended to become a Z-machine interpreter for common Z-machine story
-formats. It loads V1-V8 stories and now completes Zork I (V3) using Jericho's
-396-command walkthrough with seed 12, reaching 350 points. The library and a
+formats. It loads V1-V8 stories and completes the measured winning routes for
+all 16 retained V3 games, including Zork I's 396-command route at seed 12.
+See [V3 gameplay coverage](V3_GAMES.md) for exact builds and limitations. The library and a
 minimal interactive CLI support V3 play.
 
 ## Mandatory clean-room requirement
@@ -124,10 +125,10 @@ Run `uv sync --dev` to install the locked development tools, then use:
 | `uv run poe fix-all` | Apply formatting and automatic lint fixes. |
 | `uv run poe test` | Run synthetic and API tests without Jericho or ROM downloads. |
 | `uv run poe test-roms` | Load all 56 retained ROMs, check checksums and memory, and run Zork I startup, mailbox play, quit, and reset. |
-| `uv run --no-sync poe test-reference` | Compare the complete seeded Zork walkthrough and synthetic probes with the references, after installing the reference group below. |
-| `uv run poe test-vectors` | Check all 56 stories' metadata and replay Zork vectors on any supported platform without Jericho. |
-| `uv run --no-sync poe generate-vectors` | Explicitly regenerate both ZIPs using the pinned Linux reference environment. |
-| `uv run --no-sync poe check-vectors` | Check both ZIPs against fresh reference/specification measurements without rewriting them. |
+| `uv run --no-sync poe test-reference` | Compare all 16 seeded V3 walkthroughs, detours, and synthetic probes with the references, after installing the reference group below. |
+| `uv run poe test-vectors` | Check all 56 stories' metadata and replay all 16 V3 archives on any supported platform without Jericho. |
+| `uv run --no-sync poe generate-vectors` | Explicitly regenerate all 17 ZIPs using the pinned Linux reference environment. |
+| `uv run --no-sync poe check-vectors` | Check all 17 ZIPs against fresh reference/specification measurements without rewriting them. |
 | `uv run poe build-check` | Build the wheel and source distribution, validate their contents, and smoke-test an isolated wheel installation. |
 | `uv run poe check-all` | Run code checks, synthetic/API tests, and build validation; ROM and reference tests run separately. |
 
@@ -147,16 +148,13 @@ the ROM loading tests followed by the Jericho comparisons. Both use the same
 `jericho_games` fixture. Missing dependencies, download failures, and reference
 execution failures fail that job; it does not silently skip them.
 
-That Linux job also verifies `tests/vectors/zork1_vectors.zip` against fresh
-public reference runs and `tests/vectors/storyfiles.zip` against metadata
-decoded directly from the original bytes using the specification. It runs
-both portable suites. An additional Python 3.12
-matrix runs offline tests and portable vector comparisons on macOS, hosted
-Windows Server 2025 x64, and Windows 11 ARM, without installing Jericho.
-The archives hold hashes and metadata for all 56 story files and for Zork's
-walkthrough, detours, deaths, combat seeds, and save/restore/restart. Each story
-has portable loading/memory and environment/CLI inspection cases. Neither ZIP
-contains ROMs or narrative dumps.
+The core Linux job checks Zork I and story-file metadata archives. Three
+additional Linux jobs each run five V3 games against the public reference and
+verify their archives against fresh measurements. The Python 3.12 portable
+matrix has core and V3 groups on macOS, Windows Server 2025 x64, and Windows 11
+ARM, without Jericho. The 17 archives hold hashes and metadata for all 56 story
+files and all 16 V3 games' routes, detours, losses, seeds, and save/restart/restore.
+No archive contains ROMs, game narrative, or memory dumps.
 See [our testing philosophy](TESTING_PHILOSOPHY.md) for the roles of live Linux
 references and portable hashes, independent expectations, and the rule against
 including copyrighted game content in vectors. The [vector guide](VECTORS.md)
@@ -321,11 +319,12 @@ since these public Jericho calls execute the game as part of initialization.
 
 Work includes version-aware loading and protected memory for raw V1-V8 stories,
 instruction decoding across those versions, and a V3 execution engine sufficient
-to complete the tested Zork I walkthrough. The CLI can inspect any supported raw
+to complete the measured walkthroughs for all 16 retained V3 games. The CLI can inspect any supported raw
 story or accept V3 commands interactively. Required ROM and Jericho tests cover
 Zork's opening, mailbox sequence, full 350-point walkthrough, host reset, and
-the walkthrough after an in-game restart. This validates one complete route
-with a fixed seed; other routes and full V3 conformance remain to be tested.
+the walkthrough after an in-game restart. Additional suites exercise the
+other 15 V3 routes and hundreds of detours per game; see [V3 coverage](V3_GAMES.md).
+These measured routes do not establish full V3 conformance.
 
 Deferred work includes additional V3 opcodes and I/O features, other execution
 versions, Blorb extraction, and undo. V3 `save`/`restore` with Quetzal
@@ -530,14 +529,14 @@ the caller. Forking VM memory does not duplicate those resources. Copies also
 preserve both the active RNG host seed and the pending next-reset seed; see the
 documented [Jericho copy/seed difference](RNG.md#host-seeding-and-reset).
 
-`get_score()` returns the signed V3 score global and `get_moves()` returns the
-unsigned V3 move-count global. Both read live state without advancing execution
+`get_score()` and `get_moves()` use measured profile globals and widths for
+all 16 retained V3 builds, falling back to the V3 status convention for
+unprofiled score-based games. Both read live state without advancing execution
 or altering snapshots, and work after quit. They agree with the values in
 `reset()` / `step()` info, including after restoration and restart. Construction
 and execution failure require a successful reset or checkpoint restore first.
-Time-based V3 games raise `NotImplementedError` for these two queries: the
-standard provides hours and minutes in those globals, and Fernz does not yet
-provide game-specific score/move metadata for such games.
+Unprofiled time-based V3 games raise `NotImplementedError` for these queries.
+See [V3 games](V3_GAMES.md) for the profiled time-game conventions.
 
 The required reference job forks Zork after command 35, compares the copy's
 remaining walkthrough and status queries with Jericho through the ending, and
@@ -559,12 +558,12 @@ reference differences, and required CI coverage.
 
 `get_player_location()` now returns the same complete `ZObject` snapshot type,
 retaining the existing `.num` and `.name` fields.
-The Zork I profile uses the known player's immediate parent, including its boat;
-other V3 stories use the status-line location global. Names retain the complete
+All retained V3 profiles use the known player's immediate parent, including
+vehicles; unprofiled V3 stories use the status-line location global. Names retain the complete
 decoded story short name. Zero returns `None`; malformed object data raises
 an error without advancing the game.
 
-An exact story-image profile supplies Zork I's `get_max_score()` (350) and
+Exact story-image profiles supply all 16 V3 builds' `get_max_score()` and
 response-based `game_over()` / `victory()` queries. Unknown builds raise
 `NotImplementedError` for these metadata/outcome queries. Location and outcome
 queries require initialized state; the static score limit is available as soon
@@ -726,7 +725,7 @@ execution fails raises `RuntimeError`; reset or restore a runnable checkpoint.
 The [Cabin Fever compatibility audit](CABIN_FEVER_COMPATIBILITY.md) covers the
 server, standalone player, and custom snapshot persistence at a pinned consumer
 revision. Fernz now provides maximum score, location objects with stable numbers
-and full names, and loss/victory queries for the tested Zork I build, alongside
+and full names, and loss/victory queries for all retained V3 builds, alongside
 its existing V3 interaction and score/move queries. The target is future
 integration: Cabin Fever may change its calls and
 adopt a new save format based on Fernz's immutable checkpoints. Importing existing
@@ -740,3 +739,10 @@ require public replacements.
 API tests use temporary synthetic files without requesting the game fixture
 or downloading ROMs. Package validation also exercises the installed command and
 module entry point from a temporary directory outside the checkout.
+
+## Additional V3 games
+
+[V3 gameplay coverage](V3_GAMES.md) documents the other 15 complete routes,
+per-game profiles, live and portable detours, loss and lifecycle scenarios,
+maze/current/timing checks, and explicit reference limitations. The earlier
+Zork milestones above remain part of the required core suite.

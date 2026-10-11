@@ -16,6 +16,22 @@ from .test_save_restore import Storage, results
 pytestmark = pytest.mark.reference
 
 
+def test_reference_zero_selects_the_games_recommended_seed(zork1):
+    from jericho import FrotzEnv
+
+    reference = FrotzEnv(str(zork1), seed=42)
+    try:
+        assert reference.seed(0) == 12
+        first = reference.reset()
+        assert reference.reset() == first
+        # Other retained games recommend zero itself. Their complete live
+        # walkthroughs verify that deterministic zero sequence independently.
+        env = FernzEnv(zork1, seed=0)
+        assert env.seed(0) == 0  # Fernz keeps explicit zero, as documented.
+    finally:
+        reference.close()
+
+
 def test_seed_is_deferred_and_copy_preserves_fernz_active_host_policy(tmp_path):
     story = tmp_path / "seeds.z3"
     story.write_bytes(seed_story())

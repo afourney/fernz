@@ -149,14 +149,8 @@ class Objects:
     def insert(self, obj: int, destination: int) -> None:
         """Move an object to the head of another object's child list."""
         entry, target = self._entry(obj), self._entry(destination)
-        # §12.5 leaves tree validity to the game. Reject cycles when detected.
-        ancestor = destination
-        seen = {obj}
-        while ancestor:
-            if ancestor in seen:
-                raise ExecutionError("Object insertion would create a cycle")
-            seen.add(ancestor)
-            ancestor = self.parent(ancestor)
+        # §12.5 leaves tree validity to the game. Some stories temporarily
+        # introduce a cycle while rearranging objects across several opcodes.
         self.remove(obj)
         self.memory.write_bytes(entry + 4, bytes((destination, self.child(destination))))
         self.memory.write_byte(target + 6, obj)
