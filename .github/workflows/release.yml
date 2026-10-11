@@ -1,0 +1,73 @@
+name: release
+
+# Push v0.0.1 to publish version 0.0.1. PR/manual runs only build and validate.
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - scripts/check_dist.py
+      - pyproject.toml
+      - uv.lock
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+          version: "0.12.23"
+
+      - name: Check the tag matches the project version
+        if: github.event_name == 'push'
+        run: |
+          version=$(uv version --short)
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag must be v$version; received $GITHUB_REF_NAME"
+            exit 1
+          fi
+
+      - run: uv lock --check
+      - run: uv sync --frozen
+      - run: uv run --no-sync poe build-check
+      - name: Check the metadata renders on PyPI
+        run: uvx twine check --strict dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: github.repository == 'afourney/fernz' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/project/fernz/
+    permissions:
+      actions: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
