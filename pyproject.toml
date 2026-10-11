@@ -12,6 +12,11 @@ dependencies = []
 [project.scripts]
 fernz = "fernz._cli:main"
 
+[project.optional-dependencies]
+textual = [
+    "textual>=8.2.8",
+]
+
 [dependency-groups]
 dev = [
     "codespell",

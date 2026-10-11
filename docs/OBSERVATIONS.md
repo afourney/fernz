@@ -120,18 +120,20 @@ Quetzal files have a different contract. Opcode restore keeps the receiving
 environment's geometry, RNG, and host display settings; V3 additionally collapses
 the upper window as required by Standard §8.6.1.3. Its stream records that change.
 
-There is no stored screen-cell matrix yet. A frontend applying these deltas
+VM checkpoints do not store a screen-cell matrix. A frontend applying these deltas
 must checkpoint its own rendered screen alongside the VM checkpoint, or replay
 the matching stream history when restoring. A frontend also owns input echo,
 wrapping and lower-window scrolling; those are rendering consequences rather
 than separate VM scroll commands. The upper window does not scroll. The present
-interpreter tracks logical cursors but does not provide a complete visual renderer.
+interpreter tracks logical cursors; the optional Textual CLI maintains its own
+rendered cells and lower-window scrollback.
 V3's separate built-in status line remains unadvertised; explicit upper-window
 output is supported. Optional V5 style/colour capabilities remain unadvertised,
 although explicit supported style/colour instructions are recorded.
 
-The CLI accepts `--screen-width` and `--screen-height` and remains a plain
-transcript player. It uses the existing raw `output_handler(str)` callback so
+Both CLI frontends accept `--screen-width` and `--screen-height`. The Textual
+frontend renders the ordered stream; see [the CLI guide](CLI.md). The `--simple`
+frontend uses the existing raw `output_handler(str)` callback so
 story prompts and output preceding a save/restore filename request appear
 immediately. That callback receives text from both windows, including prompts,
 without tags; it does not receive `Observation` objects or renderer events.

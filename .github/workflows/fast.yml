@@ -44,7 +44,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           version: "0.12.23"
           enable-cache: true
-      - run: uv sync --frozen
+      - run: uv sync --frozen --extra textual
       - run: uv run --no-sync poe test --durations=10
         timeout-minutes: 2
 
@@ -82,7 +82,7 @@ jobs:
           python-version: "3.12"
           version: "0.12.23"
           enable-cache: true
-      - run: uv sync --frozen
+      - run: uv sync --frozen --extra textual
       - run: uv run --no-sync python -c "import importlib.util; assert importlib.util.find_spec('jericho') is None"
       # All offline tests and 56 story files; only five gameplay commands per
       # V3 route plus short replay/reset checks. ZIP hashes are still verified.

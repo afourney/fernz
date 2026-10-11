@@ -94,5 +94,5 @@ def test_v8_cli_opens_and_accepts_eof(tmp_path, monkeypatch, capsys):
     path = tmp_path / "opening.z8"
     path.write_bytes(large_story().data)
     monkeypatch.setattr(sys, "stdin", io.StringIO(""))
-    assert _cli.main([str(path)]) == 0
+    assert _cli.main(["--simple", str(path)]) == 0
     assert capsys.readouterr().out == "abc"

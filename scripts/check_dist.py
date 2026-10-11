@@ -55,6 +55,10 @@ def main() -> None:
             "fernz/_quetzal.py",
             "fernz/_host_io.py",
             "fernz/_cli.py",
+            "fernz/_simple_cli.py",
+            "fernz/_rich_cli.py",
+            "fernz/_screen.py",
+            "fernz/_cli_files.py",
             "fernz/__main__.py",
             "fernz/py.typed",
         ):
@@ -63,6 +67,12 @@ def main() -> None:
         metadata = email.message_from_bytes(wheel.read(metadata_name))
         assert metadata["Name"] == project["name"], "Incorrect distribution name"
         assert metadata["Version"] == project["version"], "Incorrect distribution version"
+        assert "textual" in metadata.get_all("Provides-Extra", [])
+        requirements = metadata.get_all("Requires-Dist", [])
+        assert requirements and all(
+            value.partition(";")[2].strip().replace("'", '"') == 'extra == "textual"'
+            for value in requirements
+        ), "Runtime dependencies must be confined to the optional Textual extra"
         check_no_games(names)
 
     with tarfile.open(sdists[0], "r:gz") as sdist:
@@ -89,6 +99,10 @@ def main() -> None:
             "src/fernz/_quetzal.py",
             "src/fernz/_host_io.py",
             "src/fernz/_cli.py",
+            "src/fernz/_simple_cli.py",
+            "src/fernz/_rich_cli.py",
+            "src/fernz/_screen.py",
+            "src/fernz/_cli_files.py",
             "src/fernz/__main__.py",
             "src/fernz/py.typed",
         ):
@@ -115,7 +129,8 @@ def main() -> None:
                 "-I",
                 "-c",
                 (
-                    "import importlib.metadata, pathlib, sys, fernz; "
+                    "import importlib.metadata, importlib.util, pathlib, sys, fernz; "
+                    "assert importlib.util.find_spec('textual') is None; "
                     "assert importlib.metadata.version('fernz') == sys.argv[1]; "
                     "assert pathlib.Path(fernz.__file__).is_relative_to(pathlib.Path(sys.prefix))"
                 ),
@@ -155,6 +170,8 @@ def main() -> None:
                 ([str(Path(tmp) / "missing.z3")], 2, "fernz:"),
                 (["--inspect", str(game)], 0, '"version": 3'),
                 ([str(game)], 0, "A\n>\nl"),
+                (["--simple", str(game)], 0, "A\n>\nl"),
+                (["--rich", str(game)], 2, "pip install 'fernz[textual]'"),
             ):
                 result = subprocess.run(
                     [*entry_point, *args],
