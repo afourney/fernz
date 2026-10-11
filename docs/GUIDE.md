@@ -27,8 +27,8 @@ Requires Python 3.11 or later and [uv](https://docs.astral.sh/uv/).
 ```sh
 uv sync --dev
 uv run poe test-roms
-uv run fernz --inspect games/jericho-game-suite/zork1.z5
-uv run fernz games/jericho-game-suite/zork1.z5
+uv run fernz --inspect games/zork1.z5
+uv run fernz games/zork1.z5
 ```
 
 The ROM tests download the retained Jericho game suite when `games/` is absent.
@@ -36,7 +36,7 @@ The inspection reports Z-machine **V3**, release **88**, serial **840726**, and
 a valid checksum for this Zork I file, despite its `.z5` extension.
 The CLI uses Textual when installed and falls back to the simple terminal player.
 Install the optional frontend with `uv sync --extra textual`, then run
-`uv run --extra textual fernz games/jericho-game-suite/zork1.z5`.
+`uv run --extra textual fernz games/zork1.z5`.
 Use `--rich` or `--simple` to select explicitly; use `--simple` for piped input.
 Textual provides separate windows, styled output, scrollback, command history
 and save dialogs. Ctrl+Q exits; the simple player exits at EOF.
@@ -48,7 +48,7 @@ cancels, and overwriting an existing save requires confirmation.
 ```python
 from fernz import Memory, Story
 
-story = Story.from_file("games/jericho-game-suite/zork1.z5")
+story = Story.from_file("games/zork1.z5")
 print(story.header.version, story.header.serial)
 print(story.verify_checksum())
 
@@ -66,7 +66,7 @@ status information:
 ```python
 from fernz import FernzEnv
 
-env = FernzEnv("games/jericho-game-suite/zork1.z5", seed=42)
+env = FernzEnv("games/zork1.z5", seed=42)
 try:
     observation, info = env.reset()
     print(observation.text, end="")
@@ -104,7 +104,7 @@ See [restart semantics](OVERVIEW.md#host-reset-and-v3-restart).
 `get_state()` and `set_state()` support reusable in-memory checkpoints:
 
 ```python
-env = FernzEnv("games/jericho-game-suite/zork1.z5", seed=12)
+env = FernzEnv("games/zork1.z5", seed=12)
 env.reset()
 state = env.get_state()
 result = env.step("open mailbox")

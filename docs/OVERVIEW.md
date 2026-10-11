@@ -103,19 +103,21 @@ release 88, serial `840726`.
 
 Install the development dependencies with `uv sync --dev`, then run tests with
 `uv run pytest`. Tests that need ROMs can request the session-scoped
-`jericho_games` pytest fixture, which returns the path to
-`games/jericho-game-suite/`.
+`jericho_games` pytest fixture, which returns the path to `games/`.
 
 When the repository's `games/` directory is absent, the fixture downloads the
 BYU-PCCL ZIP linked above and extracts the complete Jericho suite, including
-`lgop.z3`. Extraction is staged before creating `games/`, so a failed download
-or extraction can be retried. The ZIP and other collections are not retained.
+`lgop.z3`, directly into `games/`. Extraction is staged before creating `games/`,
+so a failed download or extraction can be retried. The ZIP and other collections
+are not retained.
 
 An existing `games/` directory is left untouched and does not trigger a download.
 If it predates LGOP inclusion, move it aside and rerun the fixture to download
 the complete suite, or add the pinned `lgop.z3` manually.
-If it lacks `jericho-game-suite/`, the fixture reports an error. Tests that do not
-request the fixture do not download games. Downloaded ROMs are ignored by Git.
+If it lacks `zork1.z5` directly inside `games/`, the fixture reports an error.
+For older downloads, move the contents of `games/jericho-game-suite/` into `games/`.
+Tests that do not request the fixture do not download games. Downloaded ROMs are
+ignored by Git.
 The download currently follows upstream `master`; it is not yet pinned to an
 immutable revision. This download mechanism does not establish redistribution
 rights for the games.
@@ -632,7 +634,7 @@ rejection, current RNG preservation, and unchanged host checkpoint behavior.
 ```python
 from fernz import Memory, Story
 
-story = Story.from_file("games/jericho-game-suite/zork1.z5")
+story = Story.from_file("games/zork1.z5")
 assert story.header.version == 3
 assert story.verify_checksum() is True
 memory = Memory(story)

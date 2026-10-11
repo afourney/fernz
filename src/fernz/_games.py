@@ -15,21 +15,20 @@ ARCHIVE_PREFIX = f"z-machine-games-master/{SUITE_NAME}/"
 
 
 def ensure_jericho_games(games_dir: Path) -> Path:
-    """Return the suite directory, downloading only when games_dir is absent.
+    """Return games_dir, downloading the suite directly into it when absent.
 
     Existing directories are left untouched. New data is staged on the same
     filesystem so an interrupted download or extraction cannot leave a partial
     games directory that would suppress subsequent downloads.
     """
-    suite_dir = games_dir / SUITE_NAME
     if games_dir.exists() or games_dir.is_symlink():
-        if not suite_dir.is_dir():
+        if not (games_dir / "zork1.z5").is_file():
             raise RuntimeError(
-                f"{games_dir} already exists but {suite_dir} is missing. "
+                f"{games_dir} already exists but {games_dir / 'zork1.z5'} is missing. "
                 "Populate the suite manually or move the existing games path "
                 "aside to allow a download."
             )
-        return suite_dir
+        return games_dir
 
     try:
         games_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -43,8 +42,7 @@ def ensure_jericho_games(games_dir: Path) -> Path:
                 copyfileobj(response, archive_file)
 
             staged_games = staging / "games"
-            staged_suite = staged_games / SUITE_NAME
-            staged_suite.mkdir(parents=True)
+            staged_games.mkdir()
             with ZipFile(archive_path) as archive:
                 for entry in archive.infolist():
                     if not entry.filename.startswith(ARCHIVE_PREFIX) or entry.is_dir():
@@ -64,11 +62,11 @@ def ensure_jericho_games(games_dir: Path) -> Path:
                         raise ValueError(f"Unsafe game archive entry: {entry.filename}")
                     with (
                         archive.open(entry) as source,
-                        (staged_suite / name).open("xb") as target,
+                        (staged_games / name).open("xb") as target,
                     ):
                         copyfileobj(source, target)
 
-            if not (staged_suite / "zork1.z5").is_file():
+            if not (staged_games / "zork1.z5").is_file():
                 raise ValueError("The archive does not contain the expected Zork I file")
             staged_games.rename(games_dir)
     except (
@@ -81,7 +79,7 @@ def ensure_jericho_games(games_dir: Path) -> Path:
         RuntimeError,
     ) as exc:
         raise RuntimeError(
-            f"Could not prepare {suite_dir} from {GAMES_ARCHIVE_URL}: {exc}"
+            f"Could not prepare {games_dir} from {GAMES_ARCHIVE_URL}: {exc}"
         ) from exc
 
-    return suite_dir
+    return games_dir

@@ -17,16 +17,15 @@ def zip_bytes(entries: dict[str, bytes]) -> bytes:
 
 def test_existing_suite_is_unchanged_and_needs_no_network(tmp_path, monkeypatch):
     games = tmp_path / "games"
-    suite = games / "jericho-game-suite"
-    suite.mkdir(parents=True)
-    (suite / "local.z3").write_bytes(b"local data")
+    games.mkdir()
+    (games / "zork1.z5").write_bytes(b"local data")
 
     def no_download(*args, **kwargs):
         pytest.fail("An existing games directory must not trigger a download")
 
     monkeypatch.setattr(game_files, "urlopen", no_download)
-    assert game_files.ensure_jericho_games(games) == suite
-    assert [(p.name, p.read_bytes()) for p in suite.iterdir()] == [("local.z3", b"local data")]
+    assert game_files.ensure_jericho_games(games) == games
+    assert [(p.name, p.read_bytes()) for p in games.iterdir()] == [("zork1.z5", b"local data")]
 
 
 def test_existing_games_without_suite_is_left_untouched(tmp_path, monkeypatch):
@@ -63,12 +62,13 @@ def test_download_keeps_the_complete_requested_suite(tmp_path, monkeypatch):
     monkeypatch.setattr(game_files, "urlopen", download)
     games = tmp_path / "games"
     suite = game_files.ensure_jericho_games(games)
+    assert suite == games
     assert {
         p.relative_to(games).as_posix(): p.read_bytes() for p in games.rglob("*") if p.is_file()
     } == {
-        "jericho-game-suite/zork1.z5": b"\x03zork",
-        "jericho-game-suite/trinity.z4": b"\x04trinity",
-        "jericho-game-suite/lgop.z3": b"\x03lgop",
+        "zork1.z5": b"\x03zork",
+        "trinity.z4": b"\x04trinity",
+        "lgop.z3": b"\x03lgop",
     }
     assert game_files.ensure_jericho_games(games) == suite
     assert requests == [game_files.GAMES_ARCHIVE_URL]
