@@ -15,6 +15,7 @@ pytestmark = [pytest.mark.rom, pytest.mark.vectors]
 def test_905_startup_commands_and_snapshot_continuation(jericho_games):
     documents = read_archive(ARCHIVE_905)
     manifest = documents["manifest.json"]
+    assert manifest["record_version"] == 3
     assert manifest["story"] == STORY_905 and manifest["seed"] == SEED_905
     assert manifest["reference"]["version"] == REFERENCE_VERSION
     path = jericho_games / STORY_905["filename"]

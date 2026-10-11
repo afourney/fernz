@@ -1,7 +1,7 @@
 # Raw object inspection
 
 Fernz exposes detached object snapshots through Jericho-style public methods.
-This milestone covers initialized **V3** games. Implementation follows Z-machine
+This covers initialized **V3 and V5** games. Implementation follows Z-machine
 Standard 1.1 [§12](https://inform-fiction.org/zmachine/standards/z1point1/sect12.html),
 the [public Jericho API](https://jericho-py.readthedocs.io/en/latest/frotz_env.html),
 and black-box comparisons with Jericho 3.3.1. The
@@ -14,7 +14,7 @@ no reference interpreter implementation was inspected.
 | --- | --- |
 | `get_object(obj_num)` | One `ZObject`, or `None` for zero, negative, or absent object numbers. Non-integer arguments raise `TypeError`. |
 | `get_world_objects(clean=False)` | A Python list in object-number order, including disconnected and invisible objects. Slot zero is an empty `ZObject(0, "")`, so `objects[n]` identifies object `n`. |
-| `get_player_object()` | The player identified by the exact story profile, including all 16 retained V3 builds (object 4 for Zork I). |
+| `get_player_object()` | The player identified by the exact story profile, including all 16 retained V3 builds (object 4 for Zork I) and the pinned V5 9:05 build (object 28). |
 | `get_player_location()` | A complete `ZObject` for the player's immediate parent, including vehicles. Without a known player, retain the V3 status-location fallback. Zero location returns `None`. |
 | `get_inventory()` | A list of the player's immediate children in sibling order. Items inside carried containers remain reachable through their child links. An empty inventory returns `[]`. |
 
@@ -41,7 +41,7 @@ Import `ZObject` from `fernz`. It is a mutable Python dataclass with these field
 | `num: int` | Stable object number within this story. |
 | `name: str` | Complete decoded story short name, which can be empty. |
 | `parent`, `sibling`, `child` | Integer object numbers; zero means no link. |
-| `attr: list[int]` | V3's 32 attribute flags, indexed by attribute number, each initially 0 or 1. Meanings are game-defined. |
+| `attr: list[int]` | 32 V3 or 48 V5 attribute flags, indexed by attribute number, each initially 0 or 1. Meanings are game-defined. |
 | `properties: list[int]` | Supplied property numbers in descending order, zero-padded to at least 16 slots for Jericho callers. These are not property values or defaults. More than 16 properties are retained. |
 
 Every query allocates independent records and lists. Editing a field or list
@@ -80,8 +80,9 @@ values; object snapshots do not change checkpoint semantics.
 The standard does not store an explicit object count. Its §12 remarks describe
 a convention used by inspection tools: initially, the contiguous object entries
 end where the earliest property table starts. Fernz walks the original story's
-V3 entries, tracks the earliest property-table address, and requires an exact
-entry-aligned boundary within dynamic memory and the 255-object V3 limit.
+version-specific entries, tracks the earliest property-table address, and requires an exact
+entry-aligned boundary within dynamic memory. V3 uses 9-byte entries with a
+255-object limit; V5 uses 14-byte entries and word-sized object numbers.
 
 This is a layout convention, not a guarantee of the format. Other legal layouts
 can place property tables elsewhere. Ambiguous or unsupported initial layouts
@@ -99,7 +100,7 @@ memory errors without modifying the game.
 Location queries retain their ability to read a known object directly, including
 the existing status-location fallback in stories without an enumerable layout.
 Known-player and inventory queries likewise do not need whole-world enumeration.
-This milestone does not add later-version execution or change V3 opcode rules.
+V5 uses the same inspection contract with its version-specific table layout.
 
 ## Measured reference compatibility
 
@@ -145,3 +146,11 @@ The [additional V3 suites](V3_GAMES.md) check every object at every measured
 boundary using an independent specification-based decoder of public snapshots.
 They also cover unnamed inventory/location nodes, native enumeration limits,
 and property lists longer than 16 without truncating Fernz's raw records.
+
+
+The [V5 suite](V5.md) adds the full 9:05 walkthrough, detours, endings, persistence,
+and multiple seeds. Its public reference wrapper returns 32 attributes even for
+V5 objects; the additional 16 are verified by independently decoding the public
+RAM snapshot. Independent V5 API tests use 300 objects, nested inventory,
+attributes 32 and 47, zero slots, large links, malformed chains, unknown profiles,
+and checkpoint/copy restoration through loss and VM quit.

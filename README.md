@@ -7,11 +7,11 @@ Fernz loads **raw V1-V8 story files** and completes the measured winning routes
 for **all 16 retained V3 games**, including Zork I. See the [game inventory and
 coverage](docs/V3_GAMES.md) for exact builds, seeds, and limitations. It provides
 header metadata, checksums, protected memory, instruction decoding, and V3
-command input, immutable checkpoints, and V3 Quetzal save/restore. Full V3
-conformance and Blorb containers are still ahead. Initial **V5 execution** runs
-9:05 to its first prompt and through five tested commands, with deterministic
-snapshot replay and portable vectors. See [V5 milestones](docs/V5.md) for scope
-and the planned complete-game and API follow-ups.
+command input and immutable checkpoints. Initial **V5 execution** completes
+9:05, including detours, both endings, V5 Quetzal save/restore, and the existing
+environment/inspection APIs. Linux compares public reference behavior; portable
+vectors cover other platforms. See [V5 milestones](docs/V5.md) for exact scope
+and remaining games. Full conformance and Blorb containers are still ahead.
 
 ## Try it
 
@@ -47,7 +47,7 @@ memory.reset()
 
 `Story(data)` also accepts a byte buffer. `FernzEnv(path)` exposes the loaded
 image as `env.story` and an independent memory instance as `env.memory`.
-Its `reset()` runs V3 startup and returns the complete opening transcript and
+Its `reset()` runs supported V3/V5 startup and returns the complete opening transcript and
 status information:
 
 ```python
@@ -75,7 +75,7 @@ opcodes fail with their name and address. Undo and full V3
 execution support remain future work; `done` detects the `quit` opcode, not victory
 or death that leaves the story running.
 
-V3 `restart` is supported through the game's own RESTART command and confirmation.
+V3 and V5 `restart` are supported through the game's own RESTART command and confirmation.
 It resets game memory, frames, and randomness while preserving Flags 2 and the
 current output stream selection. With an explicit host seed, the restarted
 episode repeats that seed's sequence; `seed=None` requests fresh entropy.
@@ -101,7 +101,8 @@ env.close()
 ```
 
 The immutable `GameState` includes memory, call frames, PC, pending input, output
-selection, RNG state, and loss/victory response flags (schema 2).
+selection, RNG state, and loss/victory response flags. Ordinary V3 snapshots use
+schema 2; V5 and active memory-output snapshots add text I/O state in schema 3.
 It can also initialize another environment for the
 same story. Restore validates the checkpoint before changing the live game and
 returns `None`, with no execution or output. Fernz uses its own named fields;
@@ -129,14 +130,14 @@ including `.num` and `.name`. A known player profile uses its immediate containe
 (including vehicles); other V3 games use the status-line location convention.
 See [object inspection](docs/OBJECT_INSPECTION.md) for traversal examples, layout
 requirements, and measured differences from Jericho. Cleaning remains deferred.
-All 16 retained V3 builds support `get_max_score()`, `game_over()`,
+All 16 retained V3 builds and the pinned V5 9:05 build support `get_max_score()`, `game_over()`,
 and `victory()`. Outcome queries describe the latest response, including
 recoverable deaths, and survive checkpoint restoration and copying. `done`
 continues to indicate VM quit. Unknown builds raise `NotImplementedError` for
 score limits and outcome queries. See [story queries](docs/STORY_QUERIES.md) for
 the measured behavior, supported story identity, and reference differences.
 
-V3 `save` and `restore` opcodes use Quetzal files. Library callers supply
+V3 and V5 `save` and `restore` opcodes use Quetzal files. Library callers supply
 `save_handler(data: bytes) -> bool` and `restore_handler() -> bytes | None`
 when constructing `FernzEnv`; unavailable storage reports opcode failure.
 Opcode restore leaves the current RNG and output settings intact and preserves
@@ -150,7 +151,7 @@ for a storage example and the separate contracts.
 uv run poe check-all    # Offline tests, quality checks, and package validation
 uv run poe test-fast    # PR selection: unit tests, all story files, short gameplay
 uv run poe test-roms    # All 56 loading checks, plus Zork mailbox play and reset
-uv run poe test-vectors # All 56 stories' metadata plus all 16 V3 gameplay archives
+uv run poe test-vectors # All 56 stories' metadata plus V3 and V5 gameplay archives
 ```
 
 Short black-box Jericho comparisons run on every PR. The full Jericho and Frotz
@@ -165,7 +166,7 @@ uv run --no-sync poe test-full
 
 A Python 3.12 matrix runs the offline suite and short recorded gameplay on macOS,
 Windows x64, and Windows ARM. It reads `tests/vectors/<rom>_vectors.zip` for each
-V3 game and `storyfiles.zip` directly through `zipfile`, without Jericho or disk
+validated game and `storyfiles.zip` directly through `zipfile`, without Jericho or disk
 extraction. The manual workflow keeps all live public-API comparisons and checks
 every archive against fresh measurements, with complete vector replay on all
 three platforms. Three groups of five games partition the additional V3 suites.
@@ -207,7 +208,7 @@ V3/V5/V8 stories, including cycle rollover and reseeding. Use a positive constru
 seed for shared reproducibility: Jericho treats host seed 0 as automatic, whereas
 Fernz preserves a deterministic sequence for explicit zero, like Frotz. See
 [RNG compatibility](docs/RNG.md) for the contract and test setup, including
-`FERNZ_DFROTZ` for a separately installed binary. Fernz's execution support remains V3.
+`FERNZ_DFROTZ` for a separately installed binary. Fernz executes V3 and initial V5; V8 execution remains deferred.
 
 **Do not inspect Frotz or Jericho implementation source.** Implement from the
 Z-machine specification and documented public APIs. Running Jericho through its

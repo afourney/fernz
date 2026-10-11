@@ -10,10 +10,10 @@ from .test_save_restore import Storage, results
 from .test_state import game as game
 
 
-@pytest.fixture
-def seeds(tmp_path):
-    path = tmp_path / "seeds.z3"
-    path.write_bytes(seed_story())
+@pytest.fixture(params=(3, 5))
+def seeds(tmp_path, request):
+    path = tmp_path / f"seeds.z{request.param}"
+    path.write_bytes(seed_story(request.param))
     return path
 
 
@@ -47,7 +47,7 @@ def test_copy_forks_nested_execution_without_io_entropy_or_shared_memory(game, m
     assert halted.get_moves() == other.get_moves() == 0
 
 
-@pytest.mark.parametrize("version", [1, 3, 8])
+@pytest.mark.parametrize("version", [1, 3, 5, 8])
 def test_copy_before_reset_preserves_loaded_memory_and_initialization(version, tmp_path):
     path = tmp_path / "loaded.z"
     path.write_bytes(story_bytes(version))

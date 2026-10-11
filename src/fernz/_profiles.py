@@ -24,6 +24,8 @@ class StoryProfile:
     score_signed: bool = True
     loss_hashes: frozenset[str] = frozenset()
     victory_hashes: frozenset[str] = frozenset()
+    moves_offset: int = 0
+    victory_score: int | None = None
 
     def outcomes(self, observation: str) -> tuple[bool, bool]:
         """Classify the latest response, tolerating differences in whitespace."""
@@ -47,6 +49,21 @@ _PROFILES = {
         loss_lines=frozenset({"**** You have died ****"}),
         victory_lines=frozenset({"Inside the Barrow"}),
         player_object=4,
+    ),
+    # 9:05 release 1, serial 120724. Public observations give a response-based
+    # score and elapsed minutes from global 17, starting at 9:05 (545 minutes).
+    "de23edb34c38ac8e9bf831f33b358d89a9093fcc84941dba0997194786cd1a7d": StoryProfile(
+        max_score=1,
+        loss_lines=frozenset(),
+        victory_lines=frozenset(),
+        player_object=28,
+        moves_global=17,
+        moves_offset=-545,
+        victory_score=1,
+        loss_hashes=frozenset({"d0d315b93630d583d3517bd77046c817a1bbbc2ba4b885258b161be053f9f129"}),
+        victory_hashes=frozenset(
+            {"681e54caddcf41c9d8e04f174a7246ce14a2f6b3c8f3a95dc4b255f9eab3f097"}
+        ),
     ),
 }
 

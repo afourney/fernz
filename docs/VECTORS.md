@@ -172,10 +172,12 @@ vector format version change and coordinated reader/generator updates.
 
 ## CI
 
-Initial V5 startup coverage adds `905_vectors.zip`, generated with
+V5 coverage adds `905_vectors.zip`, generated with
 `poe generate-vectors --only 905` and verified with `poe check-vectors --only 905`.
-It contains six observation/object-memory fingerprints for the opening and five
-commands. See [V5 milestones](V5.md) for its deliberately narrower initial scope.
+It contains a bounded opening/five-command prefix for fast CI and full
+walkthrough, detour, lifecycle, and seed cases for comprehensive CI. V5 record
+schema 3 adds status, outcome, RNG, and object-query fingerprints; the common
+ZIP manifest envelope remains format 1. See [V5 milestones](V5.md).
 
 Every PR runs the offline suite, all 56 story files' loading and inspection
 checks, and bounded gameplay prefixes for all 16 V3 games. It verifies every
