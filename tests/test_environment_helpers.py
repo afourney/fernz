@@ -13,7 +13,7 @@ from .test_save_restore import Storage, results
 from .test_state import game as game
 
 
-@pytest.fixture(params=(3, 5))
+@pytest.fixture(params=(3, 5, 8))
 def seeds(tmp_path, request):
     path = tmp_path / f"seeds.z{request.param}"
     path.write_bytes(seed_story(request.param))

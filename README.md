@@ -11,7 +11,10 @@ command input and immutable checkpoints. **V5 execution** completes winning rout
 per-game score, move, player and outcome profiles. 9:05, Balances and Sherlock
 also have detours, loss paths and V5 Quetzal save/restore coverage. Linux compares public reference behavior; portable
 vectors cover other platforms. See [V5 milestones](docs/V5.md) for exact scope
-and remaining features. Full conformance and Blorb containers are still ahead.
+and remaining features. **V8 execution** covers openings, commands and persistence
+in all six retained games, plus complete winning routes and query APIs for
+Lost Pig and Snack Time; see [V8 compatibility](docs/V8.md).
+Full conformance and Blorb containers are still ahead.
 
 ## Try it
 

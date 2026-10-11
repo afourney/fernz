@@ -1,8 +1,9 @@
 """Measure V8 games using only documented public Jericho APIs on Linux."""
 
-from ..v8_cases import BOOT_ACTIONS, SEED, story_identity
+from ..v8_cases import BOOT_ACTIONS, ROUTES, SEED, story_identity
 from ..v8_vectors import capture
 from ..vector_archive import FORMAT_VERSION, REFERENCE_VERSION, digest, json_bytes
+from .v8_walkthrough_vectors import counter_document, walkthrough_document
 
 
 def generate_v8(path, game):
@@ -54,6 +55,9 @@ def generate_v8(path, game):
                 records.append(capture(env, original, game, action, env.step(action)[0]))
             cases.append({"id": name, "seed": SEED, "steps": records})
         documents["actions.json"] = {"cases": cases}
+        if game in ROUTES:
+            documents["walkthrough.json"] = walkthrough_document(env, original, game)
+            documents["counters.json"] = counter_document(env, game)
     finally:
         env.close()
     documents["manifest.json"] = {

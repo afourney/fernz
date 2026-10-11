@@ -165,3 +165,14 @@ move count. See the [V5 route table and reference boundaries](V5.md#complete-ret
 for exact seeds, player numbers, scores, and the intentional Deephome/Murdac
 ending differences. Unknown builds still require measured profiles for these
 queries; raw object inspection remains independent.
+
+## V8 profiles
+
+The pinned Lost Pig and Snack Time builds now support score, moves, maximum
+score, player, location, inventory and outcome queries. Their complete winning
+routes compare every query through public reference behavior and portable
+hash vectors. Counter locations and widths come from independent public RAM
+mutation probes, rather than assuming every later-version game uses the same
+globals. Lost Pig's winning menu is reported as victory without also reporting
+loss, following the existing Fernz outcome contract. See [V8 coverage](V8.md)
+for exact builds, boundaries and the four other V8 stories still without profiles.

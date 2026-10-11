@@ -2,8 +2,9 @@
 
 import pytest
 
-from .v8_cases import BOOT_ACTIONS, GAMES, archive_path, story_identity
+from .v8_cases import BOOT_ACTIONS, GAMES, ROUTES, archive_path, story_identity
 from .v8_vectors import replay_actions, replay_opening
+from .v8_walkthrough_vectors import replay_counters, replay_walkthrough
 from .vector_archive import REFERENCE_VERSION, read_archive
 
 
@@ -33,3 +34,14 @@ def test_v8_opening(jericho_games, game):
 @pytest.mark.parametrize("game", GAMES)
 def test_v8_actions_and_persistence(jericho_games, game):
     replay_actions(jericho_games / f"{game}.z8", game, read_archive(archive_path(game)))
+
+
+@pytest.mark.rom
+@pytest.mark.vectors
+@pytest.mark.v8games
+@pytest.mark.parametrize("game", ROUTES)
+def test_v8_winning_route_and_queries(jericho_games, game):
+    path = jericho_games / f"{game}.z8"
+    documents = read_archive(archive_path(game))
+    replay_walkthrough(path, game, documents)
+    replay_counters(path, game, documents["counters.json"])
