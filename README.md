@@ -4,7 +4,7 @@ A Z-machine interpreter library in Python, working toward a
 Jericho-like API and optional Textual terminal player.
 
 Fernz loads **raw V1-V8 story files** and completes the measured winning routes
-for **all 16 retained V3 games**, including Zork I. See the [game inventory and
+for **all 17 retained V3 games**, including Zork I. See the [game inventory and
 coverage](docs/V3_GAMES.md) for exact builds, seeds, and limitations. It provides
 header metadata, checksums, protected memory, instruction decoding, and V3
 command input and immutable checkpoints. **V5 execution** completes winning routes for all 33 retained builds, with
@@ -152,12 +152,16 @@ including `.num` and `.name`. A known player profile uses its immediate containe
 (including vehicles); other V3 games use the status-line location convention.
 See [object inspection](docs/OBJECT_INSPECTION.md) for traversal examples, layout
 requirements, and measured differences from Jericho. Cleaning remains deferred.
-All 16 retained V3 builds and the pinned V5 9:05, Balances, and Sherlock builds support `get_max_score()`, `game_over()`,
+All 17 retained V3 builds and the pinned V5 9:05, Balances, and Sherlock builds support `game_over()`
 and `victory()`. Outcome queries describe the latest response, including
 recoverable deaths, and survive checkpoint restoration and copying. `done`
 continues to indicate VM quit. Unknown builds raise `NotImplementedError` for
 score limits and outcome queries. See [story queries](docs/STORY_QUERIES.md) for
 the measured behavior, supported story identity, and reference differences.
+
+[LGOP coverage](docs/LGOP.md) includes a complete win and Tiffany branches.
+Its randomized scoring has no fixed maximum: `get_max_score()` raises
+`NotImplementedError`, while its actual score, moves and player queries work.
 
 V3, V4, V5 and V8 `save` and `restore` opcodes use Quetzal files. Library callers supply
 `save_handler(data: bytes) -> bool` and `restore_handler() -> bytes | None`
@@ -172,8 +176,8 @@ for a storage example and the separate contracts.
 ```sh
 uv run poe check-all    # Offline tests, quality checks, and package validation
 uv run poe test-fast    # PR selection: unit tests, all story files, short gameplay
-uv run poe test-roms    # All 56 loading checks, plus Zork mailbox play and reset
-uv run poe test-vectors # All 56 stories' metadata plus V3, V4, V5 and V8 gameplay archives
+uv run poe test-roms    # All 57 loading checks, plus Zork mailbox play and reset
+uv run poe test-vectors # All 57 stories' metadata plus V3, V4, V5 and V8 gameplay archives
 ```
 
 Short black-box Jericho comparisons run on every PR. The full Jericho and Frotz
@@ -191,7 +195,7 @@ Windows x64, and Windows ARM. It reads `tests/vectors/<rom>_vectors.zip` for eac
 validated game and `storyfiles.zip` directly through `zipfile`, without Jericho or disk
 extraction. The manual workflow keeps all live public-API comparisons and checks
 every archive against fresh measurements, with complete vector replay on all
-three platforms. Three groups of five games partition the additional V3 suites.
+three platforms. Three balanced groups partition the additional V3 suites.
 See [fast and comprehensive CI](docs/CI.md) for timing budgets and manual runs,
 [vectors](docs/VECTORS.md), and
 [testing philosophy](docs/TESTING_PHILOSOPHY.md) for regeneration and content rules.

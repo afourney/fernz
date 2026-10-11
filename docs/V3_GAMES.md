@@ -1,6 +1,6 @@
 # V3 gameplay coverage
 
-The retained corpus contains 16 V3 games, identified by their header rather than
+The retained corpus contains 17 V3 games, identified by their header rather than
 filename. `zork1.z5`, `zork2.z5`, and `zork3.z5` all contain V3 stories. All have
 complete winning walkthrough comparisons, live on Linux through **public
 Jericho 3.3.1 calls** and recorded as hashes for portable replay. We do not
@@ -22,6 +22,7 @@ instruction semantics. Other releases require separate measurements.
 | hhgg | 4 | 361 | 400 | 31 |
 | hollywood | 0 | 397 | 150 | 50 |
 | infidel | 0 | 250 | 400 | 223 |
+| lgop | 42 | 389 | No fixed maximum | 199 |
 | lurking | 0 | 294 | 100 | 56 |
 | planetfall | 0 | 399 | 80 | 236 |
 | plundered | 0 | 189 | 25 | 192 |
@@ -33,11 +34,13 @@ instruction semantics. Other releases require separate measurements.
 | zork2 | 0 | 296 | 400 | 4 |
 | zork3 | 0 | 273 | 7 | 202 |
 
-The public reference selects recommended seeds and supplies the walkthroughs.
+Except for LGOP, the public reference selects recommended seeds and supplies the walkthroughs.
+[LGOP](LGOP.md) uses an independently exercised public walkthrough and public
+snapshots because Jericho lacks its game-specific query binding.
 Explicit zero is reproducible for these zero-default games; it must not be
 replaced with entropy. See [RNG behavior](RNG.md#host-seeding-and-reset).
 
-Public snapshot perturbations identify the score/move fields. Using zero-based
+For the reference-supported games, public snapshot perturbations identify the score/move fields. Using zero-based
 global indices, Cutthroats reads score 115 and moves 2; Planetfall reads score 1
 and moves 225; Wishbringer reads score 136 and moves 135. Other profiles read
 score 1 and moves 2. Cutthroats' move query therefore follows its status minutes,
@@ -48,7 +51,7 @@ Seastalker exposes a signed low-byte score. The other scores are signed words.
 All move queries read unsigned words. Unsupported time-game profiles still
 raise `NotImplementedError` for score/move queries.
 
-Victory and loss are classified from complete normalized response lines, measured
+For those games, victory and loss are classified from complete normalized response lines, measured
 by replacing only the narrative field of a public snapshot and calling the
 public outcome methods. New profiles retain SHA-256 fingerprints of those lines,
 not narrative excerpts. This is response-event recognition, not an exhaustive
@@ -57,7 +60,7 @@ proof of every possible ending. Maximum score alone does not imply victory.
 ## What each additional game exercises
 
 `tests/v3_cases.py` pins independently authored scenarios and story identities.
-For every game besides Zork I, the live and portable suites cover:
+For the 15 games in that inventory besides Zork I and LGOP, the live and portable suites cover:
 
 - The entire winning route, opening, reward, score/moves, location, player,
   inventory, complete object tree, outcome flags, and canonical VM/RNG state.
@@ -161,12 +164,12 @@ arbitrary releases, screen/sound rendering, or execution of later versions.
 ## Archives and CI
 
 Each ROM has `tests/vectors/<stem>_vectors.zip`. Zork I retains its existing
-archive layout; each additional game has a manifest, walkthrough, five detour
+archive layout; LGOP has its [own documented layout](LGOP.md); the other additional games have a manifest, walkthrough, five detour
 members, scenarios, and seed cases. Archives contain commands, numeric metadata,
 and hashes, with **no copyrighted game text, ROM bytes, memory dumps, or saves**.
 See [vector generation](VECTORS.md) and [testing philosophy](TESTING_PHILOSOPHY.md).
 
-Three Linux jobs partition the additional games into groups of five. Each runs
+Three Linux jobs partition the additional games into balanced groups. Each runs
 live comparisons and checks its archives against fresh public measurements.
 The macOS, Windows x64, and Windows ARM Python 3.12 matrix has a core group and
 the same three game groups, with no Jericho installation. A shard selects games,

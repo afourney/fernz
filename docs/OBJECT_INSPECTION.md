@@ -14,7 +14,7 @@ no reference interpreter implementation was inspected.
 | --- | --- |
 | `get_object(obj_num)` | One `ZObject`, or `None` for zero, negative, or absent object numbers. Non-integer arguments raise `TypeError`. |
 | `get_world_objects(clean=False)` | A Python list in object-number order, including disconnected and invisible objects. Slot zero is an empty `ZObject(0, "")`, so `objects[n]` identifies object `n`. |
-| `get_player_object()` | The player identified by the exact story profile, including all 16 retained V3 builds (object 4 for Zork I) and the pinned V5 9:05 build (object 28). |
+| `get_player_object()` | The player identified by the exact story profile, including all 17 retained V3 builds (object 4 for Zork I) and the pinned V5 9:05 build (object 28). |
 | `get_player_location()` | A complete `ZObject` for the player's immediate parent, including vehicles. Without a known player, retain the V3 status-location fallback. Zero location returns `None`. |
 | `get_inventory()` | A list of the player's immediate children in sibling order. Items inside carried containers remain reachable through their child links. An empty inventory returns `[]`. |
 

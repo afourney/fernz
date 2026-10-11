@@ -24,7 +24,7 @@ walkthrough confirm this relationship. A vehicle can therefore be the location:
 after command 218, entering the boat returns object 156, `magic boat`, while the
 status-line global still contains surrounding room 33, `White Cliffs Beach`.
 
-All 16 retained V3 profiles use the measured player's immediate parent.
+All 17 retained V3 profiles use the measured player's immediate parent.
 For unprofiled V3 stories, Fernz uses the status-line convention in Standard
 [§8.2.2](https://inform-fiction.org/zmachine/standards/z1point1/sect08.html):
 the first global identifies the object whose short name is displayed. This
@@ -54,7 +54,7 @@ story names; the required reference tests assert these differences explicitly:
 
 Score limits and outcome rules are game conventions, outside the Z-machine
 instruction set. Private, immutable profiles contain this metadata separately
-from opcode execution. All 16 retained V3 builds now have measured profiles; see [V3 games](V3_GAMES.md)
+from opcode execution. All 17 retained V3 builds now have measured profiles; see [V3 games](V3_GAMES.md)
 for seeds, player identities, score conventions, and ending differences.
 The retained Zork I release 88, serial `840726`, checksum `0xa129` has a maximum
 score of 350.
@@ -67,7 +67,11 @@ altering a logical story byte does not, even if the header identity is unchanged
 Other releases must be measured independently before adding their profiles.
 
 `get_max_score()` reads this metadata and is available before reset, after quit,
-and after execution failure. Unknown story images raise `NotImplementedError`.
+and after execution failure. Unknown story images and profiles without a fixed maximum raise
+`NotImplementedError`. LGOP has randomized point awards and a changing displayed
+maximum; its player (199), actual score/moves, inventory, location and measured
+outcomes are supported. Its observed winning score is not used as a score limit.
+See [LGOP coverage](LGOP.md).
 `game_over()` and `victory()` require initialized execution state and a profile;
 they raise `RuntimeError` before initialization or after execution failure, and
 `NotImplementedError` for initialized but unprofiled stories. Unsupported games

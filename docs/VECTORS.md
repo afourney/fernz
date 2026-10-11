@@ -16,10 +16,10 @@ Do not inspect Jericho or Frotz implementation source.
 
 ## Story file metadata
 
-`tests/vectors/storyfiles.zip` contains **57 JSON members**: one manifest and
-one metadata record for each of the **56 retained ROMs**. It occupies about
+`tests/vectors/storyfiles.zip` contains **58 JSON members**: one manifest and
+one metadata record for each of the **57 retained ROMs**. It occupies about
 **39 KB** compressed. The explicit inventory is shared with the original
-loading tests in `tests/story_corpus.py`: V3 (16), V4 (1), V5 (33), and V8 (6).
+loading tests in `tests/story_corpus.py`: V3 (17), V4 (1), V5 (33), and V8 (6).
 
 These expectations come directly from the original file bytes and Standard
 1.1's header table, length units, and checksum definition. The metadata recorder
@@ -110,11 +110,13 @@ the remaining retained V3 games as described below.
 
 ## Other V3 games
 
-Each of the other 15 ROMs has `<rom stem>_vectors.zip`, including
+Each of the other 16 ROMs has `<rom stem>_vectors.zip`, including
 `zork2_vectors.zip` and `zork3_vectors.zip` despite their misleading `.z5`
-filenames. Each has nine JSON members: manifest, full walkthrough, five detour
-checkpoints, scenarios, and seeds. Together the 17 archives occupy about
-**2.5 MB** compressed and hold over **26,000 gameplay boundaries**. See
+filenames. The 15 reference-bound games have nine JSON members: manifest,
+full walkthrough, five detour checkpoints, scenarios, and seeds. LGOP has six
+members with its own public-snapshot recorder and partial female routes; see
+[LGOP coverage](LGOP.md). The 17 V3 gameplay archives together occupy about
+**2.6 MB** compressed and hold over **27,000 gameplay boundaries**. See
 [V3 games](V3_GAMES.md) for exact seeds, maximum scores, player identities,
 coverage, independent object expectations, and narrow comparison differences.
 
@@ -184,8 +186,8 @@ walkthrough, detour, lifecycle, and seed cases for comprehensive CI. V5 record
 schema 3 adds status, outcome, RNG, and object-query fingerprints; the common
 ZIP manifest envelope remains format 1. See [V5 milestones](V5.md).
 
-Every PR runs the offline suite, all 56 story files' loading and inspection
-checks, and bounded gameplay prefixes for all 16 V3 games. It verifies every
+Every PR runs the offline suite, all 57 story files' loading and inspection
+checks, and bounded gameplay prefixes for all 17 V3 games. It verifies every
 archive member's integrity and compares short live traces on Linux. Short
 portable replay runs on macOS and both Windows runners without Jericho.
 See [fast and comprehensive CI](CI.md) for timing limits and manual dispatch.
@@ -280,3 +282,7 @@ Regenerate with `poe generate-vectors --only trinity` in the Linux Python 3.11
 reference environment; `--check` or `poe check-vectors --only trinity` validates
 freshness. `--only v4` selects the same archive. Fast CI replays only the opening
 and five commands; comprehensive V4 jobs replay all records on every platform.
+
+LGOP uses the same hashed ZIP envelope with an independently exercised route,
+Tiffany partial routes, and a public-snapshot oracle for its unbound reference
+queries. See [LGOP coverage and regeneration](LGOP.md).

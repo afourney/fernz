@@ -14,7 +14,7 @@ from ._story import Story
 class StoryProfile:
     """Measured query metadata and bounded quirks for an exact story image."""
 
-    max_score: int
+    max_score: int | None
     loss_lines: frozenset[str]
     victory_lines: frozenset[str]
     player_object: int | None = None
@@ -50,6 +50,19 @@ class StoryProfile:
 # Zork I release 88, serial 840726. See docs/STORY_QUERIES.md for the
 # independent black-box evidence and the limits of response-based outcomes.
 _PROFILES = {
+    # LGOP release 160, serial 860521. Public execution and snapshot probes;
+    # randomized scoring has no fixed maximum. See docs/LGOP.md.
+    "7420823ac2ba15170895e411964f69e527c92beb07a7815a7a02d120eb75983d": StoryProfile(
+        max_score=None,
+        player_object=199,
+        loss_lines=frozenset(),
+        victory_lines=frozenset(),
+        loss_hashes=frozenset({"f57749700aa5580c1872ba450147038cc991d92fdd8224303de1d45ead1d35a8"}),
+        victory_hashes=frozenset(
+            {"49a3ccecfd64b3cc402fdb5232544cc9887b7578f5c7230dbbc6ab2054cdf590"}
+        ),
+        victory_overrides_loss=True,
+    ),
     # Trinity release 12, serial 860926: public counter-width, object and
     # outcome probes. Its winning menu also sets the reference's loss flag.
     "367a95f056ac7ae00e0f73230c9c3e0e4ab24a06ff775b66cc42765d42491bc0": StoryProfile(

@@ -193,10 +193,14 @@ class FernzEnv:
     def get_max_score(self) -> int:
         """Return the known score limit, even before reset or after failure.
 
-        Require an exact supported story image; unknown builds raise
-        NotImplementedError. This is metadata, not a value inferred from play.
+        Require a measured fixed score limit; unknown builds and stories without
+        a fixed maximum raise NotImplementedError. This is metadata, not a
+        value inferred from play.
         """
-        return self._require_profile().max_score
+        maximum = self._require_profile().max_score
+        if maximum is None:
+            raise NotImplementedError("This story has no fixed maximum score")
+        return maximum
 
     def get_object(self, obj_num: int) -> ZObject | None:
         """Return a detached object, or None for zero or an absent object number.

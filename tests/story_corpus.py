@@ -10,6 +10,7 @@ GAMES = {
         "hhgg.z3",
         "hollywood.z3",
         "infidel.z3",
+        "lgop.z3",
         "lurking.z3",
         "planetfall.z3",
         "plundered.z3",

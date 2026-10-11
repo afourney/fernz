@@ -10,7 +10,6 @@ from zipfile import BadZipFile, ZipFile
 GAMES_ARCHIVE_URL = "https://github.com/BYU-PCCL/z-machine-games/archive/master.zip"
 SUITE_NAME = "jericho-game-suite"
 ARCHIVE_PREFIX = f"z-machine-games-master/{SUITE_NAME}/"
-EXCLUDED_GAMES = {"lgop.z3"}
 
 
 def ensure_jericho_games(games_dir: Path) -> Path:
@@ -57,8 +56,6 @@ def ensure_jericho_games(games_dir: Path) -> Path:
                         or S_ISLNK(entry.external_attr >> 16)
                     ):
                         raise ValueError(f"Unsafe game archive entry: {entry.filename}")
-                    if name in EXCLUDED_GAMES:
-                        continue
                     with (
                         archive.open(entry) as source,
                         (staged_suite / name).open("xb") as target,

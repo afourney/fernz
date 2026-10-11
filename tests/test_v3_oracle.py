@@ -9,13 +9,13 @@ from .v3_oracle import object_count, object_records, short_name
 
 def test_shards_cover_inventory_once_and_preserve_order():
     groups = [selected_games(f"{i}/3") for i in range(1, 4)]
-    assert all(len(group) == 5 for group in groups)
-    assert sorted(game for group in groups for game in group) == sorted(GAMES)
-    assert len({game for group in groups for game in group}) == 15
-    assert selected_games(None) == tuple(GAMES)
+    assert sorted(map(len, groups)) == [5, 5, 6]
+    assert sorted(game for group in groups for game in group) == sorted((*GAMES, "lgop"))
+    assert len({game for group in groups for game in group}) == 16
+    assert selected_games(None) == (*GAMES, "lgop")
 
 
-@pytest.mark.parametrize("shard", ["0/3", "4/3", "1/16", "1", "foo", "1/0"])
+@pytest.mark.parametrize("shard", ["0/3", "4/3", "1/17", "1", "foo", "1/0"])
 def test_invalid_shards_fail(shard):
     with pytest.raises(ValueError):
         selected_games(shard)

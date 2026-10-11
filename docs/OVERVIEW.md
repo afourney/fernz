@@ -2,7 +2,7 @@
 
 Fernz is intended to become a Z-machine interpreter for common Z-machine story
 formats. It loads V1-V8 stories and completes the measured winning routes for
-all 16 retained V3 games, including Zork I's 396-command route at seed 12.
+all 17 retained V3 games, including Zork I's 396-command route at seed 12.
 See [V3 gameplay coverage](V3_GAMES.md) for exact builds and limitations. The library and a
 minimal interactive CLI support V3, V4, V5 and V8 execution. All 33 retained V5
 builds complete measured winning routes; see [V5](V5.md). V8 covers all six
@@ -89,12 +89,12 @@ unimplemented; this work is paused pending further user direction.
 4. Kept only `games/jericho-game-suite/`. Removed the Autoplay suite, the large
    game collection, the downloaded archives, and the collection-level README.
 5. Removed **Leather Goddesses of Phobos** (`lgop.z3`) from the Jericho suite.
-   The retained suite now contains **56 game files**. Verified that those files
-   were unchanged during cleanup.
+   This initial exclusion has since been removed; the fixture now retains
+   **57 game files**, including the measured LGOP build.
 6. Created `docs/OVERVIEW.md` to record the project direction, references, and
    setup history.
 
-All 56 retained games are used for loading, checksum, and memory tests. Zork I
+All 57 retained games are used for loading, checksum, and memory tests. Zork I
 also has startup, mailbox play, quit, reset, and a full walkthrough comparison.
 Version detection uses the header: for example, `zork1.z5` contains a V3 story,
 release 88, serial `840726`.
@@ -107,11 +107,13 @@ Install the development dependencies with `uv sync --dev`, then run tests with
 `games/jericho-game-suite/`.
 
 When the repository's `games/` directory is absent, the fixture downloads the
-BYU-PCCL ZIP linked above and extracts only the Jericho suite, excluding
+BYU-PCCL ZIP linked above and extracts the complete Jericho suite, including
 `lgop.z3`. Extraction is staged before creating `games/`, so a failed download
 or extraction can be retried. The ZIP and other collections are not retained.
 
 An existing `games/` directory is left untouched and does not trigger a download.
+If it predates LGOP inclusion, move it aside and rerun the fixture to download
+the complete suite, or add the pinned `lgop.z3` manually.
 If it lacks `jericho-game-suite/`, the fixture reports an error. Tests that do not
 request the fixture do not download games. Downloaded ROMs are ignored by Git.
 The download currently follows upstream `master`; it is not yet pinned to an
@@ -134,9 +136,9 @@ Run `uv sync --dev` to install the locked development tools, then use:
 | `uv run poe test-fast` | Run the fast PR selection: offline tests, all story files, and short portable gameplay. |
 | `uv run --no-sync poe test-fast-reference` | Run bounded live Jericho comparisons on Linux. |
 | `uv run --no-sync poe test-full` | Run all tests and archive freshness checks in the Linux reference environment. |
-| `uv run poe test-roms` | Load all 56 retained ROMs, check checksums and memory, and run Zork I startup, mailbox play, quit, and reset. |
+| `uv run poe test-roms` | Load all 57 retained ROMs, check checksums and memory, and run Zork I startup, mailbox play, quit, and reset. |
 | `uv run --no-sync poe test-reference` | Compare all 16 seeded V3 walkthroughs, detours, and synthetic probes with the references, after installing the reference group below. |
-| `uv run poe test-vectors` | Check all 56 stories' metadata and replay all 16 V3 archives on any supported platform without Jericho. |
+| `uv run poe test-vectors` | Check all 57 stories' metadata and replay all 17 V3 archives on any supported platform without Jericho. |
 | `uv run --no-sync poe generate-vectors` | Explicitly regenerate all 17 ZIPs using the pinned Linux reference environment. |
 | `uv run --no-sync poe check-vectors` | Check all 17 ZIPs against fresh reference/specification measurements without rewriting them. |
 | `uv run poe build-check` | Build the wheel and source distribution, validate their contents, and smoke-test an isolated wheel installation. |
@@ -152,7 +154,7 @@ cover documentation and CI configuration, but exclude test inputs and ROMs.
 dispatch, under the name **check**. It keeps code quality, lockfile consistency,
 all offline tests on Linux/Python 3.11–3.14, and package validation. Linux also
 runs all story loading checks, short vector replay, and bounded live Jericho
-comparisons. Python 3.12 portable jobs run offline tests, all 56 story files,
+comparisons. Python 3.12 portable jobs run offline tests, all 57 story files,
 and short gameplay on macOS, Windows Server 2025 x64, and Windows 11 ARM,
 without Jericho. Every V3 game gets its opening and five route commands, with
 copy, snapshot restore, and reset checks. Every archive's member hashes are
@@ -165,7 +167,7 @@ comparisons and checks the Zork I and story-file archives against fresh
 measurements. Three additional Linux jobs each run five V3 games against the
 public reference and verify their archives. The portable matrix has core and
 V3 groups on all three platforms. The 17 archives hold hashes and metadata
-for all 56 story files and all 16 V3 games' routes, detours, losses, seeds, and
+for all 57 story files and all 17 V3 games' routes, detours, losses, seeds, and
 save/restart/restore. No archive contains ROMs, narrative, or memory dumps.
 
 Both workflows use the same Poe tasks as local development, frozen dependency
@@ -338,11 +340,11 @@ since these public Jericho calls execute the game as part of initialization.
 
 Work includes version-aware loading and protected memory for raw V1-V8 stories,
 instruction decoding across those versions, and a V3 execution engine sufficient
-to complete the measured walkthroughs for all 16 retained V3 games. The CLI can inspect any supported raw
+to complete the measured walkthroughs for all 17 retained V3 games. The CLI can inspect any supported raw
 story or play supported V3, V4, V5 and V8 stories interactively. Required ROM and Jericho tests cover
 Zork's opening, mailbox sequence, full 350-point walkthrough, host reset, and
 the walkthrough after an in-game restart. Additional suites exercise the
-other 15 V3 routes and hundreds of detours per game; see [V3 coverage](V3_GAMES.md).
+other 16 V3 routes and hundreds of detours per game; see [V3 coverage](V3_GAMES.md).
 These measured routes do not establish full V3 conformance.
 
 V4 Trinity's full winning route and detours, V5 winning routes and V8
@@ -555,7 +557,7 @@ preserve both the active RNG host seed and the pending next-reset seed; see the
 documented [Jericho copy/seed difference](RNG.md#host-seeding-and-reset).
 
 `get_score()` and `get_moves()` use measured profile globals and widths for
-all 16 retained V3 builds, falling back to the V3 status convention for
+all 17 retained V3 builds, falling back to the V3 status convention for
 unprofiled score-based games. Both read live state without advancing execution
 or altering snapshots, and work after quit. They agree with the values in
 `reset()` / `step()` info, including after restoration and restart. Construction
@@ -588,7 +590,7 @@ vehicles; unprofiled V3 stories use the status-line location global. Names retai
 decoded story short name. Zero returns `None`; malformed object data raises
 an error without advancing the game.
 
-Exact story-image profiles supply all 16 V3 builds' `get_max_score()` and
+Exact story-image profiles supply all 17 V3 builds' `get_max_score()` and
 response-based `game_over()` / `victory()` queries. Unknown builds raise
 `NotImplementedError` for these metadata/outcome queries. Location and outcome
 queries require initialized state; the static score limit is available as soon
@@ -767,7 +769,7 @@ module entry point from a temporary directory outside the checkout.
 
 ## Additional V3 games
 
-[V3 gameplay coverage](V3_GAMES.md) documents the other 15 complete routes,
+[V3 gameplay coverage](V3_GAMES.md) documents the other 16 complete routes,
 per-game profiles, live and portable detours, loss and lifecycle scenarios,
 maze/current/timing checks, and explicit reference limitations. The earlier
 Zork milestones above remain part of the required core suite.

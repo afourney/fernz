@@ -44,6 +44,7 @@ from ..zork_scenarios import (
     WALKTHROUGH_SEED,
     ZORK1_SHA256,
 )
+from .lgop_vectors import generate_lgop
 from .storyfile_vectors import generate_storyfiles
 from .v3_game_vectors import generate_v3
 from .v4_game_vectors import generate_v4
@@ -251,6 +252,7 @@ def main(argv=None):
             "zork1",
             "storyfiles",
             "v3",
+            "lgop",
             "v4",
             "trinity",
             "v5",
@@ -293,13 +295,16 @@ def main(argv=None):
         story_path = (args.story or suite / "zork1.z5").resolve()
         with TemporaryDirectory(prefix="fernz-record-") as tmp, chdir(tmp):
             archives[args.output] = generate(story_path)
-    if args.only in (None, "v3", *V3_GAMES):
+    if args.only in (None, "v3", "lgop", *V3_GAMES):
         for game in games:
-            if args.only in V3_GAMES and game != args.only:
+            if args.only not in (None, "v3") and game != args.only:
                 continue
-            path = (suite / V3_GAMES[game]["filename"]).resolve()
+            filename = "lgop.z3" if game == "lgop" else V3_GAMES[game]["filename"]
+            path = (suite / filename).resolve()
             with TemporaryDirectory(prefix="fernz-record-") as tmp, chdir(tmp):
-                archives[args.output_dir / f"{game}_vectors.zip"] = generate_v3(path, game)
+                archives[args.output_dir / f"{game}_vectors.zip"] = (
+                    generate_lgop(path) if game == "lgop" else generate_v3(path, game)
+                )
     if args.only in (None, "v4", "trinity"):
         path = (suite / "trinity.z4").resolve()
         with TemporaryDirectory(prefix="fernz-record-") as tmp, chdir(tmp):
