@@ -1,14 +1,17 @@
 """A V3 execution core that suspends and resumes at line-input requests."""
 
+from copy import copy
 from dataclasses import dataclass, field
 from hashlib import sha256
 from operator import index
 
 from ._errors import ExecutionError, UnsupportedOpcodeError
+from ._host_io import HostIO
 from ._input import read_line
-from ._instruction import Instruction, OperandType, decode
+from ._instruction import Branch, Instruction, OperandType, decode, decode_branch
 from ._memory import Memory, MemoryAccessError
 from ._objects import Objects
+from ._quetzal import SavedGame, SaveFormatError, dumps, loads
 from ._random import RandomGenerator
 from ._state import FrameState, GameState, InputRequest
 from ._text import Text, zscii
@@ -33,11 +36,14 @@ class Frame:
 class Machine:
     """Execute V3 with a bounded instruction budget and captured output."""
 
-    def __init__(self, memory: Memory, *, seed: int | None = None) -> None:
+    def __init__(
+        self, memory: Memory, *, seed: int | None = None, io: HostIO | None = None
+    ) -> None:
         """Start a fresh episode, resetting memory, frames, output, and randomness."""
         if memory.story.header.version != 3:
             raise NotImplementedError("Story execution currently supports V3 only")
         self.memory = memory
+        self.io = io or HostIO()
         self.memory.reset()
         self.memory._configure_v3_header()
         self.pc = memory.story.header.entry_address
@@ -57,20 +63,21 @@ class Machine:
             story_sha256=sha256(story.data[: story.size]).hexdigest(),
             ram=self.memory.read_bytes(0, story.header.static_memory),
             pc=self.pc,
-            frames=tuple(
-                FrameState(
-                    tuple(f.locals), tuple(f.stack), f.return_address, f.store, f.argument_count
-                )
-                for f in self.frames
-            ),
+            frames=self._frame_states(),
             rng=self.rng.get_state(),
             input_request=self.input_request,
             screen_enabled=self.screen_enabled,
             halted=self.halted,
         )
 
+    def _frame_states(self) -> tuple[FrameState, ...]:
+        return tuple(
+            FrameState(tuple(f.locals), tuple(f.stack), f.return_address, f.store, f.argument_count)
+            for f in self.frames
+        )
+
     @classmethod
-    def from_state(cls, memory: Memory, state: GameState) -> "Machine":
+    def from_state(cls, memory: Memory, state: GameState, *, io: HostIO | None = None) -> "Machine":
         """Restore a checkpoint, validating everything before changing memory."""
         if memory.story.header.version != 3:
             raise NotImplementedError("Story execution currently supports V3 only")
@@ -80,6 +87,7 @@ class Machine:
         # Construct without the startup/reset side effects of __init__.
         result = cls.__new__(cls)
         result.memory = memory
+        result.io = io or HostIO()
         result.pc = state.pc
         result.frames = [
             Frame(list(f.locals), list(f.stack), f.return_address, f.store, f.argument_count)
@@ -159,9 +167,7 @@ class Machine:
         )
         self.pc = address + 1 + 2 * count
 
-    def _branch(self, instruction: Instruction, condition: bool) -> None:
-        branch = instruction.branch
-        assert branch is not None
+    def _branch(self, branch: Branch, condition: bool) -> None:
         if condition == branch.on_true:
             if branch.offset in (0, 1):
                 self._return(branch.offset)
@@ -171,6 +177,48 @@ class Machine:
     def _emit(self, text: str) -> None:
         if self.screen_enabled:
             self.output.append(text)
+            if self.io.output is not None:
+                self.io.output(text)
+
+    def _save(self, instruction: Instruction) -> bool:
+        # A V3 Quetzal PC points to the branch bytes, before save's result is
+        # applied. The public checkpoint API has a different suspension point.
+        saved = SavedGame(
+            self.memory.read_bytes(0, self.memory.story.header.static_memory),
+            self._frame_states(),
+            instruction.address + 1,
+        )
+        try:
+            data = dumps(self.memory.story, saved)
+        except SaveFormatError:
+            return False
+        return self.io.write_save(data)
+
+    def _restore(self) -> bool:
+        data = self.io.read_save()
+        if data is None:
+            return False
+        try:
+            saved = loads(self.memory.story, data)
+            # Stage only memory, frames, and PC. Branch/return helpers touch
+            # those fields alone; RNG, output, and host callbacks stay untouched.
+            candidate = copy(self)
+            candidate.memory = self.memory._prepare_v3_restore(saved.ram)
+            candidate.frames = [
+                Frame(list(f.locals), list(f.stack), f.return_address, f.store, f.argument_count)
+                for f in saved.frames
+            ]
+            branch, candidate.pc = decode_branch(candidate.memory, saved.pc)
+            candidate._branch(branch, True)
+            if not 0 <= candidate.pc < len(self.memory):
+                raise SaveFormatError("Restored continuation is outside the story")
+        except (SaveFormatError, MemoryAccessError, ExecutionError):
+            return False
+        self.memory._restore_v3_dynamic(
+            candidate.memory.read_bytes(0, self.memory.story.header.static_memory)
+        )
+        self.frames, self.pc = candidate.frames, candidate.pc
+        return True
 
     def _array_address(self, base: int, offset: int, width: int) -> int:
         # Address arithmetic is word arithmetic (§2.3.2), including negative indices.
@@ -226,9 +274,15 @@ class Machine:
             self.write_variable(instruction.store, value)
 
         def branch(condition: bool) -> None:
-            self._branch(instruction, condition)
+            assert instruction.branch is not None
+            self._branch(instruction.branch, condition)
 
         match name:
+            case "save":
+                branch(self._save(instruction))
+            case "restore":
+                if not self._restore():
+                    branch(False)
             case "rtrue" | "rfalse":
                 self._return(int(name == "rtrue"))
             case "ret":

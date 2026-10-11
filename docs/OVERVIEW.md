@@ -254,7 +254,8 @@ play. This validates one complete route with a fixed seed; other routes and full
 V3 conformance remain to be tested.
 
 Deferred work includes additional V3 opcodes and I/O features, other execution
-versions, Blorb extraction, VM restart, and in-game save/restore formats.
+versions, Blorb extraction, VM restart, and undo. V3 `save`/`restore` with Quetzal
+files are supported through host storage callbacks and interactive CLI prompts.
 
 ## Execution foundation
 
@@ -308,7 +309,7 @@ Output is a plain transcript without screen wrapping or status-line rendering.
 The header advertises no status line,
 split screen, or variable-pitch font; it does not claim full Standard conformance.
 Stream 1 can be enabled or disabled. Other streams, nonzero window operations,
-sound, save, restore, and restart currently fail explicitly if encountered.
+sound and restart currently fail explicitly if encountered.
 
 Line input follows Standard [§3.7](https://inform-fiction.org/zmachine/standards/z1point1/sect03.html),
 [§13](https://inform-fiction.org/zmachine/standards/z1point1/sect13.html), and
@@ -381,13 +382,36 @@ converts V3 input-boundary snapshots in both directions for the pinned Linux
 reference, including memory, frames, input continuation, and RNG state. It
 supplies a placeholder for the missing prior observation on export.
 
-These checkpoints currently support V3. They do not implement story-level
-`save`, `restore`, `save_undo`, or Quetzal files. Standard
+These checkpoints currently support V3 and retain a separate contract from
+story-level `save`/`restore` and their Quetzal files. Standard
 [§6.1](https://inform-fiction.org/zmachine/standards/z1point1/sect06.html)
 defines the VM's saved state and special header-restoration rules; its remarks
 exclude RNG and I/O settings from that state. Host checkpoints instead restore
-the complete captured environment, including Flags 2, and must stay distinct
-from future opcode and portable-file implementations.
+the complete captured environment, including Flags 2. Host callbacks and their
+external storage belong to the recipient and are not captured or rewound.
+
+## Story-level save and restore
+
+V3 `save` and `restore` now execute through optional host storage callbacks.
+The codec follows the published Quetzal specification, writes compressed memory,
+and reads both compressed and uncompressed saves. Restore checks file structure,
+story identity, memory, frames, and the saved branch before committing changes.
+Successful restore resumes the saved `save` instruction's successful branch;
+failure returns false through the current `restore` instruction's branch.
+
+Opcode restore preserves the current RNG, output selection, and Flags 2, and
+sets interpreter-owned header fields for Fernz. It does not alter the existing
+deterministic `get_state()` / `set_state()` contract. No RNG extension is written
+to Quetzal files. See [save/restore design and usage](SAVE_RESTORE.md) for the
+storage callbacks, CLI behavior, validation rules, and specification links.
+
+Required reference tests exchange Quetzal files with standalone Frotz using
+nested-call probes (including PCs above 64 KiB) and Zork I. They also insert
+save/restore operations after walkthrough commands 35, 214, and 350, change score
+memory before restoring, and compare every gameplay turn to the uninterrupted
+Jericho trace through the 350-point ending. Synthetic tests cover file-format
+vectors, failure and cancellation, branch polarity and returns, malformed-file
+rejection, current RNG preservation, and unchanged host checkpoint behavior.
 
 ## Story loading and memory
 
@@ -441,7 +465,8 @@ leave all bytes unchanged. Errors raise `MemoryAccessError` (a `ValueError`).
 `memory.copy()` copies current contents independently. `memory.reset()` restores
 the original image exactly. This low-level reset is not VM restart or save
 restoration. `FernzEnv.reset()` and `set_state()` also manage CPU and interpreter
-state; VM restart and saved-game file restoration are deferred. No writable memory
+state; opcode restoration applies its own header rules. VM restart remains
+deferred. No writable memory
 views are exposed.
 
 Implementation references are Standard 1.1
@@ -469,14 +494,17 @@ exit with 2. `fernz GAME` writes the complete transcript and reads one command p
 line until quit or EOF, then exits with 0. Ctrl-C exits with 130. Unsupported
 execution versions, unimplemented opcodes, invalid input or execution, and budget
 exhaustion report an error on stderr and exit with 1. The CLI delegates to the
-public library and also accepts piped commands.
+public library and also accepts piped commands. In-game SAVE/RESTORE prompts
+consume a filename from the same input stream; a blank line or EOF cancels.
+Save asks before overwriting and replaces the file only after a complete write.
+Filesystem errors are reported on stderr and return opcode failure to the game.
 
 The deliberately small public contract is:
 
 | Interface | Contract |
 | --- | --- |
 | `from fernz import FernzEnv` | Public environment class; no Jericho runtime dependency. |
-| `FernzEnv(game_path, *, seed=None)` | Accepts a string or text path-like object, stores a `Path` in `game_path`, and loads a raw V1-V8 story without executing it. Missing/inaccessible paths raise `OSError` subclasses; non-regular paths raise `ValueError`; invalid story data raises `StoryFormatError`. |
+| `FernzEnv(game_path, *, seed=None, save_handler=None, restore_handler=None, output_handler=None)` | Accepts a string or text path-like object, stores a `Path` in `game_path`, and loads a raw V1-V8 story without executing it. Missing/inaccessible paths raise `OSError` subclasses; non-regular paths raise `ValueError`; invalid story data raises `StoryFormatError`. Optional synchronous callbacks supply storage and streaming output; see [save and restore](SAVE_RESTORE.md). |
 | `env.story`, `env.memory` | Immutable story image and independent protected memory instance. |
 | `env.reset(*, max_steps=250_000)` | Run fresh V3 startup through input or quit and return `(observation: str, info: dict[str, object])`. The observation retains all story text, including title and prompt. Score games expose integer `score` and `moves`; time games expose `hours` and `minutes`. |
 | `env.step(action: str, *, max_steps=250_000)` | Complete a pending V3 read and return `(observation: str, reward: int, done: bool, info: dict[str, object])`. Reward is the signed score delta, or zero for time games. The observation contains new output, including the Enter newline and any story prompt. |
@@ -500,9 +528,10 @@ execution fails raises `RuntimeError`; reset or restore a runnable checkpoint.
 Caller-side context was limited to the root
 [`play_jericho.py` in cabin-fever-x86](https://github.com/afourney/cabin-fever-x86/blob/b4933c8b167635c9ffbd7cd8ffd1307fc0b3d52e/play_jericho.py).
 That consumer uses construction, reset, text steps, and cleanup. Its additional
-binary save restoration, location lookup, score/move queries, and game-over/victory
-queries are deferred. Private native-library access is outside this public
-contract; binary saves and interpreter internals are not supported.
+direct binary-save API, location lookup, score/move queries, and game-over/victory
+queries are deferred. Quetzal files are currently loaded by the story's `restore`
+opcode through the host callback. Private native-library access is outside this
+public contract.
 
 API tests use temporary synthetic files without requesting the game fixture
 or downloading ROMs. Package validation also exercises the installed command and

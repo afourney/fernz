@@ -140,8 +140,10 @@ def test_cli_delegates_to_library_and_closes(tmp_path, monkeypatch, capsys):
     calls = []
 
     class StubEnv:
-        def __init__(self, path):
+        def __init__(self, path, **handlers):
             calls.append(("init", path))
+            assert set(handlers) == {"save_handler", "restore_handler", "output_handler"}
+            assert all(callable(handler) for handler in handlers.values())
 
         def reset(self):
             calls.append("reset")
@@ -167,3 +169,105 @@ def test_module_entry_point():
     assert result.returncode == 0
     assert "usage: fernz" in result.stdout
     assert result.stderr == ""
+
+
+@pytest.fixture
+def saving_game(tmp_path):
+    game = tmp_path / "save.z3"
+    # Print P before the host prompt; then print S or F according to the save.
+    game.write_bytes(program_bytes(bytes.fromhex("e5 7f 50 b5 c6 e5 7f 46 ba e5 7f 53 ba")))
+    return game
+
+
+def test_save_prompt_streams_prior_output_and_writes_quetzal(
+    saving_game, tmp_path, capsys, monkeypatch
+):
+    path = tmp_path / "saved game.qzl"
+    monkeypatch.setattr(sys, "stdin", io.StringIO(str(path) + "\n"))
+    assert _cli.main([str(saving_game)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == "PSave file (blank cancels): S"
+    assert captured.err == ""
+    assert path.read_bytes()[:12].startswith(b"FORM")
+    assert path.read_bytes()[8:12] == b"IFZS"
+
+
+@pytest.mark.parametrize("answer", ["\n", ""])
+def test_save_cancellation_and_eof_report_opcode_failure(saving_game, capsys, monkeypatch, answer):
+    monkeypatch.setattr(sys, "stdin", io.StringIO(answer))
+    assert _cli.main([str(saving_game)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == "PSave file (blank cancels): F"
+    assert captured.err == ""
+
+
+@pytest.mark.parametrize("answer,overwrite", [("yes", True), ("no", False), ("", False)])
+def test_save_overwrite_requires_confirmation(
+    saving_game, tmp_path, capsys, monkeypatch, answer, overwrite
+):
+    path = tmp_path / "existing.qzl"
+    path.write_bytes(b"original")
+    monkeypatch.setattr(sys, "stdin", io.StringIO(f"{path}\n{answer}\n"))
+    assert _cli.main([str(saving_game)]) == 0
+    captured = capsys.readouterr()
+    assert "Overwrite existing file?" in captured.out
+    assert captured.out.endswith("S" if overwrite else "F")
+    assert captured.err == ""
+    assert (path.read_bytes() != b"original") is overwrite
+    assert not list(tmp_path.glob(".existing.qzl.*"))
+
+
+def test_failed_atomic_save_keeps_existing_file(saving_game, tmp_path, capsys, monkeypatch):
+    path = tmp_path / "existing.qzl"
+    path.write_bytes(b"original")
+    monkeypatch.setattr(sys, "stdin", io.StringIO(f"{path}\ny\n"))
+
+    def fail(*_):
+        raise OSError("write unavailable")
+
+    monkeypatch.setattr(_cli.os, "replace", fail)
+    assert _cli.main([str(saving_game)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out.endswith("F")
+    assert "write unavailable" in captured.err
+    assert path.read_bytes() == b"original"
+    assert not list(tmp_path.glob(".existing.qzl.*"))
+
+
+@pytest.mark.parametrize("kind", ["missing", "corrupt", "cancel", "eof"])
+def test_restore_failure_returns_control_to_game(tmp_path, capsys, monkeypatch, kind):
+    game = tmp_path / "restore.z3"
+    game.write_bytes(program_bytes(bytes.fromhex("b6 c6 e5 7f 46 ba e5 7f 54 ba")))
+    path = tmp_path / "save.qzl"
+    if kind == "corrupt":
+        path.write_bytes(b"corrupt")
+    answer = "\n" if kind == "cancel" else "" if kind == "eof" else f"{path}\n"
+    monkeypatch.setattr(sys, "stdin", io.StringIO(answer))
+    assert _cli.main([str(game)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == "Restore file (blank cancels): F"
+    assert ("fernz:" in captured.err) is (kind == "missing")
+
+
+def test_cli_save_and_restore_in_separate_processes(tmp_path):
+    from .save_story import save_story
+    from .test_save_restore import results
+
+    game = tmp_path / "story with spaces.z3"
+    save = tmp_path / "state with spaces.qzl"
+    game.write_bytes(save_story())
+    for command in ("save", "restore"):
+        result = subprocess.run(
+            [sys.executable, "-m", "fernz", str(game)],
+            input=f"{command}\n{save}\ncontinue\n",
+            text=True,
+            capture_output=True,
+            timeout=15,
+        )
+        assert result.returncode == 0, result.stderr
+        assert result.stderr == ""
+        numbers = results(result.stdout)
+        # RNG is intentionally not portable; verify every deterministic value.
+        assert numbers[:4] == [7, 8, 9, 0x3333]
+        assert 1 <= numbers[4] <= 32767
+        assert numbers[5:] == [18, 42, 0x2222, 42, 0x1111]
