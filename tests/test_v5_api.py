@@ -81,7 +81,7 @@ def test_public_v5_objects_keep_large_links_and_all_attributes(object_env):
 def test_v5_copy_and_checkpoint_preserve_outcomes_and_container_queries(object_env, monkeypatch):
     env = object_env
     state = env.get_state()
-    assert isinstance(state, GameState) and state.format_version == 4
+    assert isinstance(state, GameState) and state.format_version == 5
     with pytest.raises(FrozenInstanceError):
         state.pc = 0
     env.game_path.unlink()

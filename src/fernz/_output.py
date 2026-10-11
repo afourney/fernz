@@ -175,7 +175,7 @@ class Output:
         self.state = replace(self.state, styles=tuple(styles))
         if not style:
             self.command("normal")
-        for bit, name in ((1, "reverse"), (2, "bold"), (4, "italic"), (8, "fixed")):
+        for bit, name in ((1, "invert"), (2, "bold"), (4, "italic"), (8, "fixed")):
             if style & bit:
                 self.command(name)
 

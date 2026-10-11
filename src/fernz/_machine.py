@@ -626,6 +626,10 @@ class Machine:
                 self.screen_enabled = signed(args[0]) == 1
             case "output_stream" if args[0] == 0:
                 pass
+            case "output_stream" if signed(args[0]) in (-4, -2, 2, 4):
+                # §7.6.5.2: unavailable external streams leave play running.
+                # Header writes also keep stream 2's status off (§7.4).
+                pass
             case "output_stream" if signed(args[0]) in (-3, 3):
                 if args[0] == 3 and len(args) < 2:
                     raise ExecutionError("Memory output requires a table operand")
@@ -671,7 +675,8 @@ class Machine:
                             for code in self.memory.read_bytes(table + row * (width + skip), width)
                         )
                     )
-            case "input_stream" if args[0] == 0:
+            case "input_stream" if args[0] in (0, 1):
+                # File input is unavailable; continue using host input (§7.6.5.2).
                 pass
             case _:
                 raise UnsupportedOpcodeError(

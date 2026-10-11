@@ -16,16 +16,24 @@ executables only.
 | Continuation | Pending decoded input request, or halted state | Saved branch (V3) or result-variable byte (V5) |
 | RNG state and host seed | Captured and restored for deterministic replay | Not written; the recipient's current RNG and host seed are retained |
 | Output selection | Captured and restored | Current setting retained |
-| Logical display state and geometry | Captured and restored (schema 4) | Recipient settings retained; V3 collapses the upper window |
-| Flags 2 | Saved value restored | Current value preserved |
+| Logical display state and geometry | Captured and restored (schema 5) | Recipient settings retained; V3 collapses the upper window |
+| Flags 2 | Saved value restored, with unavailable transcription kept off | Current value preserved, with unavailable transcription kept off |
 | Interpreter-owned header fields | Validated for a Fernz checkpoint | Adapted to the receiving interpreter |
 | Representation | Immutable Fernz GameState | Portable Quetzal bytes |
 | Host callbacks and external files | Not captured or rolled back | Supplied by the host |
 
-The checkpoint restoration contract is unchanged. Restoring a Quetzal
+Both predictable and ordinary-mode Python RNG checkpoints support deterministic
+replay; see [random modes](RNG.md). Restoring a Quetzal
 file in another process recovers the saved game position, but does not promise
 the original process's subsequent random outcomes. Opcode restoration itself
 neither draws randomness nor obtains entropy.
+
+Quetzal `IFhd` identifies a story by its original release, serial, and stored
+checksum. A present checksum of zero is preserved, even when verification fails;
+the loader accepts checksum-mismatched stories. Only an old story with missing
+checksum metadata uses a calculated body checksum (Quetzal §5.5). Incorrect older
+Fernz saves that substituted a calculated value for a present zero are not
+accepted as matching that story.
 
 ## Library storage callbacks
 

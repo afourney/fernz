@@ -1,3 +1,5 @@
+from random import Random
+
 import pytest
 
 from fernz import FernzEnv, Memory, Story
@@ -89,15 +91,71 @@ def test_explicit_zero_host_seed_is_deterministic_like_frotz_cli():
 
 def test_automatic_seeding_uses_fresh_entropy_only_on_reseed(monkeypatch):
     seeds = iter((1000, 1234, 32768))
-    monkeypatch.setattr("fernz._random.secrets.randbits", lambda bits: next(seeds))
+    requests = []
+
+    def entropy(bits):
+        requests.append(bits)
+        return next(seeds)
+
+    monkeypatch.setattr("fernz._random.secrets.randbits", entropy)
     rng = RandomGenerator()
-    assert [rng.random(6) for _ in range(3)] == [2, 5, 6]
+    expected = Random(1000)
+    assert [rng.random(6) for _ in range(3)] == [expected.randrange(1, 7) for _ in range(3)]
     assert rng.random(0) == 0
-    assert rng.random(6) == 1
+    assert rng.random(6) == Random(1234).randrange(1, 7)
     rng.random(-5)
     assert rng.random(6) == 1
     rng.reset()
-    assert rng.random(6) == 3
+    assert rng.random(6) == Random(32768).randrange(1, 7)
+    assert requests == [256, 256, 256]
+
+
+@pytest.mark.parametrize("bound", (1, 6, 20000, 32767))
+def test_ordinary_mode_rejects_surplus_samples_instead_of_folding_them(monkeypatch, bound):
+    # Supply two rejected bit patterns followed by the two valid endpoints.
+    # A modulo mapping would accept the first two and advance the wrong amount.
+    bits = bound.bit_length()
+    samples = iter(((1 << bits) - 1, bound, 0, bound - 1))
+    requests = []
+
+    class ControlledRandom(Random):
+        def getrandbits(self, count):
+            requests.append(count)
+            return next(samples)
+
+    monkeypatch.setattr("fernz._random.Random", ControlledRandom)
+    rng = RandomGenerator()
+    assert [rng.random(bound), rng.random(bound)] == [1, bound]
+    assert requests == [bits] * 4
+
+
+@pytest.mark.parametrize("seed", (0, 5, 1000))
+def test_explicit_seeding_keeps_only_compact_compatibility_state(monkeypatch, seed):
+    def unexpected(*args):
+        pytest.fail("Predictable mode must not allocate a Python RNG or request entropy")
+
+    monkeypatch.setattr("fernz._random.Random", unexpected)
+    monkeypatch.setattr("fernz._random.secrets.randbits", unexpected)
+    rng = RandomGenerator(seed)
+    assert rng.get_state().python_state is None
+    rng.random(6)
+    rng.random(0)
+    assert rng.get_state().python_state is None
+
+
+@pytest.mark.parametrize("seed", (5, 1000))
+def test_opcode_seed_leaves_python_mode_until_random_zero(monkeypatch, seed):
+    monkeypatch.setattr("fernz._random.secrets.randbits", lambda bits: 42)
+    rng = RandomGenerator()
+    assert rng.get_state().python_state is not None
+    rng.random(-seed)
+    assert rng.get_state().host_seed is None
+    assert rng.get_state().python_state is None
+    expected = RandomGenerator(0)
+    expected.random(-seed)
+    assert [rng.random(6) for _ in range(20)] == [expected.random(6) for _ in range(20)]
+    rng.random(0)
+    assert rng.get_state().python_state == Random(42).getstate()
 
 
 def test_environment_reset_restores_host_seed_and_owns_its_rng(tmp_path):

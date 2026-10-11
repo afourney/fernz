@@ -22,7 +22,9 @@ class SavedGame:
 
 def _identity(story: Story) -> bytes:
     data = story.data
-    checksum = story.header.checksum or (sum(data[64 : story.size]) & 0xFFFF)
+    checksum = story.header.checksum
+    if checksum is None:
+        checksum = sum(data[64 : story.size]) & 0xFFFF
     return data[2:4] + data[0x12:0x18] + checksum.to_bytes(2, "big")
 
 

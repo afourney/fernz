@@ -31,6 +31,8 @@ def state_fingerprint(state):
     checkpoint is checked separately by replay/copy and protocol tests.
     """
     result = asdict(state)
+    if result["rng"].pop("python_state") is not None:
+        raise ValueError("Reference fingerprints require the predictable RNG")
     result.pop("output", None)
     result["format_version"] = 2
     result["ram_sha256"] = digest(result.pop("ram"))

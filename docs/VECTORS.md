@@ -62,7 +62,7 @@ outcome flags, and hashes of the observation and object queries. Pending-input
 boundaries also contain a canonical VM fingerprint: SHA-256 of dynamic RAM and
 frames, plus PC, input continuation, RNG, story identity, screen-stream selection,
 and outcome flags. Its `state_format_version=2` identifies the reference-visible
-projection, not the current public checkpoint schema (4). Window geometry,
+projection, not the current public checkpoint schema (5). Window geometry,
 cursors, fonts, styles and colours are excluded because public native snapshots
 do not expose them. Full Fernz snapshot replay separately checks those fields. The test-only
 [state bridge](STATE_INTEROP.md) converts the public native snapshot when

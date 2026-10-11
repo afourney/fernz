@@ -185,6 +185,8 @@ class StateBridge:
         state._validate(self.story)
         if state.halted or not state.screen_enabled:
             raise ValueError("State interchange requires pending input with screen output enabled")
+        if state.rng.python_state is not None:
+            raise ValueError("Python RNG state cannot be transferred to the reference")
         if state.rng.host_seed != self.seed:
             raise ValueError("The destination must use the snapshot's host seed")
         memory = Memory(self.story)

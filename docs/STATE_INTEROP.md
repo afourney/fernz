@@ -148,7 +148,9 @@ Only continuation output is compared. Fernz does not retain a prior observation,
 and the adapter does not synthesize one. Screen output must remain enabled;
 stream selection is not represented by the observed tuple.
 
-New Fernz checkpoints use schema 4 with logical display state. The V3 adapter
+New Fernz checkpoints use schema 5 with logical display and active RNG state.
+The adapter rejects ordinary-mode Python RNG state: reference comparisons use
+explicit seeds and retain the compact predictable generator. The V3 adapter
 still imports the schema-2 base fields and starts with default display state;
 it cannot recover native cursor, split, style or colour state from the public
 tuple. Reference-state fingerprints compare that VM-only projection. Complete

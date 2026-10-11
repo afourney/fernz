@@ -109,8 +109,9 @@ env.close()
 
 The immutable `GameState` includes memory, call frames, PC, pending input, output
 selection, RNG state, and loss/victory response flags. V3 and V5 snapshots use
-schema 4, including geometry, cursors, styles, colours, fonts, buffering, and
-nested memory-output state. Checkpoints do not contain rendered screen cells.
+schema 5, including geometry, cursors, styles, colours, fonts, buffering,
+nested memory-output state, and the active predictable or Python RNG state.
+Checkpoints do not contain rendered screen cells.
 It can also initialize another environment for the
 same story. Restore validates the checkpoint before changing the live game and
 returns `None`, with no execution or output. Fernz uses its own named fields;

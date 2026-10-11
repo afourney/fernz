@@ -1,5 +1,7 @@
 """Environment forks, deferred host seeding, and live V3 status queries."""
 
+from random import Random
+
 import pytest
 
 from fernz import ExecutionError, FernzEnv
@@ -44,7 +46,7 @@ def test_copy_forks_nested_execution_without_io_entropy_or_shared_memory(game, m
     assert env.step("quit")[2] is True
     halted = other.copy()
     assert halted.done and halted.get_state() == other.get_state()
-    assert halted.get_score() == other.get_score() == 14545
+    assert halted.get_score() == other.get_score() == Random(42).randrange(1, 32768)
     assert halted.get_moves() == other.get_moves() == 0
 
 
@@ -149,9 +151,9 @@ def test_seed_none_selects_entropy_only_at_reset(seeds, monkeypatch, explicit):
     other = env.copy()
     assert env.get_state() == other.get_state() == saved
     assert requests == []
-    assert results(plain_text(other.reset()[0])) == [14545]
-    assert results(plain_text(env.reset()[0])) == [18626]
-    assert requests == [31, 31]
+    assert results(plain_text(other.reset()[0])) == [Random(42).randrange(1, 32768)]
+    assert results(plain_text(env.reset()[0])) == [Random(1000).randrange(1, 32768)]
+    assert requests == [256, 256]
 
 
 @pytest.mark.parametrize(
