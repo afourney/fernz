@@ -15,14 +15,7 @@ from ._output import Output
 from ._profiles import profile_for
 from ._quetzal import SavedGame, SaveFormatError, dumps, loads
 from ._random import RandomGenerator
-from ._state import (
-    ExtendedGameState,
-    FrameState,
-    GameState,
-    InputRequest,
-    OutputState,
-    StoredInputRequest,
-)
+from ._state import FrameState, GameState, InputRequest, OutputState, StoredInputRequest
 from ._text import Text
 
 
@@ -80,7 +73,7 @@ class Machine:
     def get_state(self) -> GameState:
         """Capture a detached checkpoint at a public input or quit boundary."""
         story = self.memory.story
-        return ExtendedGameState(
+        return GameState(
             story_sha256=sha256(story.data[: story.size]).hexdigest(),
             ram=self.memory.read_bytes(0, story.header.static_memory),
             pc=self.pc,
@@ -103,10 +96,8 @@ class Machine:
         """Restore a checkpoint, validating everything before changing memory."""
         if memory.story.header.version not in (3, 5):
             raise NotImplementedError("Story execution currently supports V3 and V5")
-        if type(state) not in (GameState, ExtendedGameState):
+        if type(state) is not GameState:
             raise TypeError("Expected a GameState returned by get_state()")
-        if memory.story.header.version >= 5 and type(state) is not ExtendedGameState:
-            raise ValueError("V5 requires an extended I/O snapshot")
         state._validate(memory.story)
         # Construct without the startup/reset side effects of __init__.
         result = cls.__new__(cls)
@@ -126,9 +117,7 @@ class Machine:
         result.last_narrative = ""
         result.last_stream = ""
         result.screen_enabled = state.screen_enabled
-        result.display = (
-            Output(memory, state.output) if type(state) is ExtendedGameState else Output(memory)
-        )
+        result.display = Output(memory, state.output)
         result.input_request = state.input_request
         result.halted = state.halted
         memory._restore_dynamic(state.ram, width=result.display.width, height=result.display.height)

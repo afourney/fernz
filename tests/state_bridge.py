@@ -16,7 +16,7 @@ from operator import index
 from fernz import GameState, Memory
 from fernz._instruction import OperandType, decode
 from fernz._profiles import profile_for
-from fernz._state import FrameState, InputRequest, RandomState
+from fernz._state import FrameState, InputRequest, OutputState, RandomState
 
 STACK_WORDS = 1024
 READ_OPCODE = 0xE4
@@ -175,6 +175,8 @@ class StateBridge:
             halted=False,
             game_over=game_over,
             victory=victory,
+            # The public native tuple does not expose logical display state.
+            output=OutputState(),
         )
         result._validate(self.story)
         return result

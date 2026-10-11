@@ -99,15 +99,13 @@ V3 additionally positions the initial cursor at the bottom left. Ordinary
 `step()` calls emit deltas and do not reset the display. In-game `restart`
 preserves host geometry and emits the operations actually performed by the game.
 
-All new host checkpoints use schema **5** and retain geometry, selection,
+Host checkpoints use schema **5** and retain geometry, selection,
 cursors, fonts, styles, colours, buffering, and memory-output continuations.
 `set_state()` restores that state and adopts its dimensions, including for a
 fresh receiving environment; subsequent `reset()` uses those dimensions.
 `copy()` preserves it too. Restoring emits no output and does not replay the
-last observation. Schema-2 V3 snapshots remain accepted for the existing
-test-only native state bridge, with default display state. Schema-4 snapshots
-retain their compact RNG and display state; schema 3 is rejected. Schema 5 adds
-ordinary-mode Python RNG state; see [random modes](RNG.md).
+last observation. Only the current checkpoint schema is accepted. It also
+preserves ordinary-mode Python RNG state; see [random modes](RNG.md).
 
 External transcript/command-recording output streams 2 and 4, and file input
 stream 1, are unavailable. Selecting or deselecting them is a silent no-op;

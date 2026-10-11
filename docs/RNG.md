@@ -103,14 +103,12 @@ state (624 32-bit words plus an index and Python's state-format metadata).
 Copying or restoring uses `setstate()` without requesting entropy or advancing
 either generator. Malformed state is rejected before changing the environment.
 
-Legacy schema-2 and schema-4 checkpoints retain their original compact generator
-sequence, including when their host seed was `None`. A later reset, restart, or
-`random 0` uses the new ordinary-mode policy for that host seed. Schema 3 remains
-unsupported. Python state is accepted only in schema 5. Exact Python bounded
-sequences are not promised across arbitrary future Python releases.
+Only the current checkpoint schema is accepted. Fernz is unreleased and provides
+no migration or compatibility paths for earlier Fernz formats. Exact Python
+bounded sequences are not promised across arbitrary future Python releases.
 
 Existing game-vector archives use explicit seeds. Their compact RNG expectations
-and reference-visible schema-2 projection remain unchanged; no Python RNG dumps
+and version-2 reference fingerprints remain unchanged; no Python RNG dumps
 are added to the ZIP files. Synthetic tests cover ordinary-mode sampling,
 switching, checkpoint replay, independent copies, and invalid state.
 

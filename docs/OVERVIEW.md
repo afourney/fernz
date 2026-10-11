@@ -47,6 +47,10 @@ The Z-machine specifications will guide interpreter behavior. Jericho's public
 API documentation will guide API compatibility, subject to the clean-room
 requirement above.
 
+Fernz has not been released. Accept only the current Fernz checkpoint and data
+formats; do not add compatibility shims or migrations for earlier Fernz formats
+unless explicitly requested. Update tests and test adapters with format changes.
+
 The [world-state hash and action discovery investigation](WORLD_STATE_HASH.md)
 records public-reference measurements and unresolved questions. Both APIs remain
 unimplemented; this work is paused pending further user direction.
@@ -591,9 +595,9 @@ Public probes show that Zork's first two canyon deaths report loss while still
 allowing play, and a later ordinary response clears it. Victory is reported on
 entering the barrow, rather than merely reaching 350 points. Voluntary quit
 reports neither. Fernz keeps VM `done` separate from these response events and
-stores the two flags in checkpoints (introduced in schema 2) so copy/restore preserve them.
+stores the two flags in checkpoints so copy/restore preserve them.
 No transcript is retained. See [story queries](STORY_QUERIES.md) for the profile
-identity, evidence, name differences, schema change, and required CI coverage.
+identity, evidence, name differences, and required CI coverage.
 
 ## Story-level save and restore
 

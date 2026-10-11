@@ -138,14 +138,12 @@ class RandomState:
 
 @dataclass(frozen=True, slots=True)
 class GameState:
-    """Base fields shared by Fernz checkpoints and the legacy V3 test adapter.
+    """Immutable schema-5 checkpoint at a public input or quit boundary.
 
     RAM contains dynamic memory only, including its current header. Static
     memory comes from the matching story image, identified without file padding.
-    Frames, pending input, output selection, randomness, and the most recent
-    response's outcome flags form the schema-2 base. get_state() returns its
-    schema-5 subclass, ExtendedGameState, including logical display state and
-    optional Python RNG state. Legacy schemas 2 and 4 retain their affine RNG.
+    Frames, pending input, logical display state, randomness, and the most recent
+    response's outcome flags preserve the complete execution continuation.
     This versioned representation is independent of Jericho's tuple layout
     and saved-game file formats. Obtain snapshots through the environment.
     """
@@ -158,13 +156,13 @@ class GameState:
     input_request: InputRequest | None
     screen_enabled: bool
     halted: bool
-    format_version: int = 2
+    format_version: int = 5
     game_over: bool = False
     victory: bool = False
+    output: OutputState = OutputState()
 
     def _validate(self, story: Story) -> None:
-        minimum, maximum = (4, 5) if type(self) is ExtendedGameState else (2, 2)
-        _integer(self.format_version, minimum, maximum, "Snapshot format version")
+        _integer(self.format_version, 5, 5, "Snapshot format version")
         if self.story_sha256 != sha256(story.data[: story.size]).hexdigest():
             raise ValueError("Snapshot belongs to a different story image")
         if type(self.ram) is not bytes:
@@ -205,8 +203,9 @@ class GameState:
         if type(self.rng) is not RandomState:
             raise TypeError("Snapshot contains an invalid RNG state")
         self.rng._validate()
-        if self.format_version < 5 and self.rng.python_state is not None:
-            raise ValueError("Python RNG state requires snapshot schema 5")
+        if type(self.output) is not OutputState:
+            raise TypeError("Snapshot contains an invalid output state")
+        self.output._validate(story)
         if type(self.screen_enabled) is not bool or type(self.halted) is not bool:
             raise TypeError("Snapshot output and halt flags must be booleans")
         if type(self.game_over) is not bool or type(self.victory) is not bool:
@@ -233,17 +232,3 @@ class GameState:
                 story.size - 1,
                 "Input instruction address",
             )
-
-
-@dataclass(frozen=True, slots=True)
-class ExtendedGameState(GameState):
-    """Schema-5 checkpoint preserving display state and either RNG policy."""
-
-    format_version: int = 5
-    output: OutputState = OutputState()
-
-    def _validate(self, story: Story) -> None:
-        GameState._validate(self, story)
-        if type(self.output) is not OutputState:
-            raise TypeError("Snapshot contains an invalid output state")
-        self.output._validate(story)

@@ -121,8 +121,6 @@ def test_different_story_is_rejected_without_changing_current_game(game, tmp_pat
     [
         lambda s: None,
         lambda s: (s.ram, s.frames, s.pc),
-        lambda s: replace(s, format_version=1),
-        lambda s: replace(s, format_version=3),
         lambda s: replace(s, ram=s.ram[:-1]),
         lambda s: replace(s, ram=bytearray(s.ram)),
         lambda s: replace(s, ram=s.ram[:14] + b"\x03\x01" + s.ram[16:]),
@@ -286,19 +284,19 @@ def test_invalid_python_rng_checkpoint_is_rejected_atomically(game, changes):
     assert env.get_state() == before
 
 
-def test_legacy_schema_four_keeps_affine_sequence_until_next_reseed(game, monkeypatch):
-    # Old unseeded snapshots contain a compact affine state, not Python state.
-    env = FernzEnv(game, seed=42)
+@pytest.mark.parametrize("format_version", (0, 1, 2, 3, 4, 6))
+@pytest.mark.parametrize("host_seed", (None, 42))
+def test_only_current_checkpoint_format_is_accepted(game, format_version, host_seed):
+    env = FernzEnv(game, seed=host_seed)
     env.reset()
-    legacy = replace(env.get_state(), format_version=4)
-    legacy = replace(legacy, rng=replace(legacy.rng, host_seed=None))
-    expected = env.step("look")
-    env.set_state(legacy)
-    assert env.get_state().format_version == 5
-    assert env.get_state().rng.python_state is None
-    assert env.step("look") == expected
-    monkeypatch.setattr("fernz._random.secrets.randbits", lambda bits: 1000)
-    env.reset()
-    assert env.get_state().rng.python_state == Random(1000).getstate()
-    with pytest.raises(ValueError, match="schema 5"):
-        env.set_state(replace(env.get_state(), format_version=4))
+    saved = env.get_state()
+    assert type(saved) is GameState
+    assert saved.format_version == 5
+    env.step("look")
+    before = env.get_state()
+    memory = env.memory
+    with pytest.raises(ValueError, match="Snapshot format version"):
+        env.set_state(replace(saved, format_version=format_version))
+    assert env.get_state() == before
+    assert env.memory is memory
+    assert env.step("quit")[2] is True
