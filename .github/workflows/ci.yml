@@ -77,8 +77,8 @@ jobs:
       # Branch off the walkthrough with invalid inputs, red herrings, and seeded combat.
       # Compare transcripts and complete converted VM state after every detour turn.
       - run: uv run --no-sync poe test-reference
-      # Regenerate public reference measurements in memory and require every
-      # committed ZIP member to match. This never rewrites the fixture.
+      # Regenerate public reference measurements and specification-derived
+      # story metadata in memory. Require both ZIPs to match without rewriting.
       - run: uv run --no-sync poe check-vectors
       - run: uv run --no-sync poe test-vectors
 
@@ -100,8 +100,9 @@ jobs:
       - run: uv sync --frozen
       - run: uv run --no-sync python -c "import importlib.util; assert importlib.util.find_spec('jericho') is None"
       - run: uv run --no-sync poe test
-      # Read the ZIP directly with Python's zipfile. Only the existing ROM
-      # fixture downloads games; do not cache or upload the games directory.
+      # Read both ZIPs directly: all 56 story files' metadata/memory/CLI info,
+      # plus Zork gameplay. Only the existing ROM fixture downloads games;
+      # do not cache or upload the games directory.
       - run: uv run --no-sync poe test-vectors
 
   build:

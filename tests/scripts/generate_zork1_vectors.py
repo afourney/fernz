@@ -1,7 +1,9 @@
-"""Record public Jericho behavior without reading reference implementation code.
+"""Record Zork behavior and retained-story metadata in portable ZIP archives.
 
 Run on little-endian Linux with the pinned reference group:
     python -m tests.scripts.generate_zork1_vectors [--check]
+
+Use --only storyfiles on any platform without the reference dependency.
 """
 
 import argparse
@@ -19,6 +21,7 @@ from ..vector_archive import (
     ARCHIVE_PATH,
     FORMAT_VERSION,
     REFERENCE_VERSION,
+    STORYFILES_PATH,
     digest,
     json_bytes,
     query_fingerprint,
@@ -36,6 +39,7 @@ from ..zork_scenarios import (
     WALKTHROUGH_SEED,
     ZORK1_SHA256,
 )
+from .storyfile_vectors import generate_storyfiles
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -228,44 +232,61 @@ def main(argv=None):
     parser.add_argument(
         "--check",
         action="store_true",
-        help="Compare against fresh public reference runs without writing the ZIP",
+        help="Compare selected archives against fresh measurements without writing",
+    )
+    parser.add_argument(
+        "--only",
+        choices=("zork1", "storyfiles"),
+        help="Limit recording/checking to one archive (default: both)",
     )
     parser.add_argument("--output", type=Path, default=ARCHIVE_PATH)
+    parser.add_argument("--storyfiles-output", type=Path, default=STORYFILES_PATH)
+    parser.add_argument("--suite", type=Path, help="Use an existing retained-story suite directory")
     parser.add_argument("--story", type=Path, help="Use an existing copy of the pinned ROM")
     args = parser.parse_args(argv)
-    if sys.platform != "linux" or sys.byteorder != "little" or sys.version_info[:2] != (3, 11):
-        parser.error(
-            "Regeneration requires little-endian Linux and Python 3.11; replay is portable"
-        )
-    if version("jericho") != REFERENCE_VERSION:
-        parser.error(f"Regeneration requires Jericho {REFERENCE_VERSION}")
-    story_path = (args.story or ensure_jericho_games(ROOT / "games") / "zork1.z5").resolve()
-    with TemporaryDirectory(prefix="fernz-record-") as tmp, chdir(tmp):
-        documents = generate(story_path)
+    if args.only is None and args.output.resolve() == args.storyfiles_output.resolve():
+        parser.error("The Zork and storyfiles archives need distinct output paths")
+    if args.only != "storyfiles":
+        if sys.platform != "linux" or sys.byteorder != "little" or sys.version_info[:2] != (3, 11):
+            parser.error(
+                "Zork regeneration requires little-endian Linux and Python 3.11; replay is portable"
+            )
+        if version("jericho") != REFERENCE_VERSION:
+            parser.error(f"Zork regeneration requires Jericho {REFERENCE_VERSION}")
+    suite = args.suite
+    if suite is None and (args.only != "zork1" or args.story is None):
+        suite = ensure_jericho_games(ROOT / "games")
+    archives = {}
+    if args.only != "zork1":
+        archives[args.storyfiles_output] = generate_storyfiles(suite)
+    if args.only != "storyfiles":
+        story_path = (args.story or suite / "zork1.z5").resolve()
+        with TemporaryDirectory(prefix="fernz-record-") as tmp, chdir(tmp):
+            archives[args.output] = generate(story_path)
+    changed = []
+    for path, documents in archives.items():
+        if args.check:
+            existing = read_archive(path)
+            changed.extend(
+                f"{path.name}: {name}"
+                for name in sorted(existing.keys() | documents.keys())
+                if existing.get(name) != documents.get(name)
+            )
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with TemporaryDirectory(prefix=".vectors-", dir=path.parent) as tmp:
+                staged = Path(tmp) / path.name
+                write_archive(staged, documents)
+                staged.replace(path)
+            print(f"Wrote {path}: {len(documents)} members, {path.stat().st_size:,} bytes")
     if args.check:
-        existing = read_archive(args.output)
-        changed = [
-            name
-            for name in sorted(existing.keys() | documents.keys())
-            if existing.get(name) != documents.get(name)
-        ]
         if changed:
             parser.exit(
                 1,
-                "Stale Zork vectors; investigate before regenerating:\n"
-                + "\n".join(changed)
-                + "\n",
+                "Stale vectors; investigate before regenerating:\n" + "\n".join(changed) + "\n",
             )
-        print(f"Verified {len(documents)} ZIP members against fresh Jericho runs")
-    else:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        with TemporaryDirectory(prefix=".vectors-", dir=args.output.parent) as tmp:
-            staged = Path(tmp) / args.output.name
-            write_archive(staged, documents)
-            staged.replace(args.output)
-        print(
-            f"Wrote {args.output}: {len(documents)} members, {args.output.stat().st_size:,} bytes"
-        )
+        for path, documents in archives.items():
+            print(f"Verified {path.name}: {len(documents)} members against fresh measurements")
 
 
 if __name__ == "__main__":

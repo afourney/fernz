@@ -1,8 +1,8 @@
-# Portable Zork I reference vectors
+# Portable test vectors
 
 `tests/vectors/zork1_vectors.zip` records expectations from public Jericho 3.3.1
 calls on little-endian Linux/Python 3.11. Python's standard `zipfile` library
-reads its JSON members into memory; replay never extracts the archive to disk
+reads JSON members into memory; replay never extracts the archives to disk
 and requires neither Jericho nor NumPy. This supplements the live Linux
 reference tests. There is no automatic fallback when a reference is missing.
 
@@ -10,7 +10,36 @@ The clean-room requirement applies to recording and maintenance: use the
 Z-machine specification, public API documentation, and executable behavior.
 Do not inspect Jericho or Frotz implementation source.
 
-## Contents and coverage
+## Story file metadata
+
+`tests/vectors/storyfiles.zip` contains **57 JSON members**: one manifest and
+one metadata record for each of the **56 retained ROMs**. It occupies about
+**39 KB** compressed. The explicit inventory is shared with the original
+loading tests in `tests/story_corpus.py`: V3 (16), V4 (1), V5 (33), and V8 (6).
+
+These expectations come directly from the original file bytes and Standard
+1.1's header table, length units, and checksum definition. The metadata recorder
+does not use Fernz's story parser or execute the games. Its limited decoder
+covers the versions present in this corpus; synthetic tests retain V1, V2,
+V6, and V7 loading coverage.
+
+Every record pins the whole file's SHA-256, physical and addressable sizes,
+all public header fields, entry point, packed-address scale, header extension
+words, and checksum. SHA-256 fingerprints cover the complete memory image,
+dynamic memory, static memory, and globals. The ZIP stores metadata and hashes,
+without bundling ROMs or memory dumps.
+
+There are two portable cases per story: one compares the loader and memory
+against these expectations, including isolated writes, copying, reset, and
+read-only/bounds enforcement; the other checks environment construction and
+the CLI's `--inspect` JSON. This adds **112 portable tests** to the 967 Zork
+tests. It checks loading and metadata across all versions in the corpus,
+without claiming execution support beyond V3. Missing files, changed ROM
+identities, missing archive records, or incomplete corpus coverage fail.
+
+The existing direct ROM smoke tests remain available through `poe test-roms`.
+
+## Zork I gameplay
 
 The archive contains **35 JSON members**, **962 cases**, and **3,474 recorded
 boundaries**, occupying about **344 KB** compressed:
@@ -68,7 +97,7 @@ but leaves Fernz runnable. These cases do not loosen ordinary comparisons.
 
 Question-mark substitution, overlong input, synthetic reference probes, and
 terminal-death differences retain their existing live tests. This corpus does
-not claim to replace every Linux reference test or cover other games.
+not claim to replace every Linux reference test or execute other games.
 
 ## Run and regenerate
 
@@ -90,13 +119,20 @@ uv run --no-sync poe test-vectors
 ```
 
 The helper is `tests/scripts/generate_zork1_vectors.py`. Invoke it as a module
-from the repository root. It also accepts `--story /path/to/zork1.z5` to use an
-existing matching ROM and `--output /path/to/zork1_vectors.zip` to record or check
-another archive. For example:
+from the repository root. Both generation and checking now process **both
+archives by default**. Use `--only zork1` or `--only storyfiles` to select one.
+Story metadata can be generated and checked on any platform, without Jericho:
 
 ```sh
-uv run --no-sync python -m tests.scripts.generate_zork1_vectors --check
+uv run --no-sync python -m tests.scripts.generate_zork1_vectors --only storyfiles
+uv run --no-sync python -m tests.scripts.generate_zork1_vectors --only storyfiles --check
 ```
+
+`--suite /path/to/jericho-game-suite` selects an existing corpus. If omitted,
+the existing download fixture supplies it. `--story /path/to/zork1.z5` can
+override the Zork gameplay ROM. `--output /path/to/zork1_vectors.zip` selects
+the gameplay archive destination; `--storyfiles-output /path/to/storyfiles.zip`
+selects the metadata archive destination. These options also apply to `--check`.
 
 Generation uses only the public reference for expected execution results;
 it does not run Fernz to bless its current behavior. Scenario definitions and
@@ -121,7 +157,8 @@ vector format version change and coordinated reader/generator updates.
 ## CI
 
 The required Linux reference job keeps all existing live comparisons, checks
-the committed ZIP against fresh public reference runs, and replays it.
+both committed ZIPs against fresh reference/specification measurements, and
+runs both portable suites.
 An additional Python 3.12 matrix runs the ordinary offline suite and portable
 vectors on `macos-latest`, `windows-2025` (x64), and `windows-11-arm`.
 Those jobs explicitly check that Jericho is not installed. They download the

@@ -143,7 +143,7 @@ for a storage example and the separate contracts.
 ```sh
 uv run poe check-all    # Offline tests, quality checks, and package validation
 uv run poe test-roms    # All 56 loading checks, plus Zork mailbox play and reset
-uv run poe test-vectors # Recorded Zork comparisons on any supported platform
+uv run poe test-vectors # All 56 stories' metadata plus recorded Zork comparisons
 ```
 
 Black-box Jericho and Frotz comparisons run in Linux CI. To run them locally on
@@ -157,8 +157,10 @@ uv run --no-sync poe test-reference
 
 An additional Python 3.12 matrix runs the offline suite and recorded Zork
 comparisons on macOS, hosted Windows x64, and Windows 11 ARM. The tests read
-`tests/vectors/zork1_vectors.zip` directly with `zipfile`, with no Jericho
-installation. Linux CI checks the archive against fresh reference runs.
+`tests/vectors/zork1_vectors.zip` and `tests/vectors/storyfiles.zip` directly
+with `zipfile`, with no Jericho installation. The metadata suite loads and
+checks all 56 retained stories, including environment and CLI inspection.
+Linux CI checks both archives against fresh reference/specification measurements.
 See [portable vectors](docs/VECTORS.md) for coverage, comparison limits, and
 the `poe generate-vectors` / `poe check-vectors` maintenance commands.
 

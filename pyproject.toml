@@ -36,7 +36,7 @@ addopts = "-m 'not reference and not rom'"
 markers = [
     "reference: black-box comparisons requiring Jericho and downloaded ROMs",
     "rom: loading, memory, and gameplay tests using downloaded story files",
-    "vectors: portable gameplay comparisons using the committed reference ZIP (no Jericho)",
+    "vectors: portable story metadata and gameplay comparisons using committed ZIPs (no Jericho)",
 ]
 
 [tool.ruff]
