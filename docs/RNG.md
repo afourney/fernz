@@ -46,9 +46,9 @@ host seed initializes the affine generator, including small seeds. It does not
 select the counting mode. For example, constructor seed 5 and opcode `random
 -5` intentionally produce different sequences.
 
-With an explicit host seed, both `env.reset()` and the opcode `random 0` restore
+With an explicit host seed, `env.reset()`, `random 0`, and V3 `restart` restore
 that host-seeded sequence, discarding any counting cycle or opcode seed. With
-`seed=None`, both obtain fresh system entropy. Unseeded operation uses the same
+`seed=None`, each obtains fresh system entropy. Unseeded operation uses the same
 affine generator, seeded with `secrets.randbits(31)`. Unseeded trajectories are
 not part of the cross-interpreter compatibility contract.
 
@@ -63,14 +63,15 @@ which does not rely on random encounters.
 This replaces Fernz's initial Python `random.Random` implementation, so seeded
 sequences change from that first execution milestone. The constructor's explicit
 zero remains reproducible. RNG instances belong to individual machines and do
-not share process-global state. Undo and VM restart remain future work.
+not share process-global state. Undo remains future work.
 
 Host-side `get_state()` / `set_state()` checkpoints capture both generator modes
 and the host seed policy. Restoring neither draws a value nor requests entropy;
 it resumes the saved sequence. The restored host seed also governs later
-`reset()` and `random 0` calls. If that seed is `None`, those later operations
-still request fresh entropy. This host API supports deterministic exploration;
-it has a different contract from the standard's story-level save/restore opcodes.
+`reset()`, `random 0`, and `restart` calls. If that seed is `None`, those later
+operations still request fresh entropy. This host API supports deterministic
+exploration; it has a different contract from the standard's story-level
+save/restore opcodes.
 
 V3 `save` writes no RNG state into its Quetzal file. `restore` retains the
 receiving machine's current RNG state and host seed, without drawing or reseeding

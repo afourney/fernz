@@ -220,6 +220,21 @@ class Machine:
         self.frames, self.pc = candidate.frames, candidate.pc
         return True
 
+    def _restart(self) -> None:
+        # §6.1.3: restore the original image and interpreter header, retaining
+        # Flags 2. Keep the Memory object used by the text/object helpers.
+        flags2 = self.memory.read_word(0x10)
+        self.memory.reset()
+        self.memory._configure_v3_header()
+        self.memory.write_word(0x10, flags2)
+        self.pc = self.memory.story.header.entry_address
+        self.frames = [Frame()]
+        self.input_request = None
+        self.halted = False
+        self.rng.reset()  # §2.4: leave any opcode-seeded predictable sequence.
+        # Output already emitted in this turn, stream selection, and host I/O
+        # belong to the session. Restart does not discard or replace them.
+
     def _array_address(self, base: int, offset: int, width: int) -> int:
         # Address arithmetic is word arithmetic (§2.3.2), including negative indices.
         address = (base + width * offset) & 0xFFFF
@@ -283,6 +298,8 @@ class Machine:
             case "restore":
                 if not self._restore():
                     branch(False)
+            case "restart":
+                self._restart()
             case "rtrue" | "rfalse":
                 self._return(int(name == "rtrue"))
             case "ret":

@@ -69,6 +69,7 @@ jobs:
       # Require the full seeded Zork walkthrough, reset, and checkpoint replay at every turn.
       # Include state transfers in both directions and continuation through the ending.
       # Require Quetzal file interchange and the walkthrough with save/restore opcodes.
+      # Require in-game restart, RNG reseeding, and the full walkthrough after restart.
       - run: uv run --no-sync poe test-reference
 
   build:

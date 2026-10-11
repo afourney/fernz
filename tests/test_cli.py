@@ -73,6 +73,19 @@ def test_cli_reads_commands_until_story_quits(tmp_path, capsys, monkeypatch):
     assert stream.readline() == "unused\n"
 
 
+def test_cli_continues_after_story_restart_without_an_extra_confirmation(
+    tmp_path, capsys, monkeypatch
+):
+    game = tmp_path / "restart.z3"
+    # Print A and read; print B and restart. Only the story controls prompts.
+    game.write_bytes(program_bytes(bytes.fromhex("e5 7f 41") + READ + bytes.fromhex("e5 7f 42 b7")))
+    monkeypatch.setattr(sys, "stdin", io.StringIO("again\nagain\n"))
+    assert _cli.main([str(game)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == "A\nBA\nBA"
+    assert captured.err == ""
+
+
 def test_cli_quit_during_startup_needs_no_input(tmp_path, capsys):
     game = tmp_path / "quit.z3"
     game.write_bytes(program_bytes(b"\xba"))
