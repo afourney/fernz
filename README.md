@@ -82,7 +82,7 @@ opcodes fail with their name and address. Undo and full V3
 execution support remain future work; `done` detects the `quit` opcode, not victory
 or death that leaves the story running.
 
-V3 and V5 `restart` are supported through the game's own RESTART command and confirmation.
+V3, V5 and V8 `restart` are supported through the game's own RESTART command and confirmation.
 It resets game memory, frames, and randomness while preserving Flags 2 and the
 current output stream selection. With an explicit host seed, the restarted
 episode repeats that seed's sequence; `seed=None` requests fresh entropy.
@@ -146,7 +146,7 @@ continues to indicate VM quit. Unknown builds raise `NotImplementedError` for
 score limits and outcome queries. See [story queries](docs/STORY_QUERIES.md) for
 the measured behavior, supported story identity, and reference differences.
 
-V3 and V5 `save` and `restore` opcodes use Quetzal files. Library callers supply
+V3, V5 and V8 `save` and `restore` opcodes use Quetzal files. Library callers supply
 `save_handler(data: bytes) -> bool` and `restore_handler() -> bytes | None`
 when constructing `FernzEnv`; unavailable storage reports opcode failure.
 Opcode restore keeps the current RNG, screen geometry, and Flags 2; V3 also
@@ -160,7 +160,7 @@ for a storage example and the separate contracts.
 uv run poe check-all    # Offline tests, quality checks, and package validation
 uv run poe test-fast    # PR selection: unit tests, all story files, short gameplay
 uv run poe test-roms    # All 56 loading checks, plus Zork mailbox play and reset
-uv run poe test-vectors # All 56 stories' metadata plus V3 and V5 gameplay archives
+uv run poe test-vectors # All 56 stories' metadata plus V3, V5 and V8 gameplay archives
 ```
 
 Short black-box Jericho comparisons run on every PR. The full Jericho and Frotz

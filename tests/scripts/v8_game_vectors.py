@@ -26,6 +26,34 @@ def generate_v8(path, game):
                 ]
             }
         }
+        cases = []
+        prefix = env.get_walkthrough()[:12]
+        for name, actions in (
+            ("walkthrough-prefix", prefix),
+            (
+                "parser-and-time",
+                [
+                    *prefix[:5],
+                    "look",
+                    "inventory",
+                    "wait",
+                    "wait",
+                    "flibbertigibbet",
+                    "take unicorn",
+                    "open unicorn",
+                    "kick door",
+                ],
+            ),
+            ("persistence", [*prefix[:2], "save", "wait", "restore", "look", "inventory"]),
+            ("restart", [*prefix[:2], "restart", "no", "look", "restart", "yes"]),
+        ):
+            records = [capture(env, original, game, None, env.reset()[0])]
+            for action in actions:
+                if int(env.get_state()[6]) == 0xF6:
+                    action = action[:1]
+                records.append(capture(env, original, game, action, env.step(action)[0]))
+            cases.append({"id": name, "seed": SEED, "steps": records})
+        documents["actions.json"] = {"cases": cases}
     finally:
         env.close()
     documents["manifest.json"] = {

@@ -3,7 +3,7 @@
 import pytest
 
 from .v8_cases import BOOT_ACTIONS, GAMES, archive_path, story_identity
-from .v8_vectors import replay_opening
+from .v8_vectors import replay_actions, replay_opening
 from .vector_archive import REFERENCE_VERSION, read_archive
 
 
@@ -19,6 +19,17 @@ def test_v8_archive_integrity(game):
 @pytest.mark.rom
 @pytest.mark.vectors
 @pytest.mark.v8games
-@pytest.mark.parametrize("game", GAMES)
+@pytest.mark.parametrize(
+    "game",
+    [pytest.param(game, marks=pytest.mark.smoke) if game == "lostpig" else game for game in GAMES],
+)
 def test_v8_opening(jericho_games, game):
     replay_opening(jericho_games / f"{game}.z8", game, read_archive(archive_path(game)))
+
+
+@pytest.mark.rom
+@pytest.mark.vectors
+@pytest.mark.v8games
+@pytest.mark.parametrize("game", GAMES)
+def test_v8_actions_and_persistence(jericho_games, game):
+    replay_actions(jericho_games / f"{game}.z8", game, read_archive(archive_path(game)))

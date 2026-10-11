@@ -1,6 +1,6 @@
-# V3 and V5 save and restore
+# V3, V5 and V8 save and restore
 
-Fernz implements the V3 and V5 story opcodes `save` and `restore` using Quetzal files.
+Fernz implements the V3, V5 and V8 story opcodes `save` and `restore` using Quetzal files.
 The implementation follows the [saved-state rules](https://inform-fiction.org/zmachine/standards/z1point1/sect06.html),
 [opcode definitions](https://inform-fiction.org/zmachine/standards/z1point1/sect15.html#save),
 [header ownership rules](https://inform-fiction.org/zmachine/standards/z1point1/sect11.html),
@@ -13,7 +13,7 @@ executables only.
 | State | Host checkpoint: get_state / set_state | Story opcode: save / restore |
 | --- | --- | --- |
 | Dynamic memory and routine frames | Captured and restored | Captured and restored |
-| Continuation | Pending decoded input request, or halted state | Saved branch (V3) or result-variable byte (V5) |
+| Continuation | Pending decoded input request, or halted state | Saved branch (V3) or result-variable byte (V5/V8) |
 | RNG state and host seed | Captured and restored for deterministic replay | Not written; the recipient's current RNG and host seed are retained |
 | Output selection | Captured and restored | Current setting retained |
 | Logical display state and geometry | Captured and restored (schema 5) | Recipient settings retained; V3 collapses the upper window |
@@ -188,3 +188,8 @@ supported and retains host storage callbacks and existing save files.
 The codec is private; there is no public method to load an arbitrary Quetzal
 file before reset. Invoke the story's
 restore opcode through the storage callback.
+
+V8 uses the same store-result continuation and stack format as V5. Synthetic
+interchange tests transfer Quetzal files in both directions with public Jericho
+and packaged Frotz executables, including save PCs above 256 KiB, stack-result
+saves and seven-argument calls that discard their result.
