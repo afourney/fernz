@@ -1,6 +1,6 @@
-# V3 save and restore
+# V3 and V5 save and restore
 
-Fernz implements the V3 story opcodes `save` and `restore` using Quetzal files.
+Fernz implements the V3 and V5 story opcodes `save` and `restore` using Quetzal files.
 The implementation follows the [saved-state rules](https://inform-fiction.org/zmachine/standards/z1point1/sect06.html),
 [opcode definitions](https://inform-fiction.org/zmachine/standards/z1point1/sect15.html#save),
 [header ownership rules](https://inform-fiction.org/zmachine/standards/z1point1/sect11.html),
@@ -13,7 +13,7 @@ executables only.
 | State | Host checkpoint: get_state / set_state | Story opcode: save / restore |
 | --- | --- | --- |
 | Dynamic memory and routine frames | Captured and restored | Captured and restored |
-| Continuation | Pending decoded input request, or halted state | Saved save-instruction branch |
+| Continuation | Pending decoded input request, or halted state | Saved branch (V3) or result-variable byte (V5) |
 | RNG state and host seed | Captured and restored for deterministic replay | Not written; the recipient's current RNG and host seed are retained |
 | Output selection | Captured and restored | Current setting retained |
 | Flags 2 | Saved value restored | Current value preserved |
@@ -21,7 +21,7 @@ executables only.
 | Representation | Immutable Fernz GameState | Portable Quetzal bytes |
 | Host callbacks and external files | Not captured or rolled back | Supplied by the host |
 
-The existing checkpoint schema and behavior are unchanged. Restoring a Quetzal
+The checkpoint restoration contract is unchanged. Restoring a Quetzal
 file in another process recovers the saved game position, but does not promise
 the original process's subsequent random outcomes. Opcode restoration itself
 neither draws randomness nor obtains entropy.
@@ -117,6 +117,11 @@ false to the current instruction's branch. A successful restore transfers
 control to the saved continuation and never finishes the current restore
 instruction's branch.
 
+V5 saves record the result-variable byte before storing 1. Restoration stores
+2 there and continues after that byte; failures store 0 in the currently
+executing instruction. V5 frame records allow seven arguments and the discard
+flag for calls without a destination.
+
 The codec writes IFhd, CMem, and Stks chunks, including the mandatory initial
 dummy frame. It reads CMem and UMem, handles IFF alignment, skips unknown chunks,
 and uses the first required component when duplicates occur. Compressed memory
@@ -128,7 +133,7 @@ Fernz host checkpoints.
 Restore stages memory, frames, and the saved branch before changing the live
 machine. It preserves the memory object's identity. Current Flags 2 survives,
 and interpreter-owned capabilities and Standard version are set for Fernz.
-Unsupported V3 frame encodings and invalid continuations fail restoration.
+Unsupported frame encodings and invalid continuations fail restoration.
 
 ## Validation coverage and scope
 
@@ -161,8 +166,13 @@ commands with the uninterrupted Jericho reference through the 350-point ending.
 It explicitly checks that the inserted save/restore operations do not consume
 RNG draws. This does not assume that restoring rewinds randomness.
 
-Execution support remains V3. V4-V8 opcode variants, auxiliary-memory saves,
-and undo are deferred. V3 [restart](OVERVIEW.md#host-reset-and-v3-restart) is
+V5 comparisons additionally transfer the 9:05 position after eleven walkthrough
+commands in both directions and continue to victory. Synthetic V5 files also
+interchange with Frotz and Jericho, including seven arguments, a discarded
+return value, a stack save destination, and high instruction addresses.
+
+Execution support is V3 and initial V5. Other versions and auxiliary-memory
+saves are deferred; V5 undo reports unavailable. [Restart](OVERVIEW.md#host-reset-and-v3-restart) is
 supported and retains host storage callbacks and existing save files.
 The codec is private; there is no public method to load an arbitrary Quetzal
 file before reset. Invoke the story's

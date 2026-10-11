@@ -8,9 +8,10 @@ from .v5_cases import ARCHIVE_905, SEED_905, STORY_905
 from .v5_vectors import check_step
 from .vector_archive import REFERENCE_VERSION, digest, read_archive
 
-pytestmark = [pytest.mark.rom, pytest.mark.vectors, pytest.mark.smoke]
+pytestmark = [pytest.mark.rom, pytest.mark.vectors]
 
 
+@pytest.mark.smoke
 def test_905_startup_commands_and_snapshot_continuation(jericho_games):
     documents = read_archive(ARCHIVE_905)
     manifest = documents["manifest.json"]
@@ -34,3 +35,12 @@ def test_905_startup_commands_and_snapshot_continuation(jericho_games):
         assert env.get_state() == opening
     finally:
         env.close()
+
+
+def test_905_full_route_detours_endings_and_persistence(jericho_games):
+    from .v5_vectors import replay_documents
+
+    documents = read_archive(ARCHIVE_905)
+    path = jericho_games / STORY_905["filename"]
+    assert digest(path.read_bytes()) == STORY_905["file_sha256"]
+    replay_documents(path, documents)

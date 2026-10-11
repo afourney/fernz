@@ -34,3 +34,11 @@ def test_905_first_commands_match_live_reference(jericho_games):
     finally:
         env.close()
         reference.close()
+
+
+def test_905_full_route_detours_endings_and_persistence(jericho_games):
+    from .scripts.v5_game_vectors import generate_905
+    from .v5_vectors import replay_documents
+
+    path = jericho_games / STORY_905["filename"]
+    replay_documents(path, generate_905(path))

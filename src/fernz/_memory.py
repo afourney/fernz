@@ -119,7 +119,9 @@ class Memory:
         self._data[0x10:0x12] = flags.to_bytes(2, "big")
         self._data[0x1E:0x28] = bytes((6, ord("F"), 25, 80, 0, 80, 0, 25, 1, 1))
         self._data[0x2C:0x2E] = bytes((2, 9))  # Black background, white foreground.
-        self._data[0x32:0x34] = b"\x00\x00"
+        # V5 uses Standard 1.0 text semantics, including nested stream 3.
+        # Stories use this field to select their text-capture implementation.
+        self._data[0x32:0x34] = b"\x01\x00"
 
     def _restore_dynamic(self, data: bytes) -> None:
         # Validate against the configured header before touching live memory.
