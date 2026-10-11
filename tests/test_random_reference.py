@@ -13,7 +13,7 @@ from .random_story import random_story, results
 
 pytestmark = pytest.mark.reference
 
-VERSIONS = (3, 5, 8)
+VERSIONS = (3, 4, 5, 8)
 RANGES = [1, 2, 3, 6, 10, 255, 256, 1000, 32766, 32767]
 
 
@@ -58,15 +58,12 @@ def compare(tmp_path, dfrotz, operands, version, seed=42):
     assert jericho_results(story, operands, seed) == expected
     rng = RandomGenerator(seed)
     assert [rng.random(operand) for operand in operands] == expected
-    if version == 3:
-        env = FernzEnv(story, seed=seed)
-        try:
-            for _ in range(2):
-                assert results(plain_text(env.reset()[0]), len(operands)) == expected
-        finally:
-            env.close()
-    # V5/V8 exercise the shared generator against those formats in the references;
-    # Fernz does not claim to execute V5/V8 stories yet.
+    env = FernzEnv(story, seed=seed)
+    try:
+        for _ in range(2):
+            assert results(plain_text(env.reset()[0]), len(operands)) == expected
+    finally:
+        env.close()
     return expected
 
 

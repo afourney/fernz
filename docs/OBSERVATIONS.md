@@ -95,7 +95,7 @@ expose the current dimensions. V5 header dimensions and one-cell font units
 agree with these settings. V3 has no corresponding header geometry fields.
 
 Every `reset()` starts its stream with `<reset><size WIDTH HEIGHT><bottom>`.
-V3 additionally positions the initial cursor at the bottom left. Ordinary
+V3 and V4 additionally position the initial cursor at the bottom left. Ordinary
 `step()` calls emit deltas and do not reset the display. In-game `restart`
 preserves host geometry and emits the operations actually performed by the game.
 

@@ -143,7 +143,7 @@ restoration.
   independence, controlled entropy, checkpoint restoration in both modes, and
   V3 opcode/environment integration.
 - Required reference tests compare the shared RNG against both interpreters using
-  V3/V5/V8 probes. V3 also runs through Fernz's complete execution path. These
+  V3/V4/V5/V8 probes, including Fernz's complete execution path. These
   tests do not establish V8 execution support; Fernz executes V3 and V5.
 - The reference job installs the distribution's binary `frotz` package and prints
   its version. Jericho is pinned to 3.3.1; the distribution package version may

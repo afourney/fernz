@@ -120,6 +120,14 @@ class Memory:
         if self.story.header.version == 3:
             self._configure_v3_header()
             return
+        if self.story.header.version == 4:
+            # §11: V4 has byte-sized screen dimensions and style/timing flags,
+            # but no V5 unit dimensions, font sizes or default colour fields.
+            self._data[1] = (self._data[1] & ~0x9C) | 0x10
+            self._data[0x11] &= ~1
+            self._data[0x1E:0x22] = bytes((6, ord("F"), height, width))
+            self._data[0x32:0x34] = b"\x00\x00"
+            return
         # A configurable fixed-width text host. Do not advertise colour, graphics,
         # styles, timed input, mouse, sound, or undo support that is absent.
         self._data[1] = (self._data[1] & 0x62) | 0x10
@@ -154,6 +162,9 @@ class Memory:
         restored = bytearray(data)
         if self.story.header.version == 3:
             restored[1] = (restored[1] & ~0x70) | (candidate._data[1] & 0x70)
+        elif self.story.header.version == 4:
+            restored[1] = candidate._data[1]
+            restored[0x1E:0x22] = candidate._data[0x1E:0x22]
         else:
             restored[1] = candidate._data[1]
             restored[0x1E:0x28] = candidate._data[0x1E:0x28]

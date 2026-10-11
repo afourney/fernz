@@ -168,10 +168,16 @@ def test_legacy_missing_checksum_is_calculated():
     assert loads(story, encoded) == state
 
 
-@pytest.mark.parametrize("version", (3, 5, 8))
+@pytest.mark.parametrize("version", (3, 4, 5, 8))
 @pytest.mark.parametrize("identity", ("valid-zero", "mismatched-zero", "mismatched-nonzero"))
 def test_save_identity_preserves_present_checksum_even_when_verification_fails(version, identity):
-    code = bytes.fromhex("b5 c2") if version == 3 else bytes.fromhex("be 00 ff 10")
+    code = (
+        bytes.fromhex("b5 c2")
+        if version == 3
+        else bytes.fromhex("b5 10")
+        if version == 4
+        else bytes.fromhex("be 00 ff 10")
+    )
     data = bytearray(
         program_bytes(code + READ + (b"\x10" if version >= 5 else b""), version=version)
     )

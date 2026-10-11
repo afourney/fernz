@@ -4,7 +4,7 @@ Fernz is intended to become a Z-machine interpreter for common Z-machine story
 formats. It loads V1-V8 stories and completes the measured winning routes for
 all 16 retained V3 games, including Zork I's 396-command route at seed 12.
 See [V3 gameplay coverage](V3_GAMES.md) for exact builds and limitations. The library and a
-minimal interactive CLI support V3, V5 and V8 execution. All 33 retained V5
+minimal interactive CLI support V3, V4, V5 and V8 execution. All 33 retained V5
 builds complete measured winning routes; see [V5](V5.md). V8 covers all six
 retained openings and action/persistence scenarios, with full winning routes
 and query APIs for Lost Pig and Snack Time; see [V8](V8.md).
@@ -339,15 +339,16 @@ since these public Jericho calls execute the game as part of initialization.
 Work includes version-aware loading and protected memory for raw V1-V8 stories,
 instruction decoding across those versions, and a V3 execution engine sufficient
 to complete the measured walkthroughs for all 16 retained V3 games. The CLI can inspect any supported raw
-story or play supported V3, V5 and V8 stories interactively. Required ROM and Jericho tests cover
+story or play supported V3, V4, V5 and V8 stories interactively. Required ROM and Jericho tests cover
 Zork's opening, mailbox sequence, full 350-point walkthrough, host reset, and
 the walkthrough after an in-game restart. Additional suites exercise the
 other 15 V3 routes and hundreds of detours per game; see [V3 coverage](V3_GAMES.md).
 These measured routes do not establish full V3 conformance.
 
-V5 winning routes and V8 opening/action and selected winning-route coverage
-are detailed in [V5](V5.md) and [V8](V8.md). Deferred work includes remaining
-I/O features, V1/V2/V4/V6/V7 execution, Blorb extraction, and undo. V3/V5/V8
+V4 Trinity's full winning route and detours, V5 winning routes and V8
+opening/action and selected winning-route coverage are detailed in
+[V4](V4.md), [V5](V5.md) and [V8](V8.md). Deferred work includes remaining
+I/O features, V1/V2/V6/V7 execution, Blorb extraction, and undo. V3/V4/V5/V8
 `save`/`restore` use Quetzal files through host callbacks or CLI prompts;
 `restart` runs through each game's own command and confirmation flow.
 

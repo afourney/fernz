@@ -36,7 +36,7 @@ class InputRequest:
 
 @dataclass(frozen=True, slots=True)
 class StoredInputRequest(InputRequest):
-    """A V5 line or character read with its already decoded result variable."""
+    """A V5+ line read or V4+ character read with its decoded result variable."""
 
     store: int
     character: bool = False
@@ -220,8 +220,8 @@ class GameState:
                 _integer(self.input_request.store, 0, 255, "Input result variable")
                 if type(self.input_request.character) is not bool:
                     raise TypeError("Character-input flag must be a boolean")
-                if story.header.version < 5:
-                    raise ValueError("Stored input requires V5 or later")
+                if story.header.version < (4 if self.input_request.character else 5):
+                    raise ValueError("Stored input requires V5+, or a V4 character read")
             elif story.header.version >= 5:
                 raise ValueError("V5 input must have a result variable")
             _integer(self.input_request.text, 0, 0xFFFF, "Text buffer address")

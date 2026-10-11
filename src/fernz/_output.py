@@ -42,7 +42,7 @@ class Output:
         self.command("reset")
         self.command("size", self.width, self.height)
         self.command("bottom")
-        if self.memory.story.header.version == 3:
+        if self.memory.story.header.version <= 4:
             self._cursor(self.height, 1)
             self.command("at", self.height, 1)
 
@@ -217,7 +217,8 @@ class Output:
         if window not in (-2, -1, 0, 1):
             raise ExecutionError(f"Invalid window to erase: {window}")
         if window == -1:
-            self.state = replace(self.state, window=0, split_lines=0, cursors=((1, 1), (1, 1)))
+            bottom = self.height if self.memory.story.header.version == 4 else 1
+            self.state = replace(self.state, window=0, split_lines=0, cursors=((bottom, 1), (1, 1)))
             self.command("clear", "all")
             self.command("split", 0)
             self.command("bottom")
@@ -227,10 +228,14 @@ class Output:
             self.command("clear", "all")
         elif window >= 0:
             cursors = list(self.state.cursors)
-            cursors[window] = (
-                min(self.height, self.state.split_lines + 1) if window == 0 else 1,
-                1,
-            )
+            row = 1
+            if window == 0:
+                row = (
+                    self.height
+                    if self.memory.story.header.version == 4
+                    else min(self.height, self.state.split_lines + 1)
+                )
+            cursors[window] = (row, 1)
             self.state = replace(self.state, cursors=tuple(cursors))
             self.command("clear", "top" if window else "bottom")
             self._cursor_command(window)

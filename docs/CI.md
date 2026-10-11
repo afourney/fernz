@@ -103,3 +103,9 @@ V8 execution, archive integrity and a short Lost Pig opening; see [V8 compatibil
 The V8 comprehensive group includes the 146-command Lost Pig and 34-command
 Snack Time winning routes, their query/counter checks and checkpoint replay.
 These full routes are excluded from automatic PR smoke checks.
+
+V4 has a dedicated comprehensive reference/freshness job and portable group for
+Trinity. These run its full 610-command winning route, parser detours, loss and
+lifecycle scenarios, plus synthetic Quetzal file interchange on Linux. Fast CI
+adds only archive integrity and the opening plus five commands, including a
+short live reference comparison. See [V4 coverage](V4.md).

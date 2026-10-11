@@ -43,12 +43,12 @@ def test_directory_is_rejected(tmp_path):
         FernzEnv(tmp_path)
 
 
-@pytest.mark.parametrize("version", (1, 2, 4, 6, 7))
+@pytest.mark.parametrize("version", (1, 2, 6, 7))
 def test_execution_of_other_versions_is_explicitly_unimplemented(tmp_path, version):
     game = tmp_path / "game.z3"
     game.write_bytes(story_bytes(version))
     env = FernzEnv(game)
-    with pytest.raises(NotImplementedError, match="supports V3, V5 and V8"):
+    with pytest.raises(NotImplementedError, match="supports V3, V4, V5 and V8"):
         env.reset()
     with pytest.raises(RuntimeError, match="reset"):
         env.step("look")

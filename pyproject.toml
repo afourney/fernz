@@ -44,6 +44,7 @@ markers = [
     "rom: loading, memory, and gameplay tests using downloaded story files",
     "vectors: portable story metadata and gameplay comparisons using committed ZIPs (no Jericho)",
     "v3games: comprehensive gameplay checks for the additional retained V3 stories",
+    "v4games: Trinity V4 openings, detours, persistence and full walkthrough",
     "v8games: retained V8 openings, actions and walkthroughs",
     "v5games: comprehensive corpus and trajectory checks for retained V5 stories",
 ]
@@ -98,10 +99,12 @@ test-full = ["test", "test-roms", "test-reference", "test-vectors", "check-vecto
 test-roms = "pytest -m 'rom and not vectors' -ra"
 test-reference = "pytest -m reference -ra --tb=short"
 test-vectors = "pytest -m vectors -ra --tb=short"
-test-reference-core = "pytest -m 'reference and not v3games and not v5games and not v8games' -ra --tb=short"
-test-vectors-core = "pytest -m 'vectors and not v3games and not v5games and not v8games' -ra --tb=short"
+test-reference-core = "pytest -m 'reference and not v3games and not v4games and not v5games and not v8games' -ra --tb=short"
+test-vectors-core = "pytest -m 'vectors and not v3games and not v4games and not v5games and not v8games' -ra --tb=short"
 test-v3-reference = "pytest -m 'reference and v3games' -ra --tb=short"
 test-v3-vectors = "pytest -m 'vectors and v3games' -ra --tb=short"
+test-v4-reference = "pytest -m 'reference and v4games' -ra --tb=short"
+test-v4-vectors = "pytest -m 'vectors and v4games' -ra --tb=short"
 test-v8-reference = "pytest -m 'reference and v8games' -ra --tb=short"
 test-v8-vectors = "pytest -m 'vectors and v8games' -ra --tb=short"
 test-v5-reference = "pytest -m 'reference and v5games' -ra --tb=short"

@@ -101,6 +101,24 @@ jobs:
       - run: uv run --no-sync poe test-v3-reference --v3-shard ${{ matrix.shard }}
       - run: uv run --no-sync poe check-vectors --only v3 --v3-shard ${{ matrix.shard }}
 
+  reference-v4:
+    name: reference V4
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+          version: "0.12.23"
+      - run: uv sync --frozen --group reference
+      - name: Install Frotz reference binary
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends frotz
+      - run: uv run --no-sync poe test-v4-reference
+      - run: uv run --no-sync poe check-vectors --only v4
+
   reference-v5:
     name: reference V5 (${{ matrix.shard }})
     runs-on: ubuntu-latest
@@ -142,7 +160,7 @@ jobs:
       matrix:
         # Hosted x64 Windows is Server 2025; ARM uses Windows 11.
         os: [macos-latest, windows-2025, windows-11-arm]
-        group: [core, "1/3", "2/3", "3/3", "v5-1/3", "v5-2/3", "v5-3/3", v8]
+        group: [core, "1/3", "2/3", "3/3", v4, "v5-1/3", "v5-2/3", "v5-3/3", v8]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -158,8 +176,10 @@ jobs:
       # do not cache or upload the games directory.
       - if: matrix.group == 'core'
         run: uv run --no-sync poe test-vectors-core
-      - if: matrix.group != 'core' && matrix.group != 'v8' && !startsWith(matrix.group, 'v5-')
+      - if: matrix.group != 'core' && matrix.group != 'v4' && matrix.group != 'v8' && !startsWith(matrix.group, 'v5-')
         run: uv run --no-sync poe test-v3-vectors --v3-shard ${{ matrix.group }}
+      - if: matrix.group == 'v4'
+        run: uv run --no-sync poe test-v4-vectors
       - if: matrix.group == 'v8'
         run: uv run --no-sync poe test-v8-vectors
       - if: startsWith(matrix.group, 'v5-')

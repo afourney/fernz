@@ -69,9 +69,10 @@ def test_rich_opening_commands_echo_and_history(tmp_path):
 
 
 @pytest.mark.parametrize("key,expected", [("A", "A"), ("enter", "\n")])
-def test_character_input_needs_no_line_submission(tmp_path, key, expected):
+@pytest.mark.parametrize("version", (4, 5))
+def test_character_input_needs_no_line_submission(tmp_path, key, expected, version):
     # read_char 1 -> global 16, print_char global 16, quit.
-    app = player(tmp_path, bytes.fromhex("f6 7f 01 10 e5 bf 10 ba"), version=5)
+    app = player(tmp_path, bytes.fromhex("f6 7f 01 10 e5 bf 10 ba"), version=version)
 
     async def run():
         async with app.run_test() as pilot:
@@ -81,9 +82,10 @@ def test_character_input_needs_no_line_submission(tmp_path, key, expected):
             await settled(app, pilot)
             assert app.env.done
             if expected != "\n":
-                assert app.buffer.render(0).plain.startswith(expected)
+                assert app.buffer.render(0).plain.strip() == expected
             else:
-                assert app.buffer.cursors[0] == (1, 0)
+                row = app.buffer.height - 1 if version == 4 else 1
+                assert app.buffer.cursors[0] == (row, 0)
             await pilot.press("ctrl+c")
         assert app.return_value == 130
 

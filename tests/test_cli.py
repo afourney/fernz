@@ -114,7 +114,7 @@ def test_existing_game_reports_unimplemented(tmp_path, capsys):
     assert _cli.main(["--simple", str(game)]) == 1
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert "supports V3, V5 and V8" in captured.err
+    assert "supports V3, V4, V5 and V8" in captured.err
     assert "Traceback" not in captured.err
     assert game.read_bytes() == story_bytes(7)
 
