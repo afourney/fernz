@@ -359,3 +359,105 @@ def test_cli_save_and_restore_in_separate_processes(tmp_path):
         assert numbers[:4] == [7, 8, 9, 0x3333]
         assert 1 <= numbers[4] <= 32767
         assert numbers[5:] == [18, 42, 0x2222, 42, 0x1111]
+
+
+@pytest.mark.parametrize("destination", [None, "nested/my collection"])
+def test_download_mode_without_story_or_frontend(tmp_path, monkeypatch, capsys, destination):
+    from pathlib import Path
+
+    from fernz import _games
+
+    from .test_game_files import zip_bytes
+
+    monkeypatch.chdir(tmp_path)
+    archive = zip_bytes({_games.ARCHIVE_PREFIX + "zork1.z5": program_bytes(b"\xba")})
+    monkeypatch.setattr(_games, "urlopen", lambda *a, **kw: io.BytesIO(archive))
+    monkeypatch.setattr(_cli, "find_spec", lambda name: pytest.fail("No UI for downloads"))
+    args = ["--download-games"] + ([destination] if destination else [])
+    assert _cli.main(args) == 0
+    suite = Path(destination or "games") / "jericho-game-suite"
+    assert (suite / "zork1.z5").is_file()
+    captured = capsys.readouterr()
+    assert str(suite) in captured.out
+    assert captured.err == ""
+    story = suite / "zork1.z5" if destination else Path("jericho-game-suite/zork1.z5")
+    assert _cli.main(["--simple", str(story)]) == 0
+
+
+def test_download_failure_reports_context(tmp_path, monkeypatch, capsys):
+    from urllib.error import URLError
+
+    from fernz import _games
+
+    def fail(*args, **kwargs):
+        raise URLError("connection lost")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(_games, "urlopen", fail)
+    assert _cli.main(["--download-games"]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "connection lost" in captured.err
+    assert _games.GAMES_ARCHIVE_URL in captured.err
+    assert "Traceback" not in captured.err
+    assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize("extra", [["--inspect"], ["--simple"], ["--rich"], ["story.z3"]])
+def test_download_rejects_conflicting_arguments(extra, capsys):
+    with pytest.raises(SystemExit) as error:
+        _cli.main(["--download-games=games", *extra])
+    assert error.value.code == 2
+    assert "cannot be combined" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("mode", ["--simple", "--inspect"])
+def test_existing_story_takes_precedence(tmp_path, monkeypatch, capsys, mode):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "games").mkdir()
+    (tmp_path / "games/story.z3").write_bytes(b"invalid fallback")
+    (tmp_path / "story.z3").write_bytes(program_bytes(b"\xba"))
+    assert _cli.main([mode, "story.z3"]) == 0
+    assert capsys.readouterr().err == ""
+
+
+@pytest.mark.parametrize("kind", ["invalid", "directory", "dangling"])
+def test_existing_bad_path_never_falls_back(tmp_path, monkeypatch, capsys, kind):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "games").mkdir()
+    (tmp_path / "games/story.z3").write_bytes(program_bytes(b"\xba"))
+    path = tmp_path / "story.z3"
+    if kind == "invalid":
+        path.write_bytes(b"invalid")
+    elif kind == "directory":
+        path.mkdir()
+    else:
+        try:
+            path.symlink_to(tmp_path / "absent.z3")
+        except OSError:
+            pytest.skip("Symlinks unavailable")
+    assert _cli.main(["--simple", "story.z3"]) == 2
+    assert "fernz:" in capsys.readouterr().err
+
+
+def test_path_permission_error_is_not_hidden(tmp_path, monkeypatch, capsys):
+    from pathlib import Path
+
+    def denied(self):
+        raise PermissionError("story access denied")
+
+    monkeypatch.setattr(Path, "lstat", denied)
+    assert _cli.main(["--simple", "story.z3"]) == 2
+    assert "story access denied" in capsys.readouterr().err
+
+
+def test_no_extension_or_recursive_search(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    suite = tmp_path / "games/jericho-game-suite"
+    suite.mkdir(parents=True)
+    (suite / "story.z3").write_bytes(program_bytes(b"\xba"))
+    for name in ["story.z3", "jericho-game-suite/story"]:
+        assert _cli.main(["--inspect", name]) == 2
+        assert "fernz:" in capsys.readouterr().err
+    assert _cli.main(["--inspect", "jericho-game-suite/story.z3"]) == 0
+    assert json.loads(capsys.readouterr().out)["version"] == 3

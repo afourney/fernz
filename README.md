@@ -36,22 +36,30 @@ Use `pip install fernz` for the dependency-free library and simple terminal play
 
 ## Get a game and play
 
-Bring a raw Z-machine story file, or download Zork I from the
-[BYU-PCCL game collection](https://github.com/BYU-PCCL/z-machine-games) with Python:
-
-```python
-from urllib.request import urlretrieve
-
-url = "https://raw.githubusercontent.com/BYU-PCCL/z-machine-games/master/jericho-game-suite/zork1.z5"
-urlretrieve(url, "zork1.z5")
-```
-
-Games are distributed separately and retain their own copyrights and licenses.
-This Zork I file contains a V3 story despite its `.z5` extension.
+Download the [BYU-PCCL game collection](https://github.com/BYU-PCCL/z-machine-games)
+and play Zork I:
 
 ```sh
-fernz zork1.z5
+fernz --download-games
+fernz jericho-game-suite/zork1.z5
 ```
+
+The download extracts only the archive's `jericho-game-suite` into
+`./games/jericho-game-suite/`, matching the test fixture. Games are distributed
+separately and retain their own copyrights and licenses. This Zork I file
+contains a V3 story despite its `.z5` extension.
+
+To choose a destination, use `fernz --download-games /path/to/collection`, then
+`fernz /path/to/collection/jericho-game-suite/zork1.z5`. Existing destinations
+with a suite are reused without downloading or overwriting files; an existing
+destination without that suite reports an error.
+
+You can also bring your own raw Z-machine story. Fernz first tries the exact
+supplied path, then, only if it is missing and relative, the same path under
+`./games`. For example, `jericho-game-suite/zork1.z5` falls back to
+`./games/jericho-game-suite/zork1.z5`. There is no extension guessing or other
+search. Errors reading an existing path are reported without falling back.
+This lookup also applies to `--inspect`; the Python API uses explicit paths.
 
 Try `look`, `open mailbox`, and `read leaflet`. Press **Ctrl+Q** to exit.
 Textual is selected automatically when installed; `--simple` selects plain text.
@@ -64,7 +72,7 @@ The game's `save` and `restore` commands open file dialogs.
 ```python
 from fernz import FernzEnv
 
-env = FernzEnv("zork1.z5", seed=42)
+env = FernzEnv("games/jericho-game-suite/zork1.z5", seed=42)
 try:
     observation, info = env.reset()
     print(observation.text, end="")
