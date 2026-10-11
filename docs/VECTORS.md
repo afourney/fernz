@@ -197,3 +197,25 @@ and are never cached or uploaded as artifacts.
 
 GitHub's standard hosted x64 Windows image is Windows Server 2025; the ARM
 image is Windows 11. See the [hosted runner labels](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
+
+## V5 corpus startup
+
+All 33 retained V5 ROMs have a `breadth.json` member in their own
+`<rom>_vectors.zip`: 66 scenarios and 396 boundaries in total. The archives
+occupy about 78 KB together at this stage, including 9:05's existing full-game
+records. Each manifest pins the ROM and reference version and hashes its JSON
+members. The companion live tests use the same replay assertions with fresh
+measurements. See [V5 phase 2](V5.md#broader-v5-validation-phase-2) for startup
+keys, reference conventions, measured presentation rules, and coverage limits.
+
+Use `poe generate-vectors --only v5` to regenerate the group. The default
+regeneration includes these archives; `--only <rom>` selects one. Both the live
+suite and `poe check-vectors --only v5` are mandatory in the manual V5 CI job.
+Portable CI runs without Jericho or NumPy on each supported hosted OS.
+
+Balances and Sherlock extend their existing archives with complete trajectories,
+profiled query hashes, detours, loss paths, persistence and seeded forks. Their
+`breadth.json` members remain unchanged, so corpus startup checks keep their
+original scope. Boxed clue text has a separate upper-window hash checked through
+a test-only observer; no clue text or object names enter the archives. See
+[V5 phase 3](V5.md#broader-v5-validation-phase-3) for display and input boundaries.

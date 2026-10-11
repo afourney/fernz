@@ -6,6 +6,7 @@ from functools import cached_property
 
 from ._errors import ExecutionError
 from ._memory import Memory
+from ._profiles import profile_for
 from ._text import Text
 
 
@@ -22,8 +23,9 @@ class ZObject:
     """A locally mutable object snapshot, detached from interpreter memory.
 
     Links are object numbers; zero means no link. Attributes are integer flags
-    indexed by attribute number (32 flags in V3, 48 in V5). Properties lists the supplied property numbers
-    in descending order, padded to at least 16 entries with zeros for Jericho
+    indexed by attribute number (32 flags in V3, 48 in V5). Properties lists
+    supplied property numbers in encoded order (normally descending), padded
+    to at least 16 entries with zeros for Jericho
     callers. Property values and defaults are not included. Names retain the
     full decoded story text. Lists are ordinary Python lists, not NumPy arrays.
     """
@@ -62,6 +64,10 @@ class Objects:
         self.link_size = 1 if self.early else 2
         self.link_start = self.attributes // 8
         self.property_offset = self.entry_size - 2
+        profile = profile_for(memory.story)
+        self._unordered_inspection = (
+            profile.unordered_inspection_objects if profile else frozenset()
+        )
 
     @cached_property
     def count(self) -> int:
@@ -92,7 +98,10 @@ class Objects:
 
     def snapshot(self, obj: int) -> ZObject:
         """Read one complete, detached object, without executing or cleaning."""
-        properties = [prop.number for prop in self.properties(obj)]
+        properties = [
+            prop.number
+            for prop in self.properties(obj, validate_order=obj not in self._unordered_inspection)
+        ]
         properties.extend([0] * max(0, 16 - len(properties)))
         return ZObject(
             num=obj,
@@ -181,7 +190,7 @@ class Objects:
         self._dynamic(table, 1 + 2 * words)
         return Text(self.memory).decode(table + 1, words=words)
 
-    def properties(self, obj: int) -> Iterator[Property]:
+    def properties(self, obj: int, *, validate_order: bool = True) -> Iterator[Property]:
         """Walk descending properties, allowing legacy V5 duplicates within bounds."""
         table = self._table(obj)
         address = table + 1 + 2 * self.memory.read_byte(table)
@@ -199,7 +208,9 @@ class Objects:
             # both entries in physical order: lookup/update uses the first,
             # and get_next_prop can return the same number. Increasing lists
             # remain invalid, as do duplicates in the early object format.
-            if not 0 < number <= previous or (self.early and number == previous):
+            if number == 0 or (
+                validate_order and (number > previous or (self.early and number == previous))
+            ):
                 raise ExecutionError(f"Invalid property order for object {obj}")
             yield Property(number, self._dynamic(address + header_size, size), size)
             previous = number
@@ -223,11 +234,16 @@ class Objects:
         return next((p for p in self.properties(obj) if p.number == number), None)
 
     def get(self, obj: int, number: int) -> int:
-        """Read a one- or two-byte property, falling back to its default."""
+        """Read a scalar property, with measured legacy V5 long-property behavior."""
         prop = self.find(obj, number)
         if prop is None:
             return self.memory.read_word(self.base + 2 * (number - 1))
         if prop.size not in (1, 2):
+            if not self.early:
+                # §15 leaves get_prop on long properties undefined. Legacy
+                # V5 executable probes return the trailing size byte followed
+                # by the first data byte. Acorn Court's parser relies on this.
+                return self.memory.read_word(prop.address - 1)
             raise ExecutionError(f"get_prop requires a one- or two-byte property: {number}")
         read = self.memory.read_byte if prop.size == 1 else self.memory.read_word
         return read(prop.address)

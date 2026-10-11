@@ -27,3 +27,12 @@ def zero_story(source, destination):
     code += bytes.fromhex("93 01 11") + number(17)
     code += bytes.fromhex("92 02 11 c2") + number(17)
     return legacy_story(code + b"\xba")
+
+
+def long_property_story(size):
+    data = bytearray(legacy_story(bytes.fromhex("11 01 01 11") + number(17) + b"\xba"))
+    table = int.from_bytes(data[0xCA:0xCC], "big")
+    data[table : table + size + 4] = (
+        bytes((0, 0x81, 0x80 | (size & 63))) + b"\x12\x34" + bytes(size - 2) + b"\0"
+    )
+    return bytes(data)

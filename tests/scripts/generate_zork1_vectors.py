@@ -19,6 +19,7 @@ from ..game_files import ensure_jericho_games
 from ..state_bridge import StateBridge
 from ..v3_cases import GAMES as V3_GAMES
 from ..v3_cases import selected_games
+from ..v5_corpus import GAMES as V5_GAMES
 from ..vector_archive import (
     ARCHIVE_PATH,
     FORMAT_VERSION,
@@ -44,6 +45,8 @@ from ..zork_scenarios import (
 from .storyfile_vectors import generate_storyfiles
 from .v3_game_vectors import generate_v3
 from .v5_game_vectors import generate_905
+from .v5_startup_vectors import generate_startup
+from .v5_trajectory_vectors import generate_trajectory
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -240,7 +243,7 @@ def main(argv=None):
     )
     parser.add_argument(
         "--only",
-        choices=("zork1", "storyfiles", "v3", "905", *V3_GAMES),
+        choices=("zork1", "storyfiles", "v3", "v5", *V3_GAMES, *V5_GAMES),
         help="Limit recording/checking to one archive or the additional V3 group (default: all)",
     )
     parser.add_argument("--output", type=Path, default=ARCHIVE_PATH)
@@ -284,6 +287,19 @@ def main(argv=None):
         path = (suite / "905.z5").resolve()
         with TemporaryDirectory(prefix="fernz-record-") as tmp, chdir(tmp):
             archives[args.output_dir / "905_vectors.zip"] = generate_905(path)
+    if args.only in (None, "v5", *V5_GAMES):
+        for game in V5_GAMES:
+            if args.only in V5_GAMES and game != args.only:
+                continue
+            path = (suite / f"{game}.z5").resolve()
+            if game == "905":
+                if args.only == "v5":
+                    archives[args.output_dir / "905_vectors.zip"] = generate_905(path)
+            else:
+                generator = (
+                    generate_trajectory if game in ("balances", "sherlock") else generate_startup
+                )
+                archives[args.output_dir / f"{game}_vectors.zip"] = generator(path, game)
     changed = []
     for path, documents in archives.items():
         if args.check:

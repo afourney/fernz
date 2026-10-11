@@ -6,7 +6,16 @@ from fernz import ExecutionError, FernzEnv, Memory, Story
 from fernz._objects import Objects
 
 from .test_save_restore import results
-from .v5_legacy_story import duplicate_story, zero_story
+from .v5_legacy_story import duplicate_story, long_property_story, zero_story
+
+
+@pytest.mark.parametrize("size,expected", ((3, -31982), (8, -30702), (64, -32750)))
+def test_legacy_long_property_reads_are_bounded_and_repeatable(tmp_path, size, expected):
+    path = tmp_path / "long.z5"
+    path.write_bytes(long_property_story(size))
+    env = FernzEnv(path)
+    assert results(env.reset()[0]) == [expected]
+    assert results(env.reset()[0]) == [expected]
 
 
 def test_duplicate_properties_preserve_order_and_update_only_the_first(tmp_path):

@@ -115,7 +115,7 @@ def replay_documents(path, documents):
             if turn in CHECKPOINTS:
                 checkpoints[turn] = env.get_state()
         for name, document in documents.items():
-            if name in ("manifest.json", "startup.json", "walkthrough.json"):
+            if name in ("manifest.json", "startup.json", "walkthrough.json", "breadth.json"):
                 continue
             if name == "seeds.json":
                 for case in document["cases"]:
