@@ -44,6 +44,10 @@ The Z-machine specifications will guide interpreter behavior. Jericho's public
 API documentation will guide API compatibility, subject to the clean-room
 requirement above.
 
+The [world-state hash and action discovery investigation](WORLD_STATE_HASH.md)
+records public-reference measurements and unresolved questions. Both APIs remain
+unimplemented; this work is paused pending further user direction.
+
 ## References
 
 - [Z-machine Standard 1.1](https://inform-fiction.org/zmachine/standards/z1point1/index.html)
