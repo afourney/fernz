@@ -182,7 +182,7 @@ comparison runs Jericho with seed 42 and records an opening followed by `look`,
 verifies repeatability after reset. Reference observations are generated during
 the test, rather than committed as game text.
 
-**The opening, mailbox, and complete walkthrough comparisons are required to pass.**
+**The opening, mailbox, complete walkthrough, and off-path comparisons are required to pass.**
 The startup comparison runs twice, with a memory mutation between resets, and
 compares the transcript, score, and move count. Black-box probes of Jericho 3.3.1
 showed that its observation
@@ -192,6 +192,49 @@ the expected title and prompt, removes only those two pieces for comparison,
 and compares the remaining text exactly, apart from CRLF versus LF. There is
 no title filtering, game-specific output substitution, or reference dependency
 in Fernz's runtime.
+
+The off-path suite branches from **11 walkthrough checkpoints**, from the opening
+through underground exploration, boat travel, and the 350-point state before the
+ending. Each checkpoint runs the same **85 commands** independently, followed by
+`look` and `inventory`. Inputs include unknown verbs and nouns, absent objects,
+valid but futile actions such as `kick door`, incomplete commands, pronouns,
+punctuation, multiple commands, container operations, and navigation. **18 longer
+detours** exercise ambiguous doors, clarification replies, repeated commands,
+consumables, vehicles, score changes, and continuation after recoverable death.
+Each longer detour is restored and replayed exactly. Combat detours additionally
+run twice with each of five seeds: 1, 12, 42, 1000, and 32767.
+
+Every detour turn compares the complete response, reward, score, moves, location
+number, and loss/victory queries. It also requires equality of **every Fernz
+snapshot field** with the converted public Jericho snapshot, including dynamic
+RAM, call frames, pending input, PC, and RNG. Conversion uses only the existing
+[test-only state adapter](STATE_INTEROP.md). The tests retain the documented
+distinction between a recoverable death and VM quit. Failures identify the
+checkpoint, command, turn, and seed; RAM failures identify differing addresses.
+
+Separate passing tests assert two input differences rather than filtering them
+out of the common command matrix:
+
+- **Question marks:** the pinned reference replaces `?` with a space for this
+  Zork build, as measured in public RAM snapshots. Fernz preserves it. The
+  [Standard's section 13 remarks](https://inform-fiction.org/zmachine/standards/z1point1/sect13.html)
+  explicitly identify that substitution as nonstandard. Independent synthetic
+  input probes confirm that standalone Frotz preserves `?` in those stories.
+  Sending the measured space-substituted input to Fernz matches both the
+  reference response and its complete converted state.
+- **Long lines:** Fernz's existing V3 rule reserves the terminating NUL within
+  the declared buffer, accepting 99 characters for Zork's size byte of 100.
+  Jericho's public input path accepts up to 198 ASCII characters here and warns
+  when longer actions are truncated. Tests cover both boundaries, inspect the
+  accepted bytes, and require exact response/state agreement when Jericho is
+  explicitly given the same 99-character input. A synthetic standalone Frotz
+  probe separately records that its dumb frontend accepts all 25 supplied
+  characters despite a size byte of 20; Fernz accepts 19 and preserves the
+  following canary byte. The [annotated read specification](https://zspec.jaredreisinger.com/15-opcodes#read)
+  discusses the original wording's ambiguity about the V3 buffer count.
+
+These differences do not change Fernz's runtime input handling. The required
+Linux reference CI job runs all these cases without skips or expected failures.
 
 The full walkthrough test calls `get_walkthrough()` and `seed()` to obtain the
 commands and their required seed, then calls `reset()` before recording the
