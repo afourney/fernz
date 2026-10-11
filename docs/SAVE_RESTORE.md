@@ -158,6 +158,8 @@ It explicitly checks that the inserted save/restore operations do not consume
 RNG draws. This does not assume that restoring rewinds randomness.
 
 Execution support remains V3. V4-V8 opcode variants, auxiliary-memory saves,
-undo, and restart are deferred. The codec is private; there is no public
-method to load an arbitrary Quetzal file before reset. Invoke the story's
+and undo are deferred. V3 [restart](OVERVIEW.md#host-reset-and-v3-restart) is
+supported and retains host storage callbacks and existing save files.
+The codec is private; there is no public method to load an arbitrary Quetzal
+file before reset. Invoke the story's
 restore opcode through the storage callback.

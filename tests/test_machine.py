@@ -217,8 +217,8 @@ def test_header_capabilities_and_game_write_protection():
 
 
 def test_unsupported_opcode_is_not_silently_ignored():
-    with pytest.raises(UnsupportedOpcodeError, match=r"restart .*0x401"):
-        run_hex("b7")
+    with pytest.raises(UnsupportedOpcodeError, match=r"sound_effect .*0x401"):
+        run_hex("f5 7f 01")
 
 
 def test_execution_budget_and_exact_budget_boundary():

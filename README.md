@@ -67,9 +67,15 @@ finally:
 prompt, a score delta, quit status, and status globals. Start with `reset()` or
 restore a checkpoint with `set_state()`. Each reset and step has a default
 budget of 250,000 instructions, adjustable with `max_steps=...`. Unsupported
-opcodes fail with their name and address. VM restart, undo, and full V3
+opcodes fail with their name and address. Undo and full V3
 execution support remain future work; `done` detects the `quit` opcode, not victory
 or death that leaves the story running.
+
+V3 `restart` is supported through the game's own RESTART command and confirmation.
+It resets game memory, frames, and randomness while preserving Flags 2 and the
+current output stream selection. With an explicit host seed, the restarted
+episode repeats that seed's sequence; `seed=None` requests fresh entropy.
+See [restart semantics](docs/OVERVIEW.md#host-reset-and-v3-restart).
 
 `get_state()` and `set_state()` support reusable in-memory checkpoints:
 

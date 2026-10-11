@@ -249,13 +249,14 @@ Work includes version-aware loading and protected memory for raw V1-V8 stories,
 instruction decoding across those versions, and a V3 execution engine sufficient
 to complete the tested Zork I walkthrough. The CLI can inspect any supported raw
 story or accept V3 commands interactively. Required ROM and Jericho tests cover
-Zork's opening, mailbox sequence, full 350-point walkthrough, and reset after
-play. This validates one complete route with a fixed seed; other routes and full
-V3 conformance remain to be tested.
+Zork's opening, mailbox sequence, full 350-point walkthrough, host reset, and
+the walkthrough after an in-game restart. This validates one complete route
+with a fixed seed; other routes and full V3 conformance remain to be tested.
 
 Deferred work includes additional V3 opcodes and I/O features, other execution
-versions, Blorb extraction, VM restart, and undo. V3 `save`/`restore` with Quetzal
+versions, Blorb extraction, and undo. V3 `save`/`restore` with Quetzal
 files are supported through host storage callbacks and interactive CLI prompts.
+V3 `restart` runs through the game's own command and confirmation flow.
 
 ## Execution foundation
 
@@ -309,7 +310,7 @@ Output is a plain transcript without screen wrapping or status-line rendering.
 The header advertises no status line,
 split screen, or variable-pitch font; it does not claim full Standard conformance.
 Stream 1 can be enabled or disabled. Other streams, nonzero window operations,
-sound and restart currently fail explicitly if encountered.
+and sound currently fail explicitly if encountered.
 
 Line input follows Standard [§3.7](https://inform-fiction.org/zmachine/standards/z1point1/sect03.html),
 [§13](https://inform-fiction.org/zmachine/standards/z1point1/sect13.html), and
@@ -329,15 +330,44 @@ separate components. V5's counted input, different token offsets, longer keys,
 custom alphabets, and terminating-character result remain future version-specific
 work. The current input path explicitly supports V3 only.
 
+## Host reset and V3 restart
+
 `reset()` starts a fresh episode: it restores story memory and reinitializes the
-interpreter header, routine state, output, and random generator. This differs
-from the future Z-machine `restart` opcode, which must preserve the specified
-Flags 2 bits. An optional constructor `seed` gives repeatable host-side random
-sequences. Positive host seeds and predictable opcode seeds match the tested
+interpreter header, routine state, output, and random generator. An optional
+constructor `seed` gives repeatable host-side random sequences. Positive host
+seeds and predictable opcode seeds match the tested
 Jericho/Frotz sequences. Explicit host seed 0 follows Frotz's deterministic
 behavior; Jericho treats that constructor value as automatic seeding. With
 `seed=None`, Fernz uses system entropy. The RNG component is shared across
 versions; see [RNG compatibility](RNG.md).
+
+The V3 `restart` opcode follows Standard
+[§6.1.3](https://inform-fiction.org/zmachine/standards/z1point1/sect06.html),
+[§11](https://inform-fiction.org/zmachine/standards/z1point1/sect11.html), and
+[restart](https://inform-fiction.org/zmachine/standards/z1point1/sect15.html#restart).
+It restores the original story image and entry address, discards all routine
+frames and evaluation stacks, and configures the interpreter header again.
+The current Flags 2 word survives, including the transcription and fixed-font
+bits. It resumes execution until the next input request or quit, within the
+current call's instruction budget; a restart loop cannot renew that budget.
+
+Per [§2.4](https://inform-fiction.org/zmachine/standards/z1point1/sect02.html),
+restart leaves any opcode-seeded predictable mode and reapplies the host RNG
+policy: an explicit seed repeats its sequence, while `None` requests fresh
+entropy. A seed restored through `set_state()` also governs later restarts.
+Host storage and output callbacks remain attached, and existing save files and
+immutable checkpoints remain usable. There is no checkpoint schema change.
+
+Already emitted text remains in the current observation and is streamed only
+once. The selected screen stream survives restart, matching public black-box
+Frotz/Jericho probes; a story may explicitly enable it again. No host command
+interception or interpreter confirmation is added: Zork asks its own question,
+and the opcode executes only after the game's affirmative branch.
+
+Required Linux reference tests exercise nested restarts and both predictable
+RNG modes against Jericho 3.3.1 and standalone Frotz. Zork tests decline and
+confirm restart after 35 walkthrough commands, replay a checkpoint at the
+confirmation, and compare every command through the full 350-point ending.
 
 ## Host-side state checkpoints
 
@@ -367,9 +397,9 @@ These checks establish structural validity, not that arbitrary edited RAM is a
 meaningful game position. Obtain checkpoints through `get_state()`.
 
 Host checkpoints include RNG and output settings for reproducible exploration.
-The restored host seed also controls subsequent `reset()` and `random 0` calls.
+The restored host seed also controls subsequent `reset()`, `random 0`, and `restart` calls.
 With host seed `None`, restoring preserves the current random sequence, but a
-later reset or `random 0` still obtains fresh entropy. Use an explicit seed for
+later reset, `random 0`, or restart still obtains fresh entropy. Use an explicit seed for
 replays that include reseeding.
 
 This API follows Jericho's public save/restore workflow using Fernz's own state
@@ -465,9 +495,8 @@ leave all bytes unchanged. Errors raise `MemoryAccessError` (a `ValueError`).
 `memory.copy()` copies current contents independently. `memory.reset()` restores
 the original image exactly. This low-level reset is not VM restart or save
 restoration. `FernzEnv.reset()` and `set_state()` also manage CPU and interpreter
-state; opcode restoration applies its own header rules. VM restart remains
-deferred. No writable memory
-views are exposed.
+state; opcode restoration and restart apply their own header rules. No writable
+memory views are exposed.
 
 Implementation references are Standard 1.1
 [memory and addressing](https://inform-fiction.org/zmachine/standards/z1point1/sect01.html),
