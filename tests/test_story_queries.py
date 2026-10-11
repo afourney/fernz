@@ -74,7 +74,7 @@ def test_outcomes_copy_restore_reset_and_failed_input(profiled_story, monkeypatc
     env = FernzEnv(profiled_story, seed=42)
     env.reset()
     lost = env.get_state()
-    assert lost.format_version == 4 and lost.game_over and not lost.victory
+    assert lost.format_version == 5 and lost.game_over and not lost.victory
     assert not env.done  # A reported loss is independent of VM quit.
     other = env.copy()
     with pytest.raises(ValueError):

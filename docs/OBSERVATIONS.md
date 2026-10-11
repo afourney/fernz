@@ -37,7 +37,7 @@ it does not promise byte-for-byte equality for every story or host screen size.
 commands. For example, a story might produce:
 
 ```text
-<split 2><top><at 1 1><reverse>Room name<normal><bottom>You open the door.
+<split 2><top><at 1 1><invert>Room name<normal><bottom>You open the door.
 >
 ```
 
@@ -63,7 +63,7 @@ that renders HTML must escape decoded story text as usual.
 | `<split ROWS>` | Set the upper window's height; zero hides it. Total screen height stays fixed. Any resulting clears or cursor moves are explicit subsequent commands. |
 | `<at ROW COL>` | Move the selected window's cursor, using one-based screen coordinates. |
 | `<at ROW COL top>`, `<at ROW COL bottom>` | Move the named window's cursor without selecting it. Used when an operation moves an inactive window's cursor. |
-| `<bold>`, `<italic>`, `<reverse>`, `<fixed>` | Enable a style for subsequent text in the selected window. Styles accumulate. |
+| `<bold>`, `<italic>`, `<invert>`, `<fixed>` | Enable a style for subsequent text in the selected window. Styles accumulate. `<invert>` exchanges foreground/background appearance; it does not change text order or writing direction. |
 | `<normal>` | Clear the selected window's style bits; font and colours remain selected. |
 | `<font 1>`, `<font 4>` | Select the normal or fixed-width font for the selected window. A font query emits nothing. |
 | `<color FOREGROUND BACKGROUND>` | Set the selected window's resolved colours. Values are palette names or lowercase `#rrggbb`. |
@@ -81,6 +81,10 @@ For example, selecting the upper window emits `<top><at 1 1>`, a V3 split also
 emits `<clear top>`, and a supported implicit upper-window expansion emits a
 split before its cursor move. Ignored or unavailable operations emit nothing.
 
+Sound instructions currently emit nothing. [Sound design notes](SOUNDS.md)
+record the existing sound-disabled behavior and proposed stream commands;
+audio playback, sound tags, and completion callbacks remain unimplemented.
+
 ## Geometry and lifecycle
 
 `screen_width` defaults to 80 and accepts integers 1–255. `screen_height`
@@ -95,13 +99,22 @@ V3 additionally positions the initial cursor at the bottom left. Ordinary
 `step()` calls emit deltas and do not reset the display. In-game `restart`
 preserves host geometry and emits the operations actually performed by the game.
 
-All new host checkpoints use schema **4** and retain geometry, selection,
+Host checkpoints use schema **5** and retain geometry, selection,
 cursors, fonts, styles, colours, buffering, and memory-output continuations.
 `set_state()` restores that state and adopts its dimensions, including for a
 fresh receiving environment; subsequent `reset()` uses those dimensions.
 `copy()` preserves it too. Restoring emits no output and does not replay the
-last observation. Schema-2 V3 snapshots remain accepted for the existing
-test-only native state bridge, with default display state; schema 3 is rejected.
+last observation. Only the current checkpoint schema is accepted. It also
+preserves ordinary-mode Python RNG state; see [random modes](RNG.md).
+
+External transcript/command-recording output streams 2 and 4, and file input
+stream 1, are unavailable. Selecting or deselecting them is a silent no-op;
+execution continues with host input and the existing screen/memory routing.
+Flags 2 bit 0 stays clear, including after direct game writes or checkpoint
+restoration, because no transcript service is active. Other writable bits retain
+their normal behavior. An unconfigured `Memory` used for raw inspection does not
+apply this execution-host policy. These requests do not create files or add text
+or tags to an observation.
 
 Quetzal files have a different contract. Opcode restore keeps the receiving
 environment's geometry, RNG, and host display settings; V3 additionally collapses

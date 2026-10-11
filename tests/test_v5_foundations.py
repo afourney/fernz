@@ -4,12 +4,12 @@ from dataclasses import FrozenInstanceError, replace
 
 import pytest
 
-from fernz import ExecutionError, FernzEnv, Memory, Story, UnsupportedOpcodeError
+from fernz import ExecutionError, FernzEnv, GameState, Memory, Story, UnsupportedOpcodeError
 from fernz._input import Dictionary, read_line, tokenise
 from fernz._machine import Machine
 from fernz._objects import Objects
 from fernz._output import Output
-from fernz._state import ExtendedGameState, OutputState, StoredInputRequest
+from fernz._state import OutputState, StoredInputRequest
 from fernz._text import Text
 
 from .story_files import READ, program_bytes, put_word, zchars
@@ -195,7 +195,7 @@ def test_nested_memory_output_survives_snapshot_and_ignores_screen_selection(ver
     )
     assert m.run() == ""
     state = m.get_state()
-    assert isinstance(state, ExtendedGameState)
+    assert type(state) is GameState
     for _ in range(2):
         m = Machine.from_state(Memory(m.memory.story), state)
         m.accept_input("x")
@@ -256,13 +256,13 @@ def test_logical_and_arithmetic_shifts(opcode, value, places, result):
     assert m.read_variable(17) == result
 
 
-def test_extended_snapshot_validation_is_atomic(tmp_path):
+def test_display_snapshot_validation_is_atomic(tmp_path):
     path = tmp_path / "read.z5"
     path.write_bytes(program_bytes(AREAD, version=5))
     env = FernzEnv(path, seed=42)
     env.reset()
     before = env.get_state()
-    assert isinstance(before, ExtendedGameState)
+    assert type(before) is GameState
     with pytest.raises(FrozenInstanceError):
         before.output.window = 1
     for bad in (

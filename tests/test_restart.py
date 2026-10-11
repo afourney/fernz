@@ -1,6 +1,7 @@
 """V3 restart semantics, independently assembled stories, and host boundaries."""
 
 from dataclasses import replace
+from random import Random
 
 import pytest
 
@@ -37,7 +38,7 @@ def test_restart_discards_nested_state_and_preserves_flags_and_output(
         assert "".join(emitted) == result[0].text
         assert env.memory is memory
         ram = bytearray(initial.ram)
-        ram[0x10:0x12] = flags2.to_bytes(2, "big")
+        ram[0x10:0x12] = (flags2 & ~1).to_bytes(2, "big")
         assert env.get_state() == replace(initial, ram=bytes(ram))
     assert path.read_bytes() == data
     assert plain_text(env.reset()[0]) == "R=14545\n"
@@ -45,7 +46,12 @@ def test_restart_discards_nested_state_and_preserves_flags_and_output(
 
 
 @pytest.mark.parametrize(
-    "seed,expected", [(0, [1, 1]), (42, [14545, 14545]), (None, [14545, 18626])]
+    "seed,expected",
+    [
+        (0, [1, 1]),
+        (42, [14545, 14545]),
+        (None, [Random(42).randrange(1, 32768), Random(1000).randrange(1, 32768)]),
+    ],
 )
 def test_restart_uses_host_seed_policy_and_leaves_predictable_mode(
     tmp_path, monkeypatch, seed, expected
@@ -67,7 +73,7 @@ def test_restart_uses_host_seed_policy_and_leaves_predictable_mode(
     assert plain_text(env.step("again")[0]) == f"\nR=55\nR={expected[1]}\n"
     assert env.get_state().rng.period == 0
     assert env.get_state().rng.host_seed == seed
-    assert requests == ([31, 31] if seed is None else [])
+    assert requests == ([256, 256] if seed is None else [])
 
 
 def test_restart_uses_host_seed_from_restored_checkpoint(tmp_path):

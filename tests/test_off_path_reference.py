@@ -31,7 +31,7 @@ def assert_state(env, reference, bridge):
     """Compare reference-visible VM fields, with useful diagnostics for RAM."""
     actual, expected = env.get_state(), bridge.from_jericho(reference.get_state())
     for field in fields(expected):
-        if field.name == "format_version":
+        if field.name == "output":
             continue  # The reference does not expose Fernz's display checkpoint.
         left, right = getattr(actual, field.name), getattr(expected, field.name)
         if field.name == "ram":

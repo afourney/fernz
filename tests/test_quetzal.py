@@ -158,12 +158,40 @@ def test_missing_components_bad_container_and_order_are_rejected(vector):
 
 def test_legacy_missing_checksum_is_calculated():
     data = bytearray(program_bytes(bytes.fromhex("b5 c2") + READ))
+    data[0x1A:0x1C] = b"\x00\x00"  # Early V3 has neither length nor checksum metadata.
     data[0x1C:0x1E] = b"\x00\x00"
     story = Story(data)
+    assert story.header.checksum is None
     state = SavedGame(bytes(data[:0x300]), (FrameState((), (), None, None),), 0x402)
     encoded = dumps(story, state)
     assert int.from_bytes(encoded[28:30], "big") == sum(data[64:]) & 0xFFFF
     assert loads(story, encoded) == state
+
+
+@pytest.mark.parametrize("version", (3, 5))
+@pytest.mark.parametrize("identity", ("valid-zero", "mismatched-zero", "mismatched-nonzero"))
+def test_save_identity_preserves_present_checksum_even_when_verification_fails(version, identity):
+    code = bytes.fromhex("b5 c2") if version == 3 else bytes.fromhex("be 00 ff 10")
+    data = bytearray(
+        program_bytes(code + READ + (b"\x10" if version == 5 else b""), version=version)
+    )
+    stored = 1 if identity == "mismatched-nonzero" else 0
+    data[0x1C:0x1E] = stored.to_bytes(2, "big")
+    if identity == "valid-zero":
+        # Adjust unused static padding so zero is also the correct body sum.
+        count, remainder = divmod((-sum(data[64:])) & 0xFFFF, 255)
+        data[0x800 : 0x800 + count + 1] = b"\xff" * count + bytes((remainder,))
+    story = Story(data)
+    assert story.header.checksum == stored
+    assert story.verify_checksum() is (identity == "valid-zero")
+    state = SavedGame(bytes(data[:0x300]), (FrameState((), (), None, None),), 0x401 + len(code) - 1)
+    encoded = dumps(story, state)
+    assert int.from_bytes(encoded[28:30], "big") == stored
+    assert loads(story, encoded) == state
+    if identity != "valid-zero":
+        computed = (sum(data[64:]) & 0xFFFF).to_bytes(2, "big")
+        with pytest.raises(SaveFormatError, match="different story"):
+            loads(story, encoded[:28] + computed + encoded[30:])
 
 
 @pytest.mark.parametrize("change", ["pc", "branch", "return", "header"])
@@ -203,7 +231,7 @@ def test_restore_adapts_interpreter_header_and_preserves_flags2(vector):
     assert machine._restore()
     assert machine.memory.read_byte(1) == 0x30
     assert machine.memory.read_word(0x32) == 0
-    assert machine.memory.read_word(0x10) == 3
+    assert machine.memory.read_word(0x10) == 2
 
 
 def test_writer_refuses_unrepresentable_evaluation_stack(vector):

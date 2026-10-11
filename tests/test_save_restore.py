@@ -90,7 +90,7 @@ def test_opcode_restore_preserves_current_rng_flags_and_output(game, seed):
     assert after.rng == rng.get_state()
     assert after.rng.host_seed == 77
     assert after.frames[-1].locals[0] == expected_draw
-    assert after.ram[0x11] == 3
+    assert after.ram[0x11] == 2  # The unavailable transcript remains off.
     assert not after.screen_enabled
     assert before.ram[0x11] == after.ram[0x11]
 

@@ -1,10 +1,12 @@
-# Random-number compatibility
+# Random modes and compatibility
 
 Fernz's shared RNG implements the Z-machine `random` opcode independently of
 story version. Its predictable sequences match the observed behavior of
 **Jericho 3.3.1 and the Frotz 2.54/2.55 `dfrotz` executables**. This is a
 compatibility choice: [Standard §2.4](https://inform-fiction.org/zmachine/standards/z1point1/sect02.html)
-requires repeatability but does not prescribe a universal generator.
+requires repeatability but does not prescribe a universal generator. Ordinary
+random mode uses a separate per-environment Python `random.Random` instance
+and `randrange(1, n + 1)` for unbiased bounded sampling.
 
 Development follows the [mandatory clean-room requirements](OVERVIEW.md#mandatory-clean-room-requirement).
 Use the specification and black-box comparisons through public interfaces.
@@ -12,7 +14,7 @@ Use the specification and black-box comparisons through public interfaces.
 ## Opcode behavior
 
 The operand is a signed 16-bit word. Positive operands produce a result from
-1 through the operand, inclusive; every draw advances the sequence, even when
+1 through the operand, inclusive; every draw advances the active generator, even when
 the requested range is 1. Zero and negative operands return zero.
 
 | Operation | Behavior |
@@ -33,8 +35,10 @@ sample = state >> 16
 result = sample modulo range + 1
 ```
 
-The state has 31 bits, and each sample uses its upper 15 bits. The final
-remainder mapping introduces modulo bias for ranges that do not divide 32768.
+The compatibility state has 31 bits, and each sample uses its upper 15 bits.
+Its remainder mapping introduces modulo bias for ranges that do not divide
+32768. This mapping is retained only for predictable compatibility trajectories;
+ordinary random mode uses Python's rejection-based bounded sampling instead.
 
 For example, opcode seed 1000 and range 6 produce
 `2, 5, 6, 6, 1, 1, 5, 5, 6, 3, ...` in all three tested references.
@@ -46,11 +50,14 @@ host seed initializes the affine generator, including small seeds. It does not
 select the counting mode. For example, constructor seed 5 and opcode `random
 -5` intentionally produce different sequences.
 
-With an explicit host seed, `env.reset()`, `random 0`, and V3 `restart` restore
+With an explicit host seed, `env.reset()`, `random 0`, and `restart` restore
 that host-seeded sequence, discarding any counting cycle or opcode seed. With
-`seed=None`, each obtains fresh system entropy. Unseeded operation uses the same
-affine generator, seeded with `secrets.randbits(31)`. Unseeded trajectories are
-not part of the cross-interpreter compatibility contract.
+`seed=None`, each creates a Python generator seeded with
+`secrets.randbits(256)`. Random draws do not request fresh system entropy.
+Unseeded trajectories are not part of the cross-interpreter compatibility
+contract. A negative `random` operand discards the Python generator and enters
+the appropriate predictable mode, even when the host seed is `None`. The next
+`random 0` or restart reapplies the host policy.
 
 `env.seed(value)` selects and returns the host seed for the next `env.reset()`.
 It validates without executing, drawing randomness, or obtaining entropy. The
@@ -75,12 +82,11 @@ synthetic story, Jericho returns -1 and selects automatic seeding. The earlier
 observation on an unsupported probe did not generalize to supported games.
 Use the measured per-game seed explicitly in reference comparisons.
 
-This replaces Fernz's initial Python `random.Random` implementation, so seeded
-sequences change from that first execution milestone. The constructor's explicit
-zero remains reproducible. RNG instances belong to individual machines and do
-not share process-global state. Undo remains future work.
+The constructor's explicit zero remains reproducible. RNG instances belong to
+individual machines and do not share process-global state. Undo remains future
+work.
 
-Host-side `get_state()` / `set_state()` checkpoints capture both generator modes
+Host-side `get_state()` / `set_state()` checkpoints capture the active generator
 and the host seed policy. Restoring neither draws a value nor requests entropy;
 it resumes the saved sequence. The restored host seed also governs later
 `reset()`, `random 0`, and `restart` calls. If that seed is `None`, those later
@@ -88,11 +94,29 @@ operations still request fresh entropy. This host API supports deterministic
 exploration; it has a different contract from the standard's story-level
 save/restore opcodes.
 
-The pending next-reset seed is outside the unchanged `GameState` format.
+Schema-5 checkpoints include an optional immutable `rng.python_state` from
+Python's `getstate()`. Its presence identifies ordinary random mode; the compact
+`state`, `period`, and `position` fields are then zero and `host_seed` is `None`.
+Predictable mode keeps those compact fields and has `python_state=None`, with
+no Python generator allocated. Only ordinary-mode checkpoints carry the larger
+state (624 32-bit words plus an index and Python's state-format metadata).
+Copying or restoring uses `setstate()` without requesting entropy or advancing
+either generator. Malformed state is rejected before changing the environment.
+
+Only the current checkpoint schema is accepted. Fernz is unreleased and provides
+no migration or compatibility paths for earlier Fernz formats. Exact Python
+bounded sequences are not promised across arbitrary future Python releases.
+
+Existing game-vector archives use explicit seeds. Their compact RNG expectations
+and version-2 reference fingerprints remain unchanged; no Python RNG dumps
+are added to the ZIP files. Synthetic tests cover ordinary-mode sampling,
+switching, checkpoint replay, independent copies, and invalid state.
+
+The pending next-reset seed is outside the captured `GameState`.
 `set_state()` uses the captured active host seed for subsequent resets as well,
 replacing any pending selection made through `seed()`.
 
-V3 `save` writes no RNG state into its Quetzal file. `restore` retains the
+V3/V5 `save` writes no RNG state into its Quetzal file. `restore` retains the
 receiving machine's current RNG state and host seed, without drawing or reseeding
 during restoration. Any subsequent story instructions can of course draw from
 that sequence. A file loaded into a fresh process therefore does not promise the
@@ -120,7 +144,7 @@ restoration.
   V3 opcode/environment integration.
 - Required reference tests compare the shared RNG against both interpreters using
   V3/V5/V8 probes. V3 also runs through Fernz's complete execution path. These
-  tests do not claim that Fernz can execute V5/V8 stories yet.
+  tests do not establish V8 execution support; Fernz executes V3 and V5.
 - The reference job installs the distribution's binary `frotz` package and prints
   its version. Jericho is pinned to 3.3.1; the distribution package version may
   change with the runner image, and any sequence mismatch fails the job.

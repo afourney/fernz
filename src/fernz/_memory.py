@@ -22,6 +22,7 @@ class Memory:
         """Create memory without altering the story image or its header."""
         self._story = story
         self._data = bytearray(story.data[: story.size])
+        self._header_configured = False
 
     @property
     def story(self) -> Story:
@@ -92,6 +93,10 @@ class Memory:
             if (self._data[offset] ^ value) & ~allowed:
                 raise MemoryAccessError(f"Write changes protected header bits at {offset:#x}")
         self._data[start:end] = data
+        if self._header_configured and start <= 0x11 < end:
+            # §7.4: a direct Flags 2 write is also a transcript request. This
+            # execution host has no stream 2, so its status must remain off.
+            self._data[0x11] &= ~1
 
     def reset(self) -> None:
         """Restore the original image exactly, including the initial header.
@@ -100,8 +105,10 @@ class Memory:
         will also manage interpreter header fields, flags, stack, and CPU state.
         """
         self._data[:] = self.story.data[: self.story.size]
+        self._header_configured = False
 
     def _configure_v3_header(self) -> None:
+        self._header_configured = True
         # Interpreter-only writes (§11), deliberately unavailable to game opcodes.
         # Window output is available; the separate V3 status line is not rendered.
         self._data[1] = (self._data[1] & ~0x70) | 0x30
@@ -109,6 +116,7 @@ class Memory:
         self._data[0x32:0x34] = b"\x00\x00"  # Do not claim full Standard conformance.
 
     def _configure_header(self, width: int = 80, height: int = 25) -> None:
+        self._header_configured = True
         if self.story.header.version == 3:
             self._configure_v3_header()
             return
@@ -133,7 +141,8 @@ class Memory:
         candidate = Memory(self.story)
         candidate._configure_header(width, height)
         candidate.write_bytes(0, data)
-        self._data[: len(data)] = data
+        self._data[: len(data)] = candidate._data[: len(data)]
+        self._header_configured = True
 
     def _prepare_restore(self, data: bytes) -> "Memory":
         # Opcode restoration preserves the current Flags 2 and resets the
@@ -158,4 +167,5 @@ class Memory:
         """Copy current memory while sharing only the immutable original Story."""
         result = Memory(self.story)
         result._data[:] = self._data
+        result._header_configured = self._header_configured
         return result

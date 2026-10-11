@@ -118,12 +118,12 @@ equivalent values are 394 and 395. Fernz reads the story's actual counter at qui
 
 ## Checkpoints and validation
 
-`GameState` schema **2** adds `game_over` and `victory` boolean fields to the
-existing VM and RNG state. `get_state()`, `set_state()`, and `copy()` preserve
+`GameState` includes `game_over` and `victory` boolean fields alongside the VM,
+display, and RNG state. `get_state()`, `set_state()`, and `copy()` preserve
 them, including at input after a recoverable death and after terminal loss,
 victory, or quit. Restoration neither executes nor emits an old observation.
 The two fields are type-checked before committing changes; unsupported schema
-versions are rejected. Schema 1 cannot represent the captured outcomes.
+versions are rejected. Only the current checkpoint schema is accepted.
 The deterministic RNG and pending-input contracts are unchanged.
 
 Required Linux reference tests compare location numbers, selected complete versus

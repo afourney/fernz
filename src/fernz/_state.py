@@ -112,6 +112,7 @@ class RandomState:
     state: int
     period: int
     position: int
+    python_state: tuple[int, tuple[int, ...], None] | None = field(default=None, repr=False)
 
     def _validate(self) -> None:
         if self.host_seed is not None:
@@ -119,17 +120,30 @@ class RandomState:
         _integer(self.state, 0, 2**31 - 1, "RNG state")
         _integer(self.period, 0, 999, "RNG period")
         _integer(self.position, 0, max(0, self.period - 1), "RNG position")
+        if self.python_state is not None:
+            if self.host_seed is not None or self.state or self.period or self.position:
+                raise ValueError("Python RNG state cannot include a predictable generator")
+            if type(self.python_state) is not tuple or len(self.python_state) != 3:
+                raise TypeError("Expected an immutable Python RNG state")
+            version, words, gaussian = self.python_state
+            _integer(version, 3, 3, "Python RNG state version")
+            if type(words) is not tuple or len(words) != 625:
+                raise TypeError("Expected 624 immutable Python RNG words and an index")
+            for word in words[:-1]:
+                _integer(word, 0, 0xFFFFFFFF, "Python RNG word")
+            _integer(words[-1], 0, 624, "Python RNG index")
+            if gaussian is not None:
+                raise ValueError("The integer RNG has no cached Gaussian value")
 
 
 @dataclass(frozen=True, slots=True)
 class GameState:
-    """Base fields shared by Fernz checkpoints and the legacy V3 test adapter.
+    """Immutable schema-5 checkpoint at a public input or quit boundary.
 
     RAM contains dynamic memory only, including its current header. Static
     memory comes from the matching story image, identified without file padding.
-    Frames, pending input, output selection, randomness, and the most recent
-    response's outcome flags form the schema-2 base. get_state() returns its
-    schema-4 subclass, ExtendedGameState, including logical display state.
+    Frames, pending input, logical display state, randomness, and the most recent
+    response's outcome flags preserve the complete execution continuation.
     This versioned representation is independent of Jericho's tuple layout
     and saved-game file formats. Obtain snapshots through the environment.
     """
@@ -142,13 +156,13 @@ class GameState:
     input_request: InputRequest | None
     screen_enabled: bool
     halted: bool
-    format_version: int = 2
+    format_version: int = 5
     game_over: bool = False
     victory: bool = False
+    output: OutputState = OutputState()
 
     def _validate(self, story: Story) -> None:
-        expected_format = 4 if type(self) is ExtendedGameState else 2
-        _integer(self.format_version, expected_format, expected_format, "Snapshot format version")
+        _integer(self.format_version, 5, 5, "Snapshot format version")
         if self.story_sha256 != sha256(story.data[: story.size]).hexdigest():
             raise ValueError("Snapshot belongs to a different story image")
         if type(self.ram) is not bytes:
@@ -189,6 +203,9 @@ class GameState:
         if type(self.rng) is not RandomState:
             raise TypeError("Snapshot contains an invalid RNG state")
         self.rng._validate()
+        if type(self.output) is not OutputState:
+            raise TypeError("Snapshot contains an invalid output state")
+        self.output._validate(story)
         if type(self.screen_enabled) is not bool or type(self.halted) is not bool:
             raise TypeError("Snapshot output and halt flags must be booleans")
         if type(self.game_over) is not bool or type(self.victory) is not bool:
@@ -215,17 +232,3 @@ class GameState:
                 story.size - 1,
                 "Input instruction address",
             )
-
-
-@dataclass(frozen=True, slots=True)
-class ExtendedGameState(GameState):
-    """Schema-4 checkpoint preserving geometry and both windows' display state."""
-
-    format_version: int = 4
-    output: OutputState = OutputState()
-
-    def _validate(self, story: Story) -> None:
-        GameState._validate(self, story)
-        if type(self.output) is not OutputState:
-            raise TypeError("Snapshot contains an invalid output state")
-        self.output._validate(story)

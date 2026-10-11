@@ -2,6 +2,7 @@
 
 import secrets
 from operator import index
+from random import Random
 
 from ._state import RandomState
 
@@ -16,12 +17,12 @@ def validate_host_seed(seed: int | None) -> int | None:
 
 
 class RandomGenerator:
-    """Generate the predictable sequences observed in Jericho and Frotz.
+    """Use Python randomness or the predictable sequences measured in references.
 
     Opcode seeds 1-999 select a counting cycle; larger seeds select an affine
     generator. An explicit host seed always selects the affine generator,
-    including zero. None requests system entropy. See docs/RNG.md for the
-    compatibility contract and black-box reference tests.
+    including zero. None selects Python's generator with system entropy.
+    See docs/RNG.md for the compatibility contract and black-box reference tests.
     """
 
     def __init__(self, seed: int | None = None) -> None:
@@ -31,13 +32,20 @@ class RandomGenerator:
 
     def reset(self) -> None:
         """Start the host-seeded sequence again, leaving any counting cycle."""
-        self._state = self._host_seed if self._host_seed is not None else secrets.randbits(31)
+        self._random = Random(secrets.randbits(256)) if self._host_seed is None else None
+        self._state = self._host_seed if self._host_seed is not None else 0
         self._period = 0
         self._position = 0
 
     def get_state(self) -> RandomState:
-        """Capture both generator modes without advancing or reseeding."""
-        return RandomState(self._host_seed, self._state, self._period, self._position)
+        """Capture the active generator without advancing or reseeding."""
+        return RandomState(
+            self._host_seed,
+            self._state,
+            self._period,
+            self._position,
+            self._random.getstate() if self._random is not None else None,
+        )
 
     @classmethod
     def from_state(cls, state: RandomState) -> "RandomGenerator":
@@ -50,6 +58,10 @@ class RandomGenerator:
         result._state = state.state
         result._period = state.period
         result._position = state.position
+        result._random = None
+        if state.python_state is not None:
+            result._random = Random(0)  # An explicit seed avoids requesting entropy.
+            result._random.setstate(state.python_state)
         return result
 
     def random(self, operand: int) -> int:
@@ -62,11 +74,15 @@ class RandomGenerator:
             return 0
         if operand < 0:
             seed = -operand
+            self._random = None
             self._period = seed if seed < 1000 else 0
             self._position = 0
             self._state = seed
             return 0
 
+        if self._random is not None:
+            # randrange uses unbiased bounded sampling rather than a remainder.
+            return self._random.randrange(1, operand + 1)
         if self._period:
             sample = self._position
             self._position = (self._position + 1) % self._period

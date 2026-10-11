@@ -23,7 +23,7 @@ def fixture_env(tmp_path, code, *, version=5, **kwargs):
 
 
 def test_observation_is_immutable_and_escapes_literal_control_text(tmp_path):
-    text = "<bold> << > & text\n"
+    text = "<bold> <invert> << > & text\n"
     env = fixture_env(tmp_path, say(text) + READ + b"\x10")
     observation, info = env.reset()
     assert observation == Observation("<reset><size 80 25><bottom>" + text.replace("<", "<<"), text)
@@ -59,7 +59,7 @@ def test_window_interleaving_retains_erased_upper_text(tmp_path, version):
 
 
 def test_cursor_style_font_colour_clear_and_buffer_commands(tmp_path):
-    code = bytes.fromhex("ea 7f 03 eb 7f 01 ef 5f 02 04 f1 7f 06")
+    code = bytes.fromhex("ea 7f 03 eb 7f 01 ef 5f 02 04 f1 7f 07")
     code += say("A") + bytes.fromhex("ef 5f 02 04 f1 7f 00") + say("B")
     code += bytes.fromhex("ee 7f 01 be 04 7f 04 11 1b 03 02")
     code += bytes.fromhex("be 0d 0f 00 1f 7c 00 f2 7f 00 ed 7f 01 eb 7f 00")
@@ -69,7 +69,7 @@ def test_cursor_style_font_colour_clear_and_buffer_commands(tmp_path):
     assert obs.text == "ABC"
     assert obs.stream == (
         "<reset><size 80 25><bottom><split 3><at 4 1><top><at 1 1><at 2 4>"
-        "<bold><italic>A<at 2 4><normal>B<clear-line><font 4>"
+        "<invert><bold><italic>A<at 2 4><normal>B<clear-line><font 4>"
         "<color red black><color #ff0000 #0000ff><buffer off><clear top><at 1 1><bottom>C"
     )
     state = env.get_state().output

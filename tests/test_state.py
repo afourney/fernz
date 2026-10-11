@@ -1,4 +1,5 @@
 from dataclasses import FrozenInstanceError, replace
+from random import Random
 
 import pytest
 
@@ -120,8 +121,6 @@ def test_different_story_is_rejected_without_changing_current_game(game, tmp_pat
     [
         lambda s: None,
         lambda s: (s.ram, s.frames, s.pc),
-        lambda s: replace(s, format_version=1),
-        lambda s: replace(s, format_version=3),
         lambda s: replace(s, ram=s.ram[:-1]),
         lambda s: replace(s, ram=bytearray(s.ram)),
         lambda s: replace(s, ram=s.ram[:14] + b"\x03\x01" + s.ram[16:]),
@@ -197,7 +196,7 @@ def test_restore_preserves_output_selection_header_flags_and_no_old_output(tmp_p
     assert plain_text(env.step("look")[0]) == "B"  # Enter happened while output was disabled.
     env.memory.write_byte(0x11, 0)
     env.set_state(saved)
-    assert env.memory.read_byte(0x11) == 3
+    assert env.memory.read_byte(0x11) == 2  # Fixed font survives; no transcript is available.
     assert plain_text(env.step("look")[0]) == "B"  # Neither old A nor old B is replayed.
 
 
@@ -225,3 +224,79 @@ def test_random_snapshot_restores_each_mode_without_drawing_entropy(
         restored.random(0)
         fresh = RandomGenerator(host_seed)
         assert restored.random(32767) == fresh.random(32767)
+
+
+@pytest.mark.parametrize("version", (3, 5))
+def test_python_rng_checkpoint_replays_and_forks_across_environments(
+    tmp_path, version, monkeypatch
+):
+    read = READ + (b"\x10" if version == 5 else b"")
+    draw = bytes.fromhex("e7 3f 7f ff 00 e6 bf 00")
+    path = tmp_path / f"random.z{version}"
+    path.write_bytes(program_bytes(read + draw + read + draw + read, version=version))
+    env = FernzEnv(path)
+    env.reset()
+    saved = env.get_state()
+    assert saved.format_version == 5
+    assert saved.rng.python_state is not None
+    recipient = FernzEnv(path, seed=42)
+
+    def unexpected(*args):
+        pytest.fail("Checkpoint restoration and copying must not request entropy")
+
+    monkeypatch.setattr("fernz._random.secrets.randbits", unexpected)
+    recipient.set_state(saved)
+    fork = env.copy()
+    first = env.step("look")
+    after_first = env.get_state()
+    second = env.step("look")
+    after_second = env.get_state()
+    for candidate in (recipient, fork, env):
+        candidate.set_state(saved)
+        assert candidate.step("look") == first
+        assert candidate.get_state() == after_first
+        assert candidate.step("look") == second
+        assert candidate.get_state() == after_second
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"python_state": [3, Random(0).getstate()[1], None]},
+        {"python_state": (2, Random(0).getstate()[1], None)},
+        {"python_state": (3, [0] * 625, None)},
+        {"python_state": (3, (0,) * 624, None)},
+        {"python_state": (3, (-1,) + (0,) * 624, None)},
+        {"python_state": (3, (2**32,) + (0,) * 624, None)},
+        {"python_state": (3, (0,) * 624 + (625,), None)},
+        {"python_state": (3, Random(0).getstate()[1], 0.0)},
+        {"host_seed": 42},
+        {"state": 42},
+        {"period": 5},
+    ],
+)
+def test_invalid_python_rng_checkpoint_is_rejected_atomically(game, changes):
+    env = FernzEnv(game)
+    env.reset()
+    before = env.get_state()
+    with pytest.raises((TypeError, ValueError)):
+        env.set_state(replace(before, rng=replace(before.rng, **changes)))
+    assert env.get_state() == before
+
+
+@pytest.mark.parametrize("format_version", (0, 1, 2, 3, 4, 6))
+@pytest.mark.parametrize("host_seed", (None, 42))
+def test_only_current_checkpoint_format_is_accepted(game, format_version, host_seed):
+    env = FernzEnv(game, seed=host_seed)
+    env.reset()
+    saved = env.get_state()
+    assert type(saved) is GameState
+    assert saved.format_version == 5
+    env.step("look")
+    before = env.get_state()
+    memory = env.memory
+    with pytest.raises(ValueError, match="Snapshot format version"):
+        env.set_state(replace(saved, format_version=format_version))
+    assert env.get_state() == before
+    assert env.memory is memory
+    assert env.step("quit")[2] is True

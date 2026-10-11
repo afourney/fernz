@@ -47,6 +47,10 @@ The Z-machine specifications will guide interpreter behavior. Jericho's public
 API documentation will guide API compatibility, subject to the clean-room
 requirement above.
 
+Fernz has not been released. Accept only the current Fernz checkpoint and data
+formats; do not add compatibility shims or migrations for earlier Fernz formats
+unless explicitly requested. Update tests and test adapters with format changes.
+
 The [world-state hash and action discovery investigation](WORLD_STATE_HASH.md)
 records public-reference measurements and unresolved questions. Both APIs remain
 unimplemented; this work is paused pending further user direction.
@@ -451,8 +455,9 @@ The V3 `restart` opcode follows Standard
 [restart](https://inform-fiction.org/zmachine/standards/z1point1/sect15.html#restart).
 It restores the original story image and entry address, discards all routine
 frames and evaluation stacks, and configures the interpreter header again.
-The current Flags 2 word survives, including the transcription and fixed-font
-bits. It resumes execution until the next input request or quit, within the
+The current Flags 2 word survives, including the fixed-font bit. The unavailable
+transcription bit remains clear. It resumes execution until the next input
+request or quit, within the
 current call's instruction budget; a restart loop cannot renew that budget.
 
 Per [§2.4](https://inform-fiction.org/zmachine/standards/z1point1/sect02.html),
@@ -491,7 +496,7 @@ The current `env.memory` object keeps its identity during restore.
 | `screen_enabled`, `halted` | Output selection and whether the VM has executed quit. Earlier observations have already been drained and are not replayed. |
 | `output` | Logical display geometry, selected window, cursors, styles, fonts, colours, buffering, and nested memory streams. Rendered cells and previous observations are not stored. |
 | `game_over`, `victory` | Profile-classified loss/victory flags for the last completed response. These are independent of VM quit and preserve queries without retaining the transcript. |
-| `story_sha256`, `format_version` | Identity of the original addressable story image, excluding file padding, and the Fernz snapshot schema version (currently 4). |
+| `story_sha256`, `format_version` | Identity of the original addressable story image, excluding file padding, and the Fernz snapshot schema version (currently 5). |
 
 Memory alone is insufficient: local variables, stacks, and the execution
 continuation live outside story RAM. Returned checkpoints own immutable bytes
@@ -590,9 +595,9 @@ Public probes show that Zork's first two canyon deaths report loss while still
 allowing play, and a later ordinary response clears it. Victory is reported on
 entering the barrow, rather than merely reaching 350 points. Voluntary quit
 reports neither. Fernz keeps VM `done` separate from these response events and
-stores the two flags in checkpoints (introduced in schema 2) so copy/restore preserve them.
+stores the two flags in checkpoints so copy/restore preserve them.
 No transcript is retained. See [story queries](STORY_QUERIES.md) for the profile
-identity, evidence, name differences, schema change, and required CI coverage.
+identity, evidence, name differences, and required CI coverage.
 
 ## Story-level save and restore
 

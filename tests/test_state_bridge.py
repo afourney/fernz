@@ -90,7 +90,7 @@ def results(observation):
 @pytest.mark.parametrize(
     "locals_count,args,read_kind,mode,high",
     [
-        (0, (), "constant", "host", False),
+        pytest.param(0, (), "constant", "host", False, marks=pytest.mark.smoke),
         (0, (7, 8, 9), "stack", "counting", False),
         (1, (), "constant", "affine", False),
         (3, (0xABCD,), "global", "switch", False),
@@ -112,6 +112,8 @@ def test_synthetic_state_transfer(tmp_path, direction, locals_count, args, read_
         # not just against a serializer/deserializer round trip.
         measured = bridge.from_jericho(reference.get_state())
         original = env.get_state()
+        assert type(measured) is type(original)
+        assert measured.format_version == original.format_version == 5
         assert measured.frames == original.frames
         assert measured.pc == original.pc
         assert measured.input_request == original.input_request

@@ -53,7 +53,7 @@ must already be initialized with the same story and host seed. Its prior
 observation is set to `b"Observation not available"`; the next `step()` returns
 the newly generated observation normally.
 
-Schema-2 Fernz checkpoints also preserve compact loss/victory flags. Import
+Fernz checkpoints also preserve compact loss/victory flags. Import
 classifies the public native narrative through a known Fernz story profile,
 including after Zork's recoverable death. Export still supplies the placeholder,
 so Jericho's narrative-based outcome queries are unavailable until it produces
@@ -148,10 +148,12 @@ Only continuation output is compared. Fernz does not retain a prior observation,
 and the adapter does not synthesize one. Screen output must remain enabled;
 stream selection is not represented by the observed tuple.
 
-New Fernz checkpoints use schema 4 with logical display state. The V3 adapter
-still imports the schema-2 base fields and starts with default display state;
-it cannot recover native cursor, split, style or colour state from the public
-tuple. Reference-state fingerprints compare that VM-only projection. Complete
+Fernz checkpoints use schema 5 with logical display and active RNG state.
+The adapter rejects ordinary-mode Python RNG state: reference comparisons use
+explicit seeds and retain the compact predictable generator. The V3 adapter
+constructs the current `GameState` directly with default display state; it cannot
+recover native cursor, split, style or colour state from the public tuple.
+Reference-state fingerprints compare the shared VM fields. Complete
 Fernz-to-Fernz checkpoint replay separately checks the display fields and ordered
 observation stream. See [observations](OBSERVATIONS.md) for renderer checkpoints.
 

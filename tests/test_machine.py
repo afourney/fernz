@@ -218,7 +218,7 @@ def test_header_capabilities_and_game_write_protection():
 
 def test_unsupported_opcode_is_not_silently_ignored():
     with pytest.raises(UnsupportedOpcodeError, match=r"input_stream .*0x401"):
-        run_hex("f4 7f 01")
+        run_hex("f4 7f 02")  # An invalid stream is distinct from unavailable file input.
 
 
 def test_execution_budget_and_exact_budget_boundary():
