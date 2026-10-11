@@ -261,3 +261,36 @@ def test_hashed_outcomes_match_complete_normalized_lines():
     assert profile.outcomes("prefix test outcome") == (False, False)
     assert profile.outcomes("test outcome suffix") == (False, False)
     assert profile.outcomes("") == (False, False)
+
+
+def test_profile_can_distinguish_winning_and_losing_restart_menus():
+    profile = StoryProfile(
+        7,
+        frozenset({"restart menu"}),
+        frozenset({"won"}),
+        victory_overrides_loss=True,
+    )
+    assert profile.outcomes("won\nrestart menu\n>") == (False, True)
+    assert profile.outcomes("lost\nrestart menu\n>") == (True, False)
+    assert profile.outcomes("ordinary response") == (False, False)
+    # The policy is per profile; existing bindings may deliberately report both.
+    assert replace(profile, victory_overrides_loss=False).outcomes("won\nrestart menu") == (
+        True,
+        True,
+    )
+
+
+@pytest.mark.parametrize("value,expected", [(255, 255), (256, 0), (65535, 255)])
+def test_byte_move_counter_does_not_leak_high_byte(profiled_story, monkeypatch, value, expected):
+    monkeypatch.setitem(
+        _profiles._PROFILES,
+        sha256(profiled_story.read_bytes()).hexdigest(),
+        StoryProfile(77, frozenset(), frozenset(), moves_byte=True),
+    )
+    env = FernzEnv(profiled_story, seed=0)
+    env.reset()
+    env.memory.write_word(env.story.header.globals_table + 4, value)
+    before = env.get_state()
+    assert env.get_moves() == expected
+    assert env.get_state() == before
+    env.close()

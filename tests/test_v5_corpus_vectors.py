@@ -19,8 +19,7 @@ def test_v5_corpus_startup(jericho_games, game):
     assert manifest["story"] == story_identity(game)
     assert manifest["reference"]["version"] == REFERENCE_VERSION
     if game != "905":
-        assert (
-            manifest["kind"] in ("v5-startup", "v5-trajectory") and manifest["record_version"] == 1
-        )
+        kind = "v5-trajectory" if game in ("balances", "sherlock") else "v5-walkthrough"
+        assert manifest["kind"] == kind and manifest["record_version"] == 1
         assert manifest["boot_actions"] == list(BOOT_ACTIONS.get(game, ()))
     replay_startup(jericho_games / f"{game}.z5", game, documents["breadth.json"])

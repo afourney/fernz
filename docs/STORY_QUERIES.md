@@ -155,3 +155,13 @@ Their score getters read an unsigned low byte, while move getters read a word.
 Complete routes, detours, endings, counter perturbations and persistence are
 checked against public executable behavior. Balances' published route wins at
 50 points; Sherlock's victory also reports game over. See [V5 phase 3](V5.md#broader-v5-validation-phase-3).
+
+
+All 33 retained V5 builds now have exact-image profiles. The additional 30 cover
+winning routes, per-turn object/player/location/inventory inspection, score and
+move widths, maximum scores and response-based outcomes. New profiles give a
+recognized win precedence over a restart-menu loss marker. ZTUU uses a byte-wide
+move count. See the [V5 route table and reference boundaries](V5.md#complete-retained-v5-winning-routes)
+for exact seeds, player numbers, scores, and the intentional Deephome/Murdac
+ending differences. Unknown builds still require measured profiles for these
+queries; raw object inspection remains independent.

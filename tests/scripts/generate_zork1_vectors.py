@@ -20,6 +20,7 @@ from ..state_bridge import StateBridge
 from ..v3_cases import GAMES as V3_GAMES
 from ..v3_cases import selected_games
 from ..v5_corpus import GAMES as V5_GAMES
+from ..v5_shards import selected_games as selected_v5_games
 from ..vector_archive import (
     ARCHIVE_PATH,
     FORMAT_VERSION,
@@ -45,8 +46,8 @@ from ..zork_scenarios import (
 from .storyfile_vectors import generate_storyfiles
 from .v3_game_vectors import generate_v3
 from .v5_game_vectors import generate_905
-from .v5_startup_vectors import generate_startup
 from .v5_trajectory_vectors import generate_trajectory
+from .v5_walkthrough_vectors import generate_walkthrough
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -251,10 +252,12 @@ def main(argv=None):
     parser.add_argument("--suite", type=Path, help="Use an existing retained-story suite directory")
     parser.add_argument("--story", type=Path, help="Use an existing copy of the pinned ROM")
     parser.add_argument("--v3-shard", help="Select a disjoint V3 group, e.g. 1/3")
+    parser.add_argument("--v5-shard", help="Select a disjoint V5 group, e.g. 1/3")
     parser.add_argument("--output-dir", type=Path, default=ARCHIVE_PATH.parent)
     args = parser.parse_args(argv)
     try:
         games = selected_games(args.v3_shard)
+        v5_games = selected_v5_games(args.v5_shard)
     except ValueError as error:
         parser.error(str(error))
     if args.only is None and args.output.resolve() == args.storyfiles_output.resolve():
@@ -283,12 +286,12 @@ def main(argv=None):
             path = (suite / V3_GAMES[game]["filename"]).resolve()
             with TemporaryDirectory(prefix="fernz-record-") as tmp, chdir(tmp):
                 archives[args.output_dir / f"{game}_vectors.zip"] = generate_v3(path, game)
-    if args.only in (None, "905"):
+    if args.only in (None, "905") and "905" in v5_games:
         path = (suite / "905.z5").resolve()
         with TemporaryDirectory(prefix="fernz-record-") as tmp, chdir(tmp):
             archives[args.output_dir / "905_vectors.zip"] = generate_905(path)
     if args.only in (None, "v5", *V5_GAMES):
-        for game in V5_GAMES:
+        for game in v5_games:
             if args.only in V5_GAMES and game != args.only:
                 continue
             path = (suite / f"{game}.z5").resolve()
@@ -297,7 +300,9 @@ def main(argv=None):
                     archives[args.output_dir / "905_vectors.zip"] = generate_905(path)
             else:
                 generator = (
-                    generate_trajectory if game in ("balances", "sherlock") else generate_startup
+                    generate_trajectory
+                    if game in ("balances", "sherlock")
+                    else generate_walkthrough
                 )
                 archives[args.output_dir / f"{game}_vectors.zip"] = generator(path, game)
     changed = []
