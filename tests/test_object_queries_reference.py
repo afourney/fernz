@@ -8,77 +8,10 @@ from fernz import FernzEnv, ZObject
 
 from .test_reference import walkthrough_trace as walkthrough_trace
 from .test_reference import zork1 as zork1
+from .zork_compat import NAME_DIFFERENCES, UNNAMED_OBJECTS
 
 pytestmark = pytest.mark.reference
 
-# Independently measured name differences for the pinned Zork I image. Fernz
-# retains the complete story text, as it already did for location queries.
-NAME_DIFFERENCES = {
-    1: ("pair of hands", "pair hands"),
-    6: ("blast of air", "blast air"),
-    15: ("Slide Room", "Slide "),
-    22: ("Smelly Room", "Smelly "),
-    23: ("Squeaky Room", "Squeaky "),
-    25: ("Canyon View", "CanyView"),
-    27: ("Canyon Bottom", "CanyBottom"),
-    28: ("On the Rainbow", "On Rainbow"),
-    29: ("Aragain Falls", "AragaFalls"),
-    31: ("Frigid River", "River"),
-    34: ("Frigid River", "River"),
-    35: ("Frigid River", "River"),
-    36: ("Frigid River", "River"),
-    57: ("Grating Room", "Grating "),
-    71: ("East of Chasm", "East Chasm"),
-    80: ("South of House", "South House"),
-    81: ("North of House", "North House"),
-    97: ("wall with engravings", "engravings"),
-    101: ("trunk of jewels", "trunk jewels"),
-    102: ("The Troll Room", "Troll "),
-    105: ("Torch Room", "Torch "),
-    107: ("Round Room", "Round "),
-    108: ("tan label", "tlabel"),
-    115: ("large bag", "bag"),
-    119: ("small pile of coal", "pile coal"),
-    122: ("skeleton key", "skeletkey"),
-    124: ("Gas Room", "Gas "),
-    130: ("Frigid River", "River"),
-    133: ("Dome Room", "Dome "),
-    136: ("End of Rainbow", "End Rainbow"),
-    137: ("pot of gold", "pot gold"),
-    138: ("Loud Room", "Loud "),
-    141: ("pile of plastic", "pile plastic"),
-    144: ("pile of leaves", "pile leaves"),
-    145: ("pile of bodies", "pile bodies"),
-    146: ("small piece of vitreous slag", "piece vitreous slag"),
-    147: ("pair of candles", "pair candles"),
-    150: ("Mirror Room", "Mirror "),
-    152: ("Mirror Room", "Mirror "),
-    157: ("Machine Room", "Machine "),
-    160: ("small mailbox", "mailbox"),
-    163: ("large emerald", "emerald"),
-    165: ("leather bag of coins", "leather bag coins"),
-    166: ("burned-out lantern", "burned-lantern"),
-    175: ("Egyptian Room", "Egypti"),
-    180: ("West of House", "West House"),
-    185: ("Cyclops Room", ""),
-    187: ("Atlantis Room", "Atlant"),
-    189: ("clove of garlic", "clove garlic"),
-    190: ("Treasure Room", "Treasure "),
-    193: ("Living Room", "Living "),
-    199: ("Maintenance Room", "Maintenance "),
-    200: ("group of tool chests", "group tool chests"),
-    206: ("Timber Room", "Timber "),
-    222: ("Bat Room", "Bat "),
-    226: ("Shaft Room", "Shaft "),
-    228: ("Drafty Room", "Drafty "),
-    230: ("Land of the Dead", "LDead"),
-    232: ("Entrance to Hades", "Entrance Hades"),
-    233: ("number of ghosts", "number ghosts"),
-    237: ("quantity of water", "quantity water"),
-    240: ("mountain range", "mountarange"),
-    248: ("set of teeth", "set teeth"),
-}
-UNNAMED_OBJECTS = {82, 247, 249}
 # At the third canyon death, the interpreters halt with different thief
 # positions. Compare every other field and pin these exact raw-state differences;
 # do not normalize all thief movement away in a raw inspection test.
