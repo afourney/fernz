@@ -1,5 +1,8 @@
 # Cabin Fever x86 readiness review
 
+For a general customer replacing Jericho beyond Cabin Fever's particular API
+usage, see the [Jericho Readiness Report](JERICHO_READINESS.md).
+
 Reviewed **2026-10-11** against:
 
 - Fernz [`d6e7aa2`](https://github.com/afourney/fernz/tree/d6e7aa2de83004790c599622b7c9c90ddb8caff2),
