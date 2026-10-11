@@ -113,7 +113,8 @@ short live reference comparison. See [V4 coverage](V4.md).
 
 ## Release packaging
 
-[release.yml](../.github/workflows/release.yml) validates release artifacts on
-relevant PRs and manual runs; publishing runs only on matching `v*` tag pushes.
-See [Publishing Fernz](PUBLISHING.md) for the required GitHub/PyPI setup and
-release checklist. Manual release runs never upload to PyPI.
+[release.yml](../.github/workflows/release.yml) runs only on `v*` tag pushes and
+publishes after version and artifact validation. It does not run on pull requests
+or branch pushes. Ordinary CI retains `poe build-check` in its build job.
+See [Publishing Fernz](PUBLISHING.md) for the required GitHub/PyPI setup, local
+packaging checks and release checklist.

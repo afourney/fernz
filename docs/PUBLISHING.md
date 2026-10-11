@@ -33,11 +33,10 @@ Fernz's [release.yml](../.github/workflows/release.yml) does the following:
    protection rules and publish that run's `dist` artifact to production PyPI.
    The publish job never checks out or builds repository code.
 
-PRs touching the workflow, package checker, project metadata or lockfile run the
-build job as a safe preview. **Every manual `workflow_dispatch` run is build-only,
-including when a tag is selected.** The publish condition cannot be enabled by a
-manual input. A GitHub Release page is optional; publishing one is not this
-workflow's trigger. Non-`v` tags and branch pushes do not trigger this workflow.
+This workflow runs only for pushed `v*` tags. Ordinary pull requests use the
+**check** workflow, which retains `poe build-check` packaging validation. A GitHub
+Release page is optional; publishing one is not this workflow's trigger.
+Non-`v` tags and branch pushes do not trigger this workflow.
 A version suffix such as `0.1.0rc1` requires exactly `v0.1.0rc1`; a prefixless,
 mismatched, or differently spelled version is not accepted.
 
@@ -68,8 +67,8 @@ commit pins. Review action updates as release infrastructure changes.
   confer PyPI ownership. If someone else owns it, stop and resolve ownership or
   deliberately change package naming in a separately reviewed change.
 - PyPI and TestPyPI are separate services with separate accounts, project names
-  and publishers. This workflow targets production PyPI only. A manual run does
-  not upload to either service and does not prove that PyPI authentication works.
+  and publishers. This workflow targets production PyPI only. Local validation
+  and ordinary CI do not prove that PyPI authentication works.
 
 ## 2. Configure GitHub, before any release tag
 
@@ -177,28 +176,17 @@ The backend constraint remains `uv_build>=0.10.2,<0.11.0`; uv may warn that its 
 version differs from the backend version, but build isolation installs the
 specified backend. Do not update the backend solely to suppress that warning.
 
-Before this workflow is merged, the PR-triggered **release / build** job validates
-its artifact handoff source and skips publishing. After merge, open **Actions →
-release → Run workflow**, select the candidate ref, and run the build-only path:
+The ordinary **check** workflow runs `poe build-check` on pull requests and pushes
+to main. Use its build job and the local commands above to validate packaging
+before tagging. Do not create a tag to test CI: a matching release tag starts
+production publication after the configured environment gates pass. Local
+validation and ordinary CI do not validate actual PyPI account permissions.
 
-```sh
-gh workflow run release.yml --ref main
-gh run list --workflow release.yml --limit 5
-```
-
-Manual dispatch requires the workflow to exist on the default branch first.
-Inspect the run's event and head SHA, verify build success and **publish: skipped**,
-and download its `dist` artifact for inspection. Do not create a tag to test CI.
-Neither this preview nor PR checks validates actual PyPI account permissions.
-
-Before an actual release also require the normal **check** workflow and the
-manual **comprehensive** suite to pass on the exact release commit, following
-[CI.md](CI.md). The release build is a packaging gate, not the exhaustive
-interpreter/reference test suite. The comprehensive workflow can be started with:
-
-```sh
-gh workflow run ci.yml --ref main
-```
+Before an actual release require the normal **check** workflow and the
+**comprehensive** suite to pass on the exact release commit, following
+[CI.md](CI.md). The tag-triggered release build is a packaging gate, not the
+exhaustive interpreter/reference test suite. See CI.md for comprehensive run
+instructions.
 
 Check that the run SHA is the candidate SHA, particularly if main is moving.
 All clean-room restrictions in [OVERVIEW.md](OVERVIEW.md#mandatory-clean-room-requirement)
@@ -239,7 +227,7 @@ version=$(uv version --short)
 printf 'Proposed release: v%s\n' "$version"
 git ls-remote --tags origin "refs/tags/v$version" "refs/tags/v$version^{}"
 # Stop if that tag exists or this version already has any PyPI files.
-# Confirm this exact commit has passed check, comprehensive, and release build.
+# Confirm this exact commit has passed check, comprehensive, and local packaging checks.
 git tag -a "v$version" -m "Fernz $version"
 git show --no-patch "v$version"
 git push origin "refs/tags/v$version"
@@ -292,8 +280,7 @@ or publishing release notes is not necessary to upload to PyPI.
 | Symptom | Diagnosis and response |
 | --- | --- |
 | No release run | Confirm a single `v*` tag was pushed to `afourney/fernz`, the tagged commit includes `release.yml`, Actions are enabled, and the push was not made with a workflow `GITHUB_TOKEN`. A branch push or Release UI action alone is not the configured trigger. |
-| Manual run unavailable | The workflow must first exist on default branch. Use the PR build preview before merge. |
-| Publish skipped | Expected on PR/manual runs. For a release, check event, repository and tag ref against the publish condition. |
+| Publish skipped | Check build success and the repository, push event and tag ref against the publish condition. Publication is restricted to `afourney/fernz`. |
 | Waiting for approval | Review the `pypi` deployment. Check reviewer availability and self-review settings; do not remove protection just to bypass a failed build. |
 | Environment rejects ref | Confirm the environment allows **Tag** `v*`, not only Branch `main` or a similarly named branch rule. |
 | Version mismatch | The tagged commit's `pyproject.toml` must match literally. Inspect the tag target, not current main. Prepare a corrected version/commit through review. |
@@ -338,7 +325,7 @@ The workflow and this guide were checked against the following documentation:
 - [PyPI Trusted Publisher troubleshooting](https://docs.pypi.org/trusted-publishers/troubleshooting/)
 - [PyPI filename reuse restrictions](https://pypi.org/help/#file-name-reuse)
 - [PyPI yanking releases](https://docs.pypi.org/project-management/yanking/)
-- [GitHub push/tag and manual-dispatch events](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)
+- [GitHub push/tag events](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)
 - [GitHub upload-artifact](https://github.com/actions/upload-artifact)
 - [GitHub download-artifact](https://github.com/actions/download-artifact)
 - [uv package build guidance](https://docs.astral.sh/uv/guides/package/)
