@@ -2,12 +2,78 @@ import io
 import json
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import pytest
 
-from fernz import _cli
+from fernz import _cli, _cli_files
 
 from .story_files import READ, program_bytes, story_bytes
+
+
+@pytest.mark.parametrize("args", [[], ["--simple"]])
+def test_plain_frontend_without_textual(tmp_path, monkeypatch, capsys, args):
+    game = tmp_path / "quit.z3"
+    game.write_bytes(program_bytes(bytes.fromhex("e5 7f 41 ba")))
+    monkeypatch.setattr(_cli, "find_spec", lambda name: None)
+    assert _cli.main([*args, str(game)]) == 0
+    assert capsys.readouterr().out == "A"
+
+
+def test_explicit_simple_does_not_probe_textual(tmp_path, monkeypatch, capsys):
+    def unexpected(name):
+        pytest.fail(f"Simple mode must not load {name}")
+
+    game = tmp_path / "quit.z3"
+    game.write_bytes(program_bytes(b"\xba"))
+    monkeypatch.setattr(_cli, "find_spec", unexpected)
+    assert _cli.main(["--simple", str(game)]) == 0
+    assert capsys.readouterr().err == ""
+
+
+@pytest.mark.parametrize("args", [[], ["--rich"]])
+def test_textual_selection_when_installed(tmp_path, monkeypatch, args):
+    calls = []
+
+    class Frontend:
+        output = save = restore = None
+
+        def run_repl(self, env):
+            calls.append(env.game_path)
+            return 17
+
+    monkeypatch.setattr(_cli, "find_spec", lambda name: object())
+    monkeypatch.setitem(sys.modules, "fernz._rich_cli", SimpleNamespace(RichCLI=Frontend))
+    game = tmp_path / "quit.z3"
+    game.write_bytes(program_bytes(b"\xba"))
+    assert _cli.main([*args, str(game)]) == 17
+    assert calls == [game]
+
+
+def test_explicit_rich_without_textual_has_install_hint(monkeypatch, capsys):
+    monkeypatch.setattr(_cli, "find_spec", lambda name: None)
+    with pytest.raises(SystemExit) as error:
+        _cli.main(["--rich", "story.z3"])
+    assert error.value.code == 2
+    assert "pip install 'fernz[textual]'" in capsys.readouterr().err
+
+
+def test_frontend_flags_are_mutually_exclusive(capsys):
+    with pytest.raises(SystemExit) as error:
+        _cli.main(["--rich", "--simple", "story.z3"])
+    assert error.value.code == 2
+    assert "not allowed with argument" in capsys.readouterr().err
+
+
+def test_inspection_never_loads_textual(tmp_path, monkeypatch, capsys):
+    def unexpected(name):
+        pytest.fail(f"Inspection must not load {name}")
+
+    monkeypatch.setattr(_cli, "find_spec", unexpected)
+    game = tmp_path / "story.z3"
+    game.write_bytes(story_bytes())
+    assert _cli.main(["--rich", "--inspect", str(game)]) == 0
+    assert json.loads(capsys.readouterr().out)["version"] == 3
 
 
 def test_help(capsys):
@@ -31,7 +97,7 @@ def test_invalid_arguments(args, capsys):
 @pytest.mark.parametrize("directory", [False, True])
 def test_invalid_path(tmp_path, capsys, directory):
     path = tmp_path if directory else tmp_path / "missing.z3"
-    assert _cli.main([str(path)]) == 2
+    assert _cli.main(["--simple", str(path)]) == 2
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "fernz:" in captured.err
@@ -45,7 +111,7 @@ def test_invalid_path(tmp_path, capsys, directory):
 def test_existing_game_reports_unimplemented(tmp_path, capsys):
     game = tmp_path / "game with spaces.z3"
     game.write_bytes(story_bytes(7))
-    assert _cli.main([str(game)]) == 1
+    assert _cli.main(["--simple", str(game)]) == 1
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "supports V3, V5 and V8" in captured.err
@@ -57,7 +123,7 @@ def test_cli_prints_the_complete_opening_and_exits_at_eof(tmp_path, capsys, monk
     game = tmp_path / "opening.z3"
     game.write_bytes(program_bytes(bytes.fromhex("e5 7f 41 bb e5 7f 3e") + READ))
     monkeypatch.setattr(sys, "stdin", io.StringIO(""))
-    assert _cli.main([str(game)]) == 0
+    assert _cli.main(["--simple", str(game)]) == 0
     captured = capsys.readouterr()
     assert captured.out == "A\n>"
     assert captured.err == ""
@@ -69,7 +135,7 @@ def test_cli_reads_commands_until_story_quits(tmp_path, capsys, monkeypatch):
     game.write_bytes(program_bytes(READ + bytes.fromhex("d0 1f 02 80 01 10 e5 bf 10 ba")))
     stream = io.StringIO("LOOK\r\nunused\n")
     monkeypatch.setattr(sys, "stdin", stream)
-    assert _cli.main([str(game)]) == 0
+    assert _cli.main(["--simple", str(game)]) == 0
     captured = capsys.readouterr()
     assert captured.out == "\nl"
     assert captured.err == ""
@@ -83,7 +149,7 @@ def test_cli_continues_after_story_restart_without_an_extra_confirmation(
     # Print A and read; print B and restart. Only the story controls prompts.
     game.write_bytes(program_bytes(bytes.fromhex("e5 7f 41") + READ + bytes.fromhex("e5 7f 42 b7")))
     monkeypatch.setattr(sys, "stdin", io.StringIO("again\nagain\n"))
-    assert _cli.main([str(game)]) == 0
+    assert _cli.main(["--simple", str(game)]) == 0
     captured = capsys.readouterr()
     assert captured.out == "A\nBA\nBA"
     assert captured.err == ""
@@ -92,7 +158,7 @@ def test_cli_continues_after_story_restart_without_an_extra_confirmation(
 def test_cli_quit_during_startup_needs_no_input(tmp_path, capsys):
     game = tmp_path / "quit.z3"
     game.write_bytes(program_bytes(b"\xba"))
-    assert _cli.main([str(game)]) == 0
+    assert _cli.main(["--simple", str(game)]) == 0
     assert capsys.readouterr().err == ""
 
 
@@ -104,7 +170,7 @@ def test_cli_keyboard_interrupt_closes_without_traceback(tmp_path, capsys, monke
     game = tmp_path / "input.z3"
     game.write_bytes(program_bytes(READ))
     monkeypatch.setattr(sys, "stdin", InterruptedInput())
-    assert _cli.main([str(game)]) == 130
+    assert _cli.main(["--simple", str(game)]) == 130
     assert capsys.readouterr().err == ""
 
 
@@ -112,7 +178,7 @@ def test_cli_reports_execution_error_after_input(tmp_path, capsys, monkeypatch):
     game = tmp_path / "input.z3"
     game.write_bytes(program_bytes(READ + b"\xb0"))
     monkeypatch.setattr(sys, "stdin", io.StringIO("look\n"))
-    assert _cli.main([str(game)]) == 1
+    assert _cli.main(["--simple", str(game)]) == 1
     error = capsys.readouterr().err
     assert "initial execution context" in error
     assert "Traceback" not in error
@@ -121,7 +187,7 @@ def test_cli_reports_execution_error_after_input(tmp_path, capsys, monkeypatch):
 def test_cli_execution_error_has_no_traceback(tmp_path, capsys):
     game = tmp_path / "bad-code.z3"
     game.write_bytes(program_bytes(b"\xb0"))
-    assert _cli.main([str(game)]) == 1
+    assert _cli.main(["--simple", str(game)]) == 1
     captured = capsys.readouterr()
     assert "rtrue at 0x401" in captured.err
     assert "Traceback" not in captured.err
@@ -173,7 +239,7 @@ def test_cli_delegates_to_library_and_closes(tmp_path, monkeypatch, capsys, widt
 
     monkeypatch.setattr(_cli, "FernzEnv", StubEnv)
     game = tmp_path / "game.z3"
-    args = [str(game)]
+    args = ["--simple", str(game)]
     if (width, height) != (80, 25):
         args += ["--screen-width", str(width), "--screen-height", str(height)]
     assert _cli.main(args) == 1
@@ -206,7 +272,7 @@ def test_save_prompt_streams_prior_output_and_writes_quetzal(
 ):
     path = tmp_path / "saved game.qzl"
     monkeypatch.setattr(sys, "stdin", io.StringIO(str(path) + "\n"))
-    assert _cli.main([str(saving_game)]) == 0
+    assert _cli.main(["--simple", str(saving_game)]) == 0
     captured = capsys.readouterr()
     assert captured.out == "PSave file (blank cancels): S"
     assert captured.err == ""
@@ -217,7 +283,7 @@ def test_save_prompt_streams_prior_output_and_writes_quetzal(
 @pytest.mark.parametrize("answer", ["\n", ""])
 def test_save_cancellation_and_eof_report_opcode_failure(saving_game, capsys, monkeypatch, answer):
     monkeypatch.setattr(sys, "stdin", io.StringIO(answer))
-    assert _cli.main([str(saving_game)]) == 0
+    assert _cli.main(["--simple", str(saving_game)]) == 0
     captured = capsys.readouterr()
     assert captured.out == "PSave file (blank cancels): F"
     assert captured.err == ""
@@ -230,7 +296,7 @@ def test_save_overwrite_requires_confirmation(
     path = tmp_path / "existing.qzl"
     path.write_bytes(b"original")
     monkeypatch.setattr(sys, "stdin", io.StringIO(f"{path}\n{answer}\n"))
-    assert _cli.main([str(saving_game)]) == 0
+    assert _cli.main(["--simple", str(saving_game)]) == 0
     captured = capsys.readouterr()
     assert "Overwrite existing file?" in captured.out
     assert captured.out.endswith("S" if overwrite else "F")
@@ -247,8 +313,8 @@ def test_failed_atomic_save_keeps_existing_file(saving_game, tmp_path, capsys, m
     def fail(*_):
         raise OSError("write unavailable")
 
-    monkeypatch.setattr(_cli.os, "replace", fail)
-    assert _cli.main([str(saving_game)]) == 0
+    monkeypatch.setattr(_cli_files.os, "replace", fail)
+    assert _cli.main(["--simple", str(saving_game)]) == 0
     captured = capsys.readouterr()
     assert captured.out.endswith("F")
     assert "write unavailable" in captured.err
@@ -265,7 +331,7 @@ def test_restore_failure_returns_control_to_game(tmp_path, capsys, monkeypatch, 
         path.write_bytes(b"corrupt")
     answer = "\n" if kind == "cancel" else "" if kind == "eof" else f"{path}\n"
     monkeypatch.setattr(sys, "stdin", io.StringIO(answer))
-    assert _cli.main([str(game)]) == 0
+    assert _cli.main(["--simple", str(game)]) == 0
     captured = capsys.readouterr()
     assert captured.out == "Restore file (blank cancels): F"
     assert ("fernz:" in captured.err) is (kind == "missing")
@@ -280,7 +346,7 @@ def test_cli_save_and_restore_in_separate_processes(tmp_path):
     game.write_bytes(save_story())
     for command in ("save", "restore"):
         result = subprocess.run(
-            [sys.executable, "-m", "fernz", str(game)],
+            [sys.executable, "-m", "fernz", "--simple", str(game)],
             input=f"{command}\n{save}\ncontinue\n",
             text=True,
             capture_output=True,

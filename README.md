@@ -1,7 +1,7 @@
 # Fernz
 
 A Z-machine interpreter library in Python, working toward a
-Jericho-like API and a minimal interactive player.
+Jericho-like API and optional Textual terminal player.
 
 Fernz loads **raw V1-V8 story files** and completes the measured winning routes
 for **all 16 retained V3 games**, including Zork I. See the [game inventory and
@@ -30,8 +30,14 @@ uv run fernz games/jericho-game-suite/zork1.z5
 The ROM tests download the retained Jericho game suite when `games/` is absent.
 The inspection reports Z-machine **V3**, release **88**, serial **840726**, and
 a valid checksum for this Zork I file, despite its `.z5` extension.
-The player accepts commands until the story quits or you send EOF (Ctrl-D on
-Unix). Try `look`, `open mailbox`, `take leaflet`, `read leaflet`, and `inventory`.
+The CLI uses Textual when installed and falls back to the simple terminal player.
+Install the optional frontend with `uv sync --extra textual`, then run
+`uv run --extra textual fernz games/jericho-game-suite/zork1.z5`.
+Use `--rich` or `--simple` to select explicitly; use `--simple` for piped input.
+Textual provides separate windows, styled output, scrollback, command history
+and save dialogs. Ctrl+Q exits; the simple player exits at EOF.
+See [the CLI guide](docs/CLI.md) for controls and screen geometry.
+Try `look`, `open mailbox`, `take leaflet`, `read leaflet`, and `inventory`.
 The game's `save` and `restore` commands prompt for a filename. A blank filename
 cancels, and overwriting an existing save requires confirmation.
 
@@ -226,8 +232,8 @@ Fernz preserves a deterministic sequence for explicit zero, like Frotz. See
 **Do not inspect Frotz or Jericho implementation source.** Implement from the
 Z-machine specification and documented public APIs. Running Jericho through its
 public API for functional comparison is allowed. These clean-room requirements
-apply to every component, including random-number generation. Fernz has no runtime
-dependencies.
+apply to every component, including random-number generation. Fernz's library
+and simple CLI have no runtime dependencies; the `textual` extra is optional.
 
 See [the overview](docs/OVERVIEW.md) for the API contract, specification links,
 CI coverage, fixture setup, and full clean-room requirements.

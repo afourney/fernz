@@ -38,7 +38,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           version: "0.12.23"
-      - run: uv sync --frozen
+      - run: uv sync --frozen --extra textual
       # ROM tests may use jericho_games to download their fixtures on demand.
       # Do not upload or cache the games directory as a workflow artifact.
       - run: uv run --no-sync poe test
@@ -149,7 +149,7 @@ jobs:
         with:
           python-version: "3.12"
           version: "0.12.23"
-      - run: uv sync --frozen
+      - run: uv sync --frozen --extra textual
       - run: uv run --no-sync python -c "import importlib.util; assert importlib.util.find_spec('jericho') is None"
       - if: matrix.group == 'core'
         run: uv run --no-sync poe test

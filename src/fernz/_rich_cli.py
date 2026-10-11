@@ -1,0 +1,305 @@
+"""Optional Textual player; the interpreter remains independent of this UI."""
+
+from concurrent.futures import Future
+from pathlib import Path
+from typing import ClassVar
+
+from rich.text import Text
+from textual import events, work
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Horizontal, ScrollableContainer, Vertical
+from textual.screen import ModalScreen
+from textual.widgets import Button, Footer, Header, Input, Static
+
+from ._cli_files import write_save
+from ._env import FernzEnv
+from ._errors import ExecutionError
+from ._observation import Observation
+from ._screen import ScreenBuffer
+
+
+class FilePrompt(ModalScreen[str | None]):
+    """Request a save/restore filename without blocking the event loop."""
+
+    BINDINGS: ClassVar = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, operation: str) -> None:
+        """Choose a label; the caller owns filesystem operations."""
+        super().__init__()
+        self.operation = operation
+
+    def compose(self) -> ComposeResult:
+        """Show a path field and explicit accept/cancel buttons."""
+        with Vertical(id="dialog"):
+            yield Static(f"{self.operation} game", classes="dialog-title")
+            yield Input(placeholder="Saved-game path (blank cancels)", id="file-path")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Cancel", id="cancel")
+                yield Button(self.operation, id="accept", variant="primary")
+
+    def on_mount(self) -> None:
+        """Focus the filename as soon as the dialog is ready."""
+        self.query_one(Input).focus()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Accept typed paths, including spaces, on Enter."""
+        self.dismiss(event.value.strip() or None)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Accept the path or cancel without touching a file."""
+        value = self.query_one(Input).value.strip() if event.button.id == "accept" else ""
+        self.dismiss(value or None)
+
+    def action_cancel(self) -> None:
+        """Report cancellation to the suspended story opcode."""
+        self.dismiss(None)
+
+
+class ConfirmOverwrite(ModalScreen[bool]):
+    """Require an explicit confirmation before replacing an existing file."""
+
+    BINDINGS: ClassVar = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, path: Path) -> None:
+        """Retain the selected path as literal text."""
+        super().__init__()
+        self.path = path
+
+    def compose(self) -> ComposeResult:
+        """Show a safe default and a separately labelled replacement button."""
+        with Vertical(id="dialog"):
+            yield Static(Text(f"Replace existing save?\n{self.path}"))
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Cancel", id="cancel", variant="primary")
+                yield Button("Replace", id="replace", variant="error")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Only the Replace button authorizes the write."""
+        self.dismiss(event.button.id == "replace")
+
+    def action_cancel(self) -> None:
+        """Leave the existing file untouched."""
+        self.dismiss(False)
+
+
+class RichCLI(App[int]):
+    """Keep the UI responsive while a single worker owns VM execution."""
+
+    TITLE = "Fernz"
+    BINDINGS: ClassVar = [
+        Binding("ctrl+q", "leave", "Quit", priority=True),
+        Binding("ctrl+d", "leave", "Quit", show=False, priority=True),
+        Binding("ctrl+c", "interrupt", "Interrupt", show=False, priority=True),
+    ]
+    CSS = """
+    Screen { background: #101419; }
+    Header { background: #1c2833; }
+    #upper { height: auto; max-height: 60%; display: none; background: black; }
+    #lower { height: 1fr; background: black; }
+    #upper-text, #lower-text { width: auto; height: auto; background: black; color: white; }
+    #status { height: 1; padding: 0 1; color: #94a3b8; }
+    #command { margin: 0 1; }
+    Footer { background: #1c2833; }
+    FilePrompt, ConfirmOverwrite { align: center middle; background: #00000088; }
+    #dialog { width: 64; max-width: 95%; height: auto; padding: 1 2;
+              border: round #708da5; background: #1c2833; }
+    .dialog-title { margin-bottom: 1; text-style: bold; }
+    .dialog-buttons { height: auto; align-horizontal: right; margin-top: 1; }
+    .dialog-buttons Button { margin-left: 1; }
+    """
+    output = None  # Complete ordered observations drive rendering, never raw text fragments.
+
+    def __init__(self) -> None:
+        """Create UI state without importing or running a story."""
+        super().__init__()
+        self.env: FernzEnv
+        self.buffer = ScreenBuffer()
+        self.busy = True
+        self.character_input = False
+        self.commands: list[str] = []
+        self.history_position = 0
+        self.draft = ""
+        self._player_exit_code = 0
+        self._player_closing = False
+        self._dialog_result: Future | None = None
+
+    def compose(self) -> ComposeResult:
+        """Pin the upper window above a scrollable lower window and command field."""
+        yield Header()
+        with ScrollableContainer(id="upper"):
+            yield Static(id="upper-text")
+        with ScrollableContainer(id="lower"):
+            yield Static(id="lower-text")
+        yield Static("Opening story…", id="status")
+        yield Input(placeholder="Command", id="command", disabled=True)
+        yield Footer()
+
+    def run_repl(self, env: FernzEnv) -> int:
+        """Enter the terminal application; main closes the supplied environment."""
+        self.env = env
+        return self.run() or 0
+
+    def on_mount(self) -> None:
+        """Start execution after the UI can display dialogs and progress."""
+        self.title = f"Fernz · {self.env.game_path.name}"
+        self._advance(None)
+
+    @work(thread=True)
+    def _advance(self, action: str | None) -> None:
+        """Run one bounded VM operation without blocking Textual's event loop."""
+        try:
+            response = self.env.reset() if action is None else self.env.step(action)
+        except (NotImplementedError, ExecutionError, ValueError) as error:
+            if not self._player_closing:
+                self.call_from_thread(self._failed, str(error))
+        else:
+            if not self._player_closing:
+                self.call_from_thread(self._received, response[0], response[-1])
+
+    def _received(self, observation: Observation, info: dict[str, object]) -> None:
+        self.buffer.apply(observation.stream)
+        self._refresh_screen()
+        self.sub_title = " · ".join(f"{key.capitalize()}: {value}" for key, value in info.items())
+        self.busy = False
+        request = self.env.get_state().input_request
+        self.character_input = bool(getattr(request, "character", False))
+        command = self.query_one("#command", Input)
+        command.disabled = self.env.done or self.character_input
+        if self.env.done:
+            status = "Story ended · Ctrl+Q to exit"
+        elif self.character_input:
+            status = "Press a key · Enter to continue · Ctrl+Q to exit"
+            self.set_focus(None)
+        else:
+            status = "↑/↓ command history · Scroll to review output · Ctrl+Q to exit"
+            command.focus()
+        self.query_one("#status", Static).update(status)
+
+    def _refresh_screen(self) -> None:
+        upper = self.query_one("#upper", ScrollableContainer)
+        upper.display = self.buffer.split > 0
+        upper.styles.height = self.buffer.split
+        self.query_one("#upper-text", Static).update(self.buffer.render(1))
+        self.query_one("#lower-text", Static).update(self.buffer.render(0))
+        self.query_one("#lower", ScrollableContainer).scroll_end(animate=False)
+
+    def _failed(self, message: str) -> None:
+        self._player_exit_code = 1
+        self.busy = False
+        self.character_input = False
+        self.query_one("#command", Input).disabled = True
+        self.query_one("#status", Static).update(Text(f"{message} · Ctrl+Q to exit"))
+        self.notify(message, title="Execution stopped", severity="error", timeout=10)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Echo a line once, remember it, and advance the story."""
+        if event.input.id != "command" or self.busy:
+            return
+        event.stop()
+        action = event.value
+        event.input.value = ""
+        if action and (not self.commands or action != self.commands[-1]):
+            self.commands.append(action)
+        self.history_position = len(self.commands)
+        self.draft = ""
+        self.buffer.write(action)
+        self._refresh_screen()
+        self._submit(action)
+
+    def _submit(self, action: str) -> None:
+        self.busy = True
+        self.query_one("#command", Input).disabled = True
+        self.query_one("#status", Static).update("Working…")
+        self._advance(action)
+
+    def on_key(self, event: events.Key) -> None:
+        """Support single-key reads and preserve an unfinished history draft."""
+        if self.busy or self._player_closing or len(self.screen_stack) != 1 or self.env.done:
+            return
+        if self.character_input:
+            if event.key == "enter" or (event.character and event.character.isprintable()):
+                event.stop()
+                event.prevent_default()
+                self._submit("" if event.key == "enter" else event.character)
+        elif event.key in ("up", "down") and self.focused is self.query_one("#command"):
+            event.stop()
+            event.prevent_default()
+            command = self.query_one("#command", Input)
+            if self.history_position == len(self.commands):
+                self.draft = command.value
+            self.history_position = max(
+                0, min(len(self.commands), self.history_position + (-1 if event.key == "up" else 1))
+            )
+            command.value = (
+                self.commands[self.history_position]
+                if self.history_position < len(self.commands)
+                else self.draft
+            )
+            command.cursor_position = len(command.value)
+
+    def _ask(self, screen: ModalScreen):
+        result: Future = Future()
+
+        def show() -> None:
+            if self._player_closing:
+                result.set_result(None)
+                return
+            self._dialog_result = result
+
+            def complete(value) -> None:
+                if not result.done():
+                    result.set_result(value)
+                self._dialog_result = None
+
+            self.push_screen(screen, complete)
+
+        self.call_from_thread(show)
+        return result.result()
+
+    def save(self, data: bytes) -> bool:
+        """Ask for a path and atomically save after explicit overwrite consent."""
+        name = self._ask(FilePrompt("Save"))
+        if not name or self._player_closing:
+            return False
+        try:
+            path = Path(name).expanduser()
+            if path.exists() and not self._ask(ConfirmOverwrite(path)):
+                return False
+            if self._player_closing:
+                return False
+            write_save(path, data)
+            return True
+        except OSError as error:
+            self.call_from_thread(self.notify, str(error), severity="error")
+            return False
+
+    def restore(self) -> bytes | None:
+        """Read a user-selected saved game; errors return control to the story."""
+        name = self._ask(FilePrompt("Restore"))
+        if not name or self._player_closing:
+            return None
+        try:
+            return Path(name).expanduser().read_bytes()
+        except OSError as error:
+            self.call_from_thread(self.notify, str(error), severity="error")
+            return None
+
+    def _release_dialog(self) -> None:
+        self._player_closing = True
+        if self._dialog_result is not None and not self._dialog_result.done():
+            self._dialog_result.set_result(None)
+
+    def action_leave(self) -> None:
+        """Exit, cancelling any storage request still waiting for a response."""
+        self._release_dialog()
+        self.exit(self._player_exit_code)
+
+    def action_interrupt(self) -> None:
+        """Report the conventional interrupt status without a traceback."""
+        self._player_exit_code = 130
+        self.action_leave()
+
+    def on_unmount(self) -> None:
+        """Unblock a storage callback even when the terminal closes externally."""
+        self._release_dialog()
