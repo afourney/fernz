@@ -212,3 +212,10 @@ Use `poe generate-vectors --only v5` to regenerate the group. The default
 regeneration includes these archives; `--only <rom>` selects one. Both the live
 suite and `poe check-vectors --only v5` are mandatory in the manual V5 CI job.
 Portable CI runs without Jericho or NumPy on each supported hosted OS.
+
+Balances and Sherlock extend their existing archives with complete trajectories,
+profiled query hashes, detours, loss paths, persistence and seeded forks. Their
+`breadth.json` members remain unchanged, so corpus startup checks keep their
+original scope. Boxed clue text has a separate upper-window hash checked through
+a test-only observer; no clue text or object names enter the archives. See
+[V5 phase 3](V5.md#broader-v5-validation-phase-3) for display and input boundaries.

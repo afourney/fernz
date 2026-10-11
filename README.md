@@ -7,8 +7,8 @@ Fernz loads **raw V1-V8 story files** and completes the measured winning routes
 for **all 16 retained V3 games**, including Zork I. See the [game inventory and
 coverage](docs/V3_GAMES.md) for exact builds, seeds, and limitations. It provides
 header metadata, checksums, protected memory, instruction decoding, and V3
-command input and immutable checkpoints. Initial **V5 execution** completes
-9:05, including detours, both endings, V5 Quetzal save/restore, and the existing
+command input and immutable checkpoints. **V5 execution** has startup coverage for all 33 retained builds and complete
+9:05, Balances, and Sherlock routes, including detours, endings, V5 Quetzal save/restore, and the existing
 environment/inspection APIs. Linux compares public reference behavior; portable
 vectors cover other platforms. See [V5 milestones](docs/V5.md) for exact scope
 and remaining games. Full conformance and Blorb containers are still ahead.
@@ -130,7 +130,7 @@ including `.num` and `.name`. A known player profile uses its immediate containe
 (including vehicles); other V3 games use the status-line location convention.
 See [object inspection](docs/OBJECT_INSPECTION.md) for traversal examples, layout
 requirements, and measured differences from Jericho. Cleaning remains deferred.
-All 16 retained V3 builds and the pinned V5 9:05 build support `get_max_score()`, `game_over()`,
+All 16 retained V3 builds and the pinned V5 9:05, Balances, and Sherlock builds support `get_max_score()`, `game_over()`,
 and `victory()`. Outcome queries describe the latest response, including
 recoverable deaths, and survive checkpoint restoration and copying. `done`
 continues to indicate VM quit. Unknown builds raise `NotImplementedError` for

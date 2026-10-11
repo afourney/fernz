@@ -1,7 +1,7 @@
 """Story-specific metadata measured through public reference behavior.
 
-Keep game conventions outside opcode execution. Profiles identify the original
-addressable story image, so renaming or padding a file does not change support.
+Keep game metadata and narrowly measured legacy quirks together. Profiles identify
+the original addressable image, so renaming or padding does not change support.
 """
 
 from dataclasses import dataclass
@@ -12,7 +12,7 @@ from ._story import Story
 
 @dataclass(frozen=True, slots=True)
 class StoryProfile:
-    """A score limit, outcome response lines, and optional known player object."""
+    """Measured query metadata and bounded quirks for an exact story image."""
 
     max_score: int
     loss_lines: frozenset[str]
@@ -26,6 +26,8 @@ class StoryProfile:
     victory_hashes: frozenset[str] = frozenset()
     moves_offset: int = 0
     victory_score: int | None = None
+    ignored_attribute_writes: frozenset[int] = frozenset()
+    unordered_inspection_objects: frozenset[int] = frozenset()
 
     def outcomes(self, observation: str) -> tuple[bool, bool]:
         """Classify the latest response, tolerating differences in whitespace."""
@@ -44,6 +46,37 @@ class StoryProfile:
 # Zork I release 88, serial 840726. See docs/STORY_QUERIES.md for the
 # independent black-box evidence and the limits of response-based outcomes.
 _PROFILES = {
+    # Balances release 5, serial 961216: public counter and outcome probes.
+    "b21a405597b1988ac1726fe143dbd1c9076f27f450885bb8f0080f8e0cac7b2a": StoryProfile(
+        max_score=51,
+        loss_lines=frozenset(),
+        victory_lines=frozenset(),
+        player_object=20,
+        score_byte=True,
+        score_signed=False,
+        loss_hashes=frozenset({"d0d315b93630d583d3517bd77046c817a1bbbc2ba4b885258b161be053f9f129"}),
+        victory_hashes=frozenset(
+            {"a9cb91961da0ab9c2b4c970664745fed4e213cb29ae78a2f4098037401e18d5b"}
+        ),
+    ),
+    # Sherlock release 21, serial 871214. Attribute 48 writes are a measured
+    # historical no-op for this exact image; other invalid attributes fail.
+    "d364c24bd518b5691911d2653c4b54986d6bf3f5ce3813192bbabc5c2c318dd2": StoryProfile(
+        max_score=100,
+        loss_lines=frozenset(),
+        victory_lines=frozenset(),
+        player_object=232,
+        score_global=27,
+        moves_global=159,
+        score_byte=True,
+        score_signed=False,
+        loss_hashes=frozenset({"e9133ed4beff567b4a46139d9c8bc8b22dc776bba4bae133b617cf04fc642982"}),
+        victory_hashes=frozenset(
+            {"1d02bf89405591d860cb6a2e619ed3b47fb4b12971f7f14e3d1faf991c7ce60c"}
+        ),
+        ignored_attribute_writes=frozenset({48}),
+        unordered_inspection_objects=frozenset({308}),
+    ),
     "158f1f63b1302591bbce30e1ec23b17909d2a66e39403ed14593a75280b1e7f9": StoryProfile(
         max_score=350,
         loss_lines=frozenset({"**** You have died ****"}),

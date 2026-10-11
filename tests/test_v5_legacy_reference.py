@@ -82,3 +82,57 @@ def test_affected_roms_reach_line_input_and_continue(jericho_games, game, boot):
     finally:
         native.close()
         env.close()
+
+
+@pytest.mark.parametrize("opcode", (0x0B, 0x0C))
+@pytest.mark.parametrize("identity", (False, True))
+def test_sherlock_identity_attribute_48_write_behavior(tmp_path, dfrotz, opcode, identity):
+    from .v5_legacy_story import legacy_story
+
+    data = bytearray(legacy_story(bytes((opcode, 1, 48)) + bytes.fromhex("e5 7f 59 bb ba")))
+    if identity:
+        data[2:4] = (21).to_bytes(2, "big")
+        data[18:24] = b"871214"
+    path = tmp_path / "attribute.z5"
+    path.write_bytes(data)
+    result = subprocess.run(
+        [dfrotz, "-q", "-m", "-p", str(path)], input="", capture_output=True, text=True, timeout=15
+    )
+    assert result.returncode == (0 if identity else 1)
+    assert result.stdout == ("Y\n" if identity else "")
+    if not identity:
+        assert "Illegal attribute" in result.stderr
+    reference = synthetic_reference(path, 0)
+    try:
+        assert reference.reset()[0] == ("Y\n" if identity else "")
+    finally:
+        reference.close()
+
+
+def test_cursor_beyond_screen_width_uses_left_margin(tmp_path, dfrotz):
+    from .save_story import number
+    from .story_files import program_bytes
+
+    # Both reference screens are narrower than 255 columns. Set a valid
+    # cursor first, then move off-screen on a different row and query it.
+    code = bytes.fromhex("ea 7f 04 eb 7f 01 ef 5f 02 07 ef 5f 03 ff f0 3f 02 50 eb 7f 00")
+    code += bytes.fromhex("cf 1f 02 50 00 11") + number(17)
+    code += bytes.fromhex("cf 1f 02 50 01 11") + number(17) + b"\xba"
+    path = tmp_path / "cursor.z5"
+    path.write_bytes(program_bytes(code, version=5))
+    result = subprocess.run(
+        [dfrotz, "-q", "-m", "-p", str(path)],
+        input="",
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=True,
+    )
+    assert results(result.stdout) == [3, 1]
+    native = synthetic_reference(path, 42)
+    env = FernzEnv(path)
+    try:
+        assert results(native.reset()[0]) == results(env.reset()[0]) == [3, 1]
+    finally:
+        native.close()
+        env.close()

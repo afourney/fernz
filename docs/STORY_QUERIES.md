@@ -145,6 +145,13 @@ player 28, maximum score 1, a latest-response victory score, and elapsed minutes
 from global 17 minus 545. Its winning and losing response lines are represented
 by hashes. [V5 validation](V5.md) compares these queries with the documented
 public reference API across the complete route, detours, endings, restarts,
-saves, and snapshots. Other V5 builds currently return empty `info` and raise
+saves, and snapshots. Other unprofiled V5 builds return empty `info` and raise
 `NotImplementedError` for unsupported story-specific queries; raw object
 inspection is independent of profiles.
+
+The broader V5 milestone adds exact-image profiles for **Balances** and
+**Sherlock**, with maximum scores 51 and 100 and player objects 20 and 232.
+Their score getters read an unsigned low byte, while move getters read a word.
+Complete routes, detours, endings, counter perturbations and persistence are
+checked against public executable behavior. Balances' published route wins at
+50 points; Sherlock's victory also reports game over. See [V5 phase 3](V5.md#broader-v5-validation-phase-3).

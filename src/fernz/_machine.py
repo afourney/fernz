@@ -12,6 +12,7 @@ from ._instruction import Branch, Instruction, OperandType, decode, decode_branc
 from ._memory import Memory, MemoryAccessError
 from ._objects import Objects
 from ._output import Output
+from ._profiles import profile_for
 from ._quetzal import SavedGame, SaveFormatError, dumps, loads
 from ._random import RandomGenerator
 from ._state import ExtendedGameState, FrameState, GameState, InputRequest, StoredInputRequest
@@ -51,6 +52,7 @@ class Machine:
         self.frames = [Frame()]
         self.text = Text(memory)
         self.objects = Objects(memory)
+        self._profile = profile_for(memory.story)
         self.rng = RandomGenerator(seed)
         self.output: list[str] = []
         self.screen_enabled = True
@@ -102,6 +104,7 @@ class Machine:
         ]
         result.text = Text(memory)
         result.objects = Objects(memory)
+        result._profile = profile_for(memory.story)
         result.rng = RandomGenerator.from_state(state.rng)
         result.output = []  # Public calls already drained the previous observation.
         result.screen_enabled = state.screen_enabled
@@ -463,7 +466,8 @@ class Machine:
                 # jin, this opcode treats zero as empty without dereferencing it.
                 branch(self.objects.attribute(*args) if args[0] else False)
             case "set_attr" | "clear_attr":
-                if args[0]:
+                ignored = self._profile and args[1] in self._profile.ignored_attribute_writes
+                if args[0] and not ignored:
                     self.objects.attribute(*args, value=name == "set_attr")
             case "insert_obj":
                 # Legacy games sometimes move to/from the absent object.
