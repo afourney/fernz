@@ -7,11 +7,11 @@ Fernz loads **raw V1-V8 story files** and completes the measured winning routes
 for **all 16 retained V3 games**, including Zork I. See the [game inventory and
 coverage](docs/V3_GAMES.md) for exact builds, seeds, and limitations. It provides
 header metadata, checksums, protected memory, instruction decoding, and V3
-command input and immutable checkpoints. **V5 execution** has startup coverage for all 33 retained builds and complete
-9:05, Balances, and Sherlock routes, including detours, endings, V5 Quetzal save/restore, and the existing
-environment/inspection APIs. Linux compares public reference behavior; portable
+command input and immutable checkpoints. **V5 execution** completes winning routes for all 33 retained builds, with
+per-game score, move, player and outcome profiles. 9:05, Balances and Sherlock
+also have detours, loss paths and V5 Quetzal save/restore coverage. Linux compares public reference behavior; portable
 vectors cover other platforms. See [V5 milestones](docs/V5.md) for exact scope
-and remaining games. Full conformance and Blorb containers are still ahead.
+and remaining features. Full conformance and Blorb containers are still ahead.
 
 ## Try it
 

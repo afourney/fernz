@@ -206,9 +206,7 @@ image is Windows 11. See the [hosted runner labels](https://docs.github.com/en/a
 ## V5 corpus startup
 
 All 33 retained V5 ROMs have a `breadth.json` member in their own
-`<rom>_vectors.zip`: 66 scenarios and 396 boundaries in total. The archives
-occupy about 78 KB together at this stage, including 9:05's existing full-game
-records. Each manifest pins the ROM and reference version and hashes its JSON
+`<rom>_vectors.zip`: 66 scenarios and 396 boundaries in total. These breadth scenarios remain alongside the full-route records. Each manifest pins the ROM and reference version and hashes its JSON
 members. The companion live tests use the same replay assertions with fresh
 measurements. See [V5 phase 2](V5.md#broader-v5-validation-phase-2) for startup
 keys, reference conventions, measured presentation rules, and coverage limits.
@@ -224,3 +222,26 @@ profiled query hashes, detours, loss paths, persistence and seeded forks. Their
 original scope. Boxed clue text has a separate upper-window hash checked through
 the public display stream; no clue text or object names enter the archives. See
 [V5 phase 3](V5.md#broader-v5-validation-phase-3) for display and input boundaries.
+
+
+## Complete V5 route vectors
+
+The remaining 30 archives now contain `manifest.json`, `breadth.json`,
+`walkthrough.json` and `counters.json`. They cover 6,655 walkthrough commands,
+with hashed text, object/property bytes, globals, raw world/player/location/
+inventory records, and numeric query results. Counter probes independently
+establish signedness and byte/word widths. Manifests pin screen geometry as well
+as story identity, seeds, reference version and member hashes. State is checked
+at each input boundary even when a text hash spans character-input pauses.
+
+See [complete V5 coverage](V5.md#complete-retained-v5-winning-routes) for narrow
+reference presentation rules, truncated object enumeration, and the explicit
+Deephome/Murdac ending differences. Generation uses public Jericho calls and
+specification-based decoding of public snapshots; Fernz execution is never the
+expected-result oracle. Only hashes and metadata are committed, with no story
+narrative, object names, ROM bytes, RAM/stack dumps or save files.
+
+The same `--v5-shard 1/3` selector partitions live tests, portable tests and
+`generate-vectors` / `check-vectors --only v5`. The long routes remain manual;
+automatic CI continues to check archive integrity without executing them.
+The 33 V5 ZIPs together occupy about 1.75 MB (1.67 MiB).

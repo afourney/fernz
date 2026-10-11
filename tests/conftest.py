@@ -28,18 +28,27 @@ def pytest_addoption(parser):
         "--v3-shard", help="Select a disjoint part of the additional V3 games, e.g. 1/3"
     )
 
+    parser.addoption("--v5-shard", help="Select a disjoint part of the V5 games, e.g. 1/3")
+
 
 def pytest_collection_modifyitems(config, items):
     from .v3_cases import selected_games
+    from .v5_shards import selected_games as selected_v5_games
 
     try:
         selected = selected_games(config.getoption("--v3-shard"))
+        selected_v5 = selected_v5_games(config.getoption("--v5-shard"))
     except ValueError as error:
         raise pytest.UsageError(str(error)) from error
     kept, removed = [], []
     for item in items:
         game = item.callspec.params.get("v3_game") if hasattr(item, "callspec") else None
-        (kept if game is None or game in selected else removed).append(item)
+        params = item.callspec.params if hasattr(item, "callspec") else {}
+        v5 = params.get("v5_game")
+        if v5 is None and item.get_closest_marker("v5games"):
+            v5 = params.get("game")
+        retain = (game is None or game in selected) and (v5 is None or v5 in selected_v5)
+        (kept if retain else removed).append(item)
     if removed:
         config.hook.pytest_deselected(items=removed)
         items[:] = kept

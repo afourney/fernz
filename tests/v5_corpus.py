@@ -20,9 +20,9 @@ BOOT_ACTIONS = {
     # includes these silent story commands. Measured via public RAM/input.
     "jewel": ("bypass", "yes"),
 }
-# These title screens paint the upper window. Fernz exposes the lower-window
-# transcript, so startup compares state; the subsequent line responses compare
-# text too. This is an explicit coverage boundary, not an automatic fallback.
+# These title screens paint the upper window. The original breadth adapter
+# compares lower-window text, so its opening checks state only. Full-route
+# comparisons include both windows. This is an explicit coverage boundary, not an automatic fallback.
 WINDOWED_OPENINGS = frozenset({"curses", "huntdark", "library", "sherlock", "theatre"})
 
 

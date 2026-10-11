@@ -149,11 +149,10 @@ class FernzEnv:
                         score -= 0x100
                 elif profile.score_signed:
                     score = signed(score)
-            return {
-                "score": score,
-                "moves": self._machine.read_variable(16 + profile.moves_global)
-                + profile.moves_offset,
-            }
+            moves = self._machine.read_variable(16 + profile.moves_global)
+            if profile.moves_byte:
+                moves &= 0xFF
+            return {"score": score, "moves": moves + profile.moves_offset}
         if self.story.header.version >= 4:
             # Later versions have no VM-defined score or move globals (§8).
             return {}

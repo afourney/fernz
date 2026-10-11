@@ -768,3 +768,15 @@ module entry point from a temporary directory outside the checkout.
 per-game profiles, live and portable detours, loss and lifecycle scenarios,
 maze/current/timing checks, and explicit reference limitations. The earlier
 Zork milestones above remain part of the required core suite.
+
+
+## Complete retained V5 routes
+
+The [V5 coverage document](V5.md#complete-retained-v5-winning-routes) records
+winning routes and exact-image query profiles for all 33 retained V5 stories.
+The additional 30 routes add 6,655 commands with live public Jericho comparisons
+on Linux and hashed portable vectors elsewhere. Every step checks world objects,
+player, location, inventory, counters, outcomes, input and RNG. Display geometry,
+character-pause text grouping, reference truncation, and terminal-state exceptions
+are explicit in the tests and documentation. Three V5 groups keep this work in
+the manual comprehensive workflow; the fast PR workload remains bounded.

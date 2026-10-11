@@ -39,13 +39,16 @@ def text_content(observation, game, *, opening=False, fernz=False):
     return text
 
 
-def reference_queries(env, original):
+def reference_queries(env, original, *, public_count=None):
     state = env.get_state()
     ram = state[0].tobytes()
     records = object_records(ram + original[len(ram) :], original)
     world = env.get_world_objects(clean=False)
-    assert len(world) == len(records)
-    for obj, record in zip(world, records, strict=True):
+    assert len(world) == (len(records) if public_count is None else public_count)
+    assert len(world) <= len(records)
+    # Some public reference profiles enumerate only an initial prefix. The
+    # complete table still comes independently from public RAM and the spec.
+    for obj, record in zip(world, records[: len(world)], strict=True):
         assert_public_object(obj, record)
     player = int(env.get_player_object().num)
     parent = records[player]["parent"]
@@ -56,14 +59,18 @@ def reference_queries(env, original):
         carried.append(number)
         number = records[number]["sibling"]
     assert_public_object(env.get_player_object(), records[player])
-    assert_public_object(env.get_player_location(), records[parent])
+    if parent >= len(world):
+        assert env.get_player_location() is None and env.get_object(parent) is None
+    else:
+        assert_public_object(env.get_player_location(), records[parent])
     inventory = env.get_inventory()
     assert [int(obj.num) for obj in inventory] == carried[: len(inventory)]
     if len(inventory) < len(carried):
         # As in V3, the public wrapper stops at an unnamed child. RAM still
         # provides the complete, independently decoded inventory chain.
         hidden = carried[len(inventory)]
-        assert records[hidden]["name"] == "" and env.get_object(hidden) is None
+        assert hidden >= len(world) or records[hidden]["name"] == ""
+        assert env.get_object(hidden) is None
     for obj in inventory:
         assert_public_object(obj, records[int(obj.num)])
     return query_record(records, player, parent, carried, env)
@@ -87,12 +94,13 @@ def query_record(records, player, parent, carried, env):
     }
 
 
-def fernz_queries(env):
+def fernz_queries(env, *, direct_objects=None):
     world = env.get_world_objects()
     records = [asdict(obj) for obj in world]
     assert env.get_object(0) is None and env.get_object(len(world)) is None
-    for obj in world[1:]:
-        assert env.get_object(obj.num) == obj
+    numbers = range(1, len(world)) if direct_objects is None else direct_objects
+    for number in numbers:
+        assert env.get_object(number) == (world[number] if number else None)
     player = env.get_player_object()
     location = env.get_player_location()
     return query_record(

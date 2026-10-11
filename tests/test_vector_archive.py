@@ -133,3 +133,57 @@ def test_full_v5_records_do_not_embed_narrative_or_state_payloads():
                             assert key.endswith("_sha256") and re.fullmatch(r"[0-9a-f]{64}", value)
                         else:
                             assert type(value) in (int, bool, list)
+
+
+def test_remaining_v5_walkthroughs_store_only_commands_metadata_and_hashes():
+    from .v5_walkthrough_cases import GAMES
+
+    fields = {
+        "action",
+        "queries",
+        "reference_outcomes",
+        "reward",
+        "reference_done",
+        "info",
+        "reference_info",
+        "halted",
+        "input_address",
+        "character_input",
+        "rng",
+        "objects",
+        "globals_sha256",
+        "text_group_end",
+        "text_sha256",
+    }
+
+    def metadata(value):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if isinstance(child, str):
+                    assert key.endswith("_sha256") and re.fullmatch(r"[0-9a-f]{64}", child)
+                else:
+                    metadata(child)
+        elif isinstance(value, list):
+            assert all(type(child) is int for child in value)
+        else:
+            assert value is None or type(value) in (int, bool)
+
+    for game, case in GAMES.items():
+        documents = read_archive(Path(__file__).parent / "vectors" / f"{game}_vectors.zip")
+        assert set(documents) == {
+            "manifest.json",
+            "breadth.json",
+            "walkthrough.json",
+            "counters.json",
+        }
+        route = documents["walkthrough.json"]["cases"][0]
+        assert len(route["steps"]) == case["length"] + 1
+        assert route["steps"][0]["action"] is None
+        for record in route["steps"]:
+            assert set(record) == fields
+            assert record["action"] is None or isinstance(record["action"], str)
+            metadata({key: value for key, value in record.items() if key != "action"})
+        for record in documents["counters.json"]["cases"][0]["steps"]:
+            assert set(record) == {"field", "value", "score", "moves"}
+            assert record["field"] in ("score", "moves")
+            assert all(type(record[key]) is int for key in ("value", "score", "moves"))
