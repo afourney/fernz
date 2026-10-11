@@ -36,6 +36,7 @@ addopts = "-m 'not reference and not rom'"
 markers = [
     "reference: black-box comparisons requiring Jericho and downloaded ROMs",
     "rom: loading, memory, and gameplay tests using downloaded story files",
+    "vectors: portable gameplay comparisons using the committed reference ZIP (no Jericho)",
 ]
 
 [tool.ruff]
@@ -82,8 +83,11 @@ lint-fix = "ruff check --fix src tests scripts"
 # Keep downloaded ROMs and deliberately malformed test inputs out of spell checks.
 spell = "codespell --check-hidden src scripts docs README.md pyproject.toml .github"
 test = "pytest"
-test-roms = "pytest -m rom -ra"
+test-roms = "pytest -m 'rom and not vectors' -ra"
 test-reference = "pytest -m reference -ra --tb=short"
+test-vectors = "pytest -m vectors -ra --tb=short"
+generate-vectors = "python -m tests.scripts.generate_zork1_vectors"
+check-vectors = "python -m tests.scripts.generate_zork1_vectors --check"
 build = "uv build --out-dir dist"
 check-dist = "python scripts/check_dist.py"
 build-check = ["build", "check-dist"]

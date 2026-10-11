@@ -6,9 +6,10 @@ import pytest
 
 from fernz import ExecutionError, FernzEnv
 
+from .zork_scenarios import ZORK1_SHA256
+
 pytestmark = pytest.mark.reference
 
-ZORK1_SHA256 = "0ae5ac229e79094ff368b6669356444af0f35e21d862a1baaa546989085c15fd"
 ACTIONS = ("look", "open mailbox", "take leaflet", "read leaflet", "inventory")
 
 

@@ -77,6 +77,32 @@ jobs:
       # Branch off the walkthrough with invalid inputs, red herrings, and seeded combat.
       # Compare transcripts and complete converted VM state after every detour turn.
       - run: uv run --no-sync poe test-reference
+      # Regenerate public reference measurements in memory and require every
+      # committed ZIP member to match. This never rewrites the fixture.
+      - run: uv run --no-sync poe check-vectors
+      - run: uv run --no-sync poe test-vectors
+
+  portable:
+    name: portable (${{ matrix.os }}, Python 3.12)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # Hosted x64 Windows is Server 2025; ARM uses Windows 11.
+        os: [macos-latest, windows-2025, windows-11-arm]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          version: "0.12.23"
+      - run: uv sync --frozen
+      - run: uv run --no-sync python -c "import importlib.util; assert importlib.util.find_spec('jericho') is None"
+      - run: uv run --no-sync poe test
+      # Read the ZIP directly with Python's zipfile. Only the existing ROM
+      # fixture downloads games; do not cache or upload the games directory.
+      - run: uv run --no-sync poe test-vectors
 
   build:
     runs-on: ubuntu-latest

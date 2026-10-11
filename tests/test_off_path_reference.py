@@ -9,100 +9,17 @@ from fernz import FernzEnv
 from .state_bridge import StateBridge
 from .test_reference import assert_info, assert_zork_opening, assert_zork_turn
 from .test_reference import zork1 as zork1
+from .zork_scenarios import (
+    CELLAR_DEATH_ACTIONS,
+    CHECKPOINTS,
+    COMBAT_ACTIONS,
+    COMBAT_SEEDS,
+    COMMAND_GROUPS,
+    SCENARIOS,
+)
 
 pytestmark = pytest.mark.reference
 
-# Prefix lengths from the public walkthrough, with independently observed rooms.
-# Include outdoor, indoor, underground, container, vehicle, and late-game states.
-CHECKPOINTS = {
-    "west-house": (0, 180),
-    "tree": (3, 88),
-    "window": (8, 79),
-    "living-room": (12, 193),
-    "kitchen": (20, 203),
-    "torch-room": (35, 105),
-    "dam-lobby": (100, 154),
-    "beach": (214, 33),
-    "boat": (218, 156),
-    "drafty-room": (350, 228),
-    "full-score": (387, 193),
-}
-
-COMMAND_GROUPS = {
-    "unknown-verb": ("glorb", "xyzzy", "frobnicate mailbox", "teleport kitchen"),
-    "unknown-noun": (
-        "take flibbertigibbet",
-        "open flibbertigibbet",
-        "examine flibbertigibbet",
-        "put flibbertigibbet in mailbox",
-        "put lamp in flibbertigibbet",
-    ),
-    "absent-object": (
-        "take grue",
-        "open rainbow",
-        "read troll",
-        "attack thief with sword",
-        "give leaflet to troll",
-        "unlock door with key",
-    ),
-    "red-herring": (
-        "kick door",
-        "knock on door",
-        "kick mailbox",
-        "take house",
-        "take mailbox",
-        "eat mailbox",
-        "drink lamp",
-        "read sword",
-        "smell leaflet",
-        "listen",
-        "sing",
-        "pray",
-        "wave sword",
-        "rub lamp",
-        "climb house",
-    ),
-    "object-operation": (
-        "open mailbox",
-        "close mailbox",
-        "take all",
-        "drop all",
-        "take all except lamp",
-        "put lamp in mailbox",
-        "put lamp in lamp",
-        "put lamp on table",
-        "turn on lamp",
-        "turn off lamp",
-        "move rug",
-        "open trap door",
-        "enter boat",
-        "exit boat",
-    ),
-    "incomplete": ("take", "open", "put", "give", "attack", "put lamp", "look under"),
-    "pronoun": ("take it", "drop it", "examine it", "again", "g", "oops mailbox"),
-    "lexical": (
-        "",
-        "   ",
-        "LoOk",
-        "  OPEN   MAILBOX  ",
-        "take leaflets",
-        "inventoryyyyy",
-        ".",
-        ",",
-        "!",
-        "look!",
-        "look;inventory",
-        "look,look",
-        '"hello"',
-        "12345",
-        "look. inventory",
-        "open mailbox then read leaflet",
-        "take lamp and sword",
-        "take lamp, sword",
-    ),
-    "navigation": ("north", "up", "down", "in", "out"),
-    "status": ("look", "inventory", "score", "diagnose", "wait"),
-}
 COMMANDS = [
     pytest.param(command, id=f"{group}:{command or '<empty>'}")
     for group, commands in COMMAND_GROUPS.items()
@@ -199,186 +116,11 @@ def test_off_path_command_and_followups(checkpoint_envs, checkpoint, action):
 
 # Each scenario starts independently, then keeps parser and game side effects
 # across turns. Replay the whole branch to check snapshots, RNG, and follow-ups.
-SCENARIOS = (
-    pytest.param(
-        "living-room",
-        ("move rug", "open door", "wooden", "open door", "trap", "look"),
-        id="ambiguous-doors-and-clarification",
-    ),
-    pytest.param(
-        "west-house",
-        ("open", "mailbox", "take", "leaflet", "read it", "drop it", "take it"),
-        id="clarification-and-pronouns",
-    ),
-    pytest.param(
-        "west-house",
-        ("glorb", "open flibbertigibbet", "open mailbox", "take leaflet", "read leaflet"),
-        id="recover-after-unknown-words",
-    ),
-    pytest.param(
-        "west-house",
-        ("enter door", "look", "open mailbox", "take leaflet", "inventory", "north"),
-        id="zero-object-jin-and-continued-play",
-    ),
-    pytest.param(
-        "west-house",
-        (
-            "take leaflet",
-            "open mailbox",
-            "take leaflet",
-            "put leaflet",
-            "mailbox",
-            "close mailbox",
-            "take leaflet",
-            "open mailbox",
-            "take leaflet",
-        ),
-        id="container-state",
-    ),
-    pytest.param(
-        "west-house",
-        (
-            "kick door",
-            "again",
-            "knock on door",
-            "open door",
-            "north",
-            "east",
-            "open window",
-            "enter window",
-        ),
-        id="futile-door-then-window",
-    ),
-    pytest.param(
-        "west-house",
-        (
-            "look. inventory",
-            "open mailbox then take leaflet",
-            "read it",
-            "drop leaflet and sword",
-            "take all",
-            "inventory",
-        ),
-        id="multiple-commands-and-objects",
-    ),
-    pytest.param(
-        "west-house",
-        (
-            "take it",
-            "open mailbox",
-            "take leaflet",
-            "examine it",
-            "drop it",
-            "g",
-            "take it",
-            "read it",
-        ),
-        id="repeat-and-pronoun-history",
-    ),
-    pytest.param(
-        "tree",
-        ("take nest", "open egg", "drop nest", "down", "take nest", "up", "look in nest"),
-        id="tree-detour",
-    ),
-    pytest.param(
-        "window",
-        (
-            "close window",
-            "enter window",
-            "open window",
-            "enter window",
-            "close window",
-            "west",
-            "east",
-        ),
-        id="window-state-and-navigation",
-    ),
-    pytest.param(
-        "living-room",
-        (
-            "take all",
-            "open case",
-            "put sword in case",
-            "close case",
-            "take sword",
-            "open case",
-            "take sword",
-            "move rug",
-            "open trap door",
-            "down",
-            "up",
-        ),
-        id="case-and-trap-door",
-    ),
-    pytest.param(
-        "kitchen",
-        (
-            "take all",
-            "open bottle",
-            "drink water",
-            "drink water",
-            "eat lunch",
-            "eat lunch",
-            "drop all",
-            "take all",
-        ),
-        id="consumables-and-missing-objects",
-    ),
-    pytest.param(
-        "torch-room",
-        ("look", "turn off lamp", "wait", "turn on lamp", "take torch", "drop torch", "take torch"),
-        id="light-and-time",
-    ),
-    pytest.param(
-        "dam-lobby",
-        (
-            "read guidebook",
-            "take all",
-            "read guidebook",
-            "drop guidebook",
-            "north",
-            "south",
-            "wait",
-            "diagnose",
-        ),
-        id="dam-exploration",
-    ),
-    pytest.param(
-        "beach",
-        ("read label", "enter boat", "look", "take boat", "exit boat", "take boat", "drop boat"),
-        id="vehicle-entry-exit",
-    ),
-    pytest.param(
-        "boat",
-        ("inventory", "take boat", "enter boat", "exit boat", "enter boat", "look", "wait"),
-        id="already-in-vehicle",
-    ),
-    pytest.param(
-        "drafty-room",
-        (
-            "look in basket",
-            "take diamond",
-            "put diamond in basket",
-            "put lamp in basket",
-            "take lamp",
-            "wait",
-        ),
-        id="late-game-container",
-    ),
-    pytest.param(
-        "full-score",
-        ("score", "take all from case", "score", "put all in case", "score", "wait", "look"),
-        id="treasures-and-score-changes",
-    ),
-    pytest.param(
-        "west-house",
-        ("south", "east", "east", "east", "jump", "look", "inventory", "wait"),
-        id="recoverable-death-and-continuation",
-    ),
+
+
+@pytest.mark.parametrize(
+    "checkpoint,actions", [pytest.param(s.checkpoint, s.actions, id=s.id) for s in SCENARIOS]
 )
-
-
-@pytest.mark.parametrize("checkpoint,actions", SCENARIOS)
 def test_multi_turn_detour_replays_exactly(checkpoint_envs, checkpoint, actions):
     env, reference, bridge, checkpoints = checkpoint_envs
     state, native_state = checkpoints[checkpoint]
@@ -408,7 +150,7 @@ def test_cellar_chasm_death_replays_and_allows_continued_play(checkpoint_envs):
     state, native_state = checkpoints["living-room"]
     env.set_state(state)
     reference.set_state(native_state)
-    for action in ("take lamp", "turn on lamp", "move rug", "open trap door", "down"):
+    for action in CELLAR_DEATH_ACTIONS[:5]:
         compare_turn(env, reference, bridge, action)
         assert not env.game_over()
     assert env.get_player_location().name == "Cellar"
@@ -441,35 +183,12 @@ def test_cellar_chasm_death_replays_and_allows_continued_play(checkpoint_envs):
             assert env.game_over() is reference.game_over() is False
 
 
-@pytest.mark.parametrize("seed", (1, 12, 42, 1000, 32767))
+@pytest.mark.parametrize("seed", COMBAT_SEEDS)
 def test_combat_detour_with_different_seeds(zork1, seed):
     from jericho import FrotzEnv
 
     env, reference = FernzEnv(zork1, seed=seed), FrotzEnv(str(zork1), seed=seed)
-    actions = (
-        "kick door",
-        "north",
-        "east",
-        "open window",
-        "enter window",
-        "west",
-        "take sword",
-        "take lamp",
-        "turn on lamp",
-        "move rug",
-        "open trap door",
-        "down",
-        "north",
-        "attack troll with leaflet",
-        "attack troll with sword",
-        "attack troll with sword",
-        "attack troll with sword",
-        "south",
-        "diagnose",
-        "inventory",
-        "wait",
-        "look",
-    )
+    actions = COMBAT_ACTIONS
     try:
         first_trace = None
         first_state = None

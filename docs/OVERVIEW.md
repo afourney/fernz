@@ -125,6 +125,9 @@ Run `uv sync --dev` to install the locked development tools, then use:
 | `uv run poe test` | Run synthetic and API tests without Jericho or ROM downloads. |
 | `uv run poe test-roms` | Load all 56 retained ROMs, check checksums and memory, and run Zork I startup, mailbox play, quit, and reset. |
 | `uv run --no-sync poe test-reference` | Compare the complete seeded Zork walkthrough and synthetic probes with the references, after installing the reference group below. |
+| `uv run poe test-vectors` | Replay the committed Zork ZIP on any supported platform without Jericho. |
+| `uv run --no-sync poe generate-vectors` | Explicitly regenerate the ZIP using the pinned Linux reference environment. |
+| `uv run --no-sync poe check-vectors` | Compare the ZIP against fresh reference runs without rewriting it. |
 | `uv run poe build-check` | Build the wheel and source distribution, validate their contents, and smoke-test an isolated wheel installation. |
 | `uv run poe check-all` | Run code checks, synthetic/API tests, and build validation; ROM and reference tests run separately. |
 
@@ -143,6 +146,15 @@ A separate Linux/Python 3.11 job installs the optional reference group and runs
 the ROM loading tests followed by the Jericho comparisons. Both use the same
 `jericho_games` fixture. Missing dependencies, download failures, and reference
 execution failures fail that job; it does not silently skip them.
+
+That Linux job also verifies the committed `tests/vectors/zork1_vectors.zip`
+against fresh public reference runs and replays it. An additional Python 3.12
+matrix runs offline tests and portable vector comparisons on macOS, hosted
+Windows Server 2025 x64, and Windows 11 ARM, without installing Jericho.
+The archive holds hashes and metadata for the walkthrough, detours, deaths,
+combat seeds, and save/restore/restart; it contains no ROM or narrative dumps.
+See [portable vectors](VECTORS.md) for the format, coverage, explicit comparison
+differences, and regeneration steps.
 
 The package check verifies metadata, package files, the `py.typed` marker, and
 that neither distribution contains game ROMs. It then installs the wheel into a

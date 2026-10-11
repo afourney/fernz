@@ -35,7 +35,10 @@ def test_invalid_path(tmp_path, capsys, directory):
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "fernz:" in captured.err
-    assert str(path) in captured.err
+    # OSError repr-quotes filenames, including backslashes on Windows;
+    # the explicit directory validation prints the path directly.
+    expected_path = str(path) if directory else repr(str(path))
+    assert expected_path in captured.err
     assert "Traceback" not in captured.err
 
 
