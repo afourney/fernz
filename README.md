@@ -3,7 +3,11 @@
 Fernz is a clean-room, pure Python reimplementation of
 [Jericho](https://github.com/microsoft/jericho) and its underlying
 [Frotz](https://github.com/DavidGriffith/frotz) Z-machine engine, with a familiar
-Python API for playing and exploring interactive fiction.
+Python API for playing and exploring interactive fiction. Here, clean-room means
+implementing using only [open specifications](https://inform-fiction.org/zmachine/standards/z1point1/index.html),
+[documented public APIs](https://jericho-py.readthedocs.io/en/latest/tutorial_quick.html),
+and testing behaviors against the original interpreters without inspecting their
+code (i.e., black-box behavioral comparisons).
 
 It is also an experiment in agentic coding: to see how far Astra could get with
 a public specification and a black-box reference implementation.
@@ -12,9 +16,6 @@ It was built to enable cross-platform play and redistribution in
 [Cabin Fever x86](https://github.com/afourney/cabin-fever-x86), and to make
 Z-machine games easy to embed, test, and experiment with from Python.
 Fernz is [MIT licensed](LICENSE) and runs on Linux, macOS, and Windows.
-Here, clean-room means implementing independently from open specifications and
-documented public APIs, using the original interpreters only for black-box
-behavioral comparisons.
 
 It currently plays **V3, V4, V5, and V8** stories and inspects V1–V8 files.
 The API covers gameplay, checkpoints, score/move queries, and object inspection;
@@ -47,7 +48,7 @@ Games are distributed separately and retain their own copyrights and licenses.
 This Zork I file contains a V3 story despite its `.z5` extension.
 
 ```sh
-fernz --rich zork1.z5
+fernz zork1.z5
 ```
 
 Try `look`, `open mailbox`, and `read leaflet`. Press **Ctrl+Q** to exit.
