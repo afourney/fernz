@@ -87,6 +87,12 @@ result = env.step("open mailbox")
 env.set_state(state)
 assert env.step("open mailbox") == result
 print(len(state.ram))  # 11859 bytes of dynamic memory for this Zork I story.
+branch = env.copy()
+branch.step("take leaflet")  # The original environment stays at the mailbox.
+print(branch.get_score(), branch.get_moves())
+branch.close()
+env.seed(42)  # Select a new seed for the next host reset.
+env.reset()
 env.close()
 ```
 
@@ -97,6 +103,16 @@ returns `None`, with no execution or output. Fernz uses its own named fields;
 Jericho tuples require conversion, and saved-game files use a separate format.
 The test suite includes a [V3 state converter](docs/STATE_INTEROP.md) for the
 pinned Linux Jericho reference. It is not part of the installed package.
+
+`copy()` forks mutable execution state without running the game or rereading its
+file. Copies share the immutable story and host callback references; external
+storage and output destinations remain caller-owned. `seed(n)` returns the
+selected value and applies it on the next `reset()`. Calling `seed()` or
+`seed(None)` selects fresh entropy; zero remains deterministic. Checkpoints
+retain their existing seed semantics, described in [RNG compatibility](docs/RNG.md).
+`get_score()` and `get_moves()` read the current V3 status globals, including
+after quit. Time-based status games raise `NotImplementedError` for these
+queries; their `info` continues to expose hours and minutes.
 
 V3 `save` and `restore` opcodes use Quetzal files. Library callers supply
 `save_handler(data: bytes) -> bool` and `restore_handler() -> bytes | None`

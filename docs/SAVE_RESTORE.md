@@ -44,6 +44,10 @@ remain attached to the receiving environment across reset and checkpoint
 restoration. They run only when needed; construction does not execute a story
 or access save storage. No callback is serialized.
 
+`copy()` retains the same callback references. Forked environments have
+independent VM state; external storage and output destinations are shared if
+the callbacks refer to the same resources.
+
 For example, a test can use an in-memory save slot:
 
 ```python

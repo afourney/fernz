@@ -6,6 +6,15 @@ from operator import index
 from ._state import RandomState
 
 
+def validate_host_seed(seed: int | None) -> int | None:
+    """Normalize a host seed without drawing randomness or requesting entropy."""
+    if seed is not None:
+        seed = index(seed)
+        if not 0 <= seed < 2**31:
+            raise ValueError("Host seed must be in 0..2**31-1, or None")
+    return seed
+
+
 class RandomGenerator:
     """Generate the predictable sequences observed in Jericho and Frotz.
 
@@ -17,11 +26,7 @@ class RandomGenerator:
 
     def __init__(self, seed: int | None = None) -> None:
         """Choose a host seed in 0..2**31-1, or request automatic seeding."""
-        if seed is not None:
-            seed = index(seed)
-            if not 0 <= seed < 2**31:
-                raise ValueError("Host seed must be in 0..2**31-1, or None")
-        self._host_seed = seed
+        self._host_seed = validate_host_seed(seed)
         self.reset()
 
     def reset(self) -> None:

@@ -52,6 +52,20 @@ that host-seeded sequence, discarding any counting cycle or opcode seed. With
 affine generator, seeded with `secrets.randbits(31)`. Unseeded trajectories are
 not part of the cross-interpreter compatibility contract.
 
+`env.seed(value)` selects and returns the host seed for the next `env.reset()`.
+It validates without executing, drawing randomness, or obtaining entropy. The
+active RNG and its host reseeding policy remain unchanged, including for
+`random 0` and V3 `restart`. Calling `seed()` or `seed(None)` selects automatic
+seeding and returns `None`. Fernz keeps its existing policy here; it does not
+select a game's walkthrough seed automatically as Jericho may do.
+
+`copy()` preserves the active RNG state, active host seed, and pending reset
+seed independently. This has one measured difference from Jericho 3.3.1: after
+`seed(new_seed)` followed by `copy()` before reset, the Jericho copy uses the
+new seed at its next `random 0` or restart. Fernz's copy retains the source's
+active host policy until host reset. Both use the new seed after `reset()`.
+The reference suite asserts these exact sequences through public calls.
+
 **Explicit host seed 0 differs between the references.** Frotz's `-s 0` gives a
 fixed sequence, whereas Jericho's constructor `seed=0` was observed to use
 automatic seeding. Fernz retains deterministic behavior for an explicit zero,
@@ -72,6 +86,10 @@ it resumes the saved sequence. The restored host seed also governs later
 operations still request fresh entropy. This host API supports deterministic
 exploration; it has a different contract from the standard's story-level
 save/restore opcodes.
+
+The pending next-reset seed is outside the unchanged `GameState` format.
+`set_state()` uses the captured active host seed for subsequent resets as well,
+replacing any pending selection made through `seed()`.
 
 V3 `save` writes no RNG state into its Quetzal file. `restore` retains the
 receiving machine's current RNG state and host seed, without drawing or reseeding

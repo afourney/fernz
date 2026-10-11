@@ -70,6 +70,7 @@ jobs:
       # Include state transfers in both directions and continuation through the ending.
       # Require Quetzal file interchange and the walkthrough with save/restore opcodes.
       # Require in-game restart, RNG reseeding, and the full walkthrough after restart.
+      # Compare environment copies, deferred host seeds, and score/move queries.
       - run: uv run --no-sync poe test-reference
 
   build:

@@ -1,5 +1,6 @@
 """Public story environment with V3 text interaction."""
 
+from copy import copy as shallow_copy
 from operator import index
 from os import PathLike
 from pathlib import Path
@@ -8,6 +9,7 @@ from ._errors import ExecutionError
 from ._host_io import HostIO, OutputHandler, RestoreHandler, SaveHandler
 from ._machine import Machine, signed
 from ._memory import Memory
+from ._random import validate_host_seed
 from ._state import GameState
 from ._story import Story
 
@@ -41,9 +43,20 @@ class FernzEnv:
         self.game_path = Path(game_path)
         self.story = Story.from_file(self.game_path)
         self.memory = Memory(self.story)
-        self._seed = seed
+        self._seed = validate_host_seed(seed)
         self._io = HostIO(save_handler, restore_handler, output_handler)
         self._machine: Machine | None = None
+
+    def seed(self, seed: int | None = None) -> int | None:
+        """Select and return the host seed for the next reset(), without executing.
+
+        Accept integers in 0..2**31-1; None selects fresh entropy at reset time.
+        Calling without an argument selects None, rather than querying the seed.
+        The active RNG, random 0, and in-game restart retain their current host
+        policy until reset(). set_state() replaces this choice with its saved seed.
+        """
+        self._seed = validate_host_seed(seed)
+        return self._seed
 
     def reset(self, *, max_steps: int = 250_000) -> tuple[str, dict[str, object]]:
         """Run a fresh V3 episode to its first input request or quit.
@@ -69,6 +82,30 @@ class FernzEnv:
             info = {"score": signed(second), "moves": third}
         return info
 
+    def _status_value(self, name: str) -> int:
+        if self._machine is None:
+            raise RuntimeError("Call reset() or set_state() before reading game status")
+        if self.story.header.flags1 & 2:
+            raise NotImplementedError("Score and move queries are unavailable for V3 time games")
+        return self._info()[name]
+
+    def get_score(self) -> int:
+        """Return the current signed V3 score, including after quit.
+
+        Require reset() or set_state() after construction or execution failure.
+        Time-based V3 games raise NotImplementedError; their info contains time.
+        """
+        return self._status_value("score")
+
+    def get_moves(self) -> int:
+        """Return the current V3 move-count global, including after quit.
+
+        Require reset() or set_state() after construction or execution failure.
+        Time-based V3 games raise NotImplementedError; their info contains time.
+        This reports the story's counter, not the number of host step() calls.
+        """
+        return self._status_value("moves")
+
     def get_state(self) -> GameState:
         """Return an immutable, independent checkpoint after reset() or step().
 
@@ -91,6 +128,22 @@ class FernzEnv:
         machine = Machine.from_state(self.memory, state, io=self._io)
         self._machine = machine
         self._seed = state.rng.host_seed
+
+    def copy(self) -> "FernzEnv":
+        """Fork memory, frames, pending input, and RNG without advancing the game.
+
+        Share the immutable story and host callback references. Storage and
+        output destinations captured by callbacks remain caller-owned. Copying
+        neither rereads the ROM nor requests entropy. A pending seed() choice
+        is copied separately from the active RNG's host seed.
+        An uninitialized or failed environment stays uninitialized in the copy;
+        a halted environment stays halted.
+        """
+        result = shallow_copy(self)
+        result.memory = self.memory.copy()
+        if self._machine is not None:
+            result._machine = Machine.from_state(result.memory, self.get_state(), io=result._io)
+        return result
 
     @property
     def done(self) -> bool:
