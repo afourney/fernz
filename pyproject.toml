@@ -1,7 +1,9 @@
 [project]
 name = "fernz"
-version = "0.0.0a1"
-description = "Fernz"
+version = "0.0.1"
+description = "A clean-room, pure Python Z-machine engine with a Jericho-like API"
+license = "MIT"
+license-files = ["LICENSE"]
 readme = "README.md"
 authors = [
     { name = "Adam Fourney", email = "adam.fourney@gmail.com" }
