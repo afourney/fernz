@@ -6,6 +6,13 @@ server, standalone player, persistence layer, and consumer tests at revision
 Its lockfile selects Jericho 3.3.1. The consumer is MIT-licensed; this document
 records its requirements without vendoring its code or game data.
 
+The target is future Cabin Fever integration. The consumer can change its
+imports, calls, and save format to use Fernz's public API. Backward compatibility
+with existing Cabin Fever `.bin` saves is not required; do not build an importer
+or preserve the nine-field tuple layout for that purpose. Existing usage below
+identifies capabilities to provide, rather than a requirement for an unchanged
+consumer to run against Fernz.
+
 The [mandatory clean-room requirement](OVERVIEW.md#mandatory-clean-room-requirement)
 continues to apply. Only Cabin Fever's own caller code was inspected for this
 audit. Foreign interpreter implementations, including installed and vendored
@@ -33,13 +40,13 @@ Status here includes the environment helpers introduced in
 [PR #12](https://github.com/afourney/fernz/pull/12). Fernz still executes V3 only.
 Matching a method name is insufficient when the data or behavior differs.
 
-| Consumer call | Required behavior | Fernz coverage / remaining work |
+| Consumer call | Audited consumer behavior | Fernz coverage / remaining work |
 | --- | --- | --- |
 | `FrotzEnv(path, seed=positive_integer)` | The server supplies a fresh seed in `1..2**31-1`, then calls reset. The standalone player omits the seed. | `FernzEnv` accepts the server's seed range. Change the import/class selection in an adapter. Fernz requires explicit reset, which both consumers already perform. Automatic seed policies differ. |
 | `reset()` | Return `(observation, info)` at the opening prompt. | Available for V3. Info has score/moves for score-based games and hours/minutes for time-based games. |
 | `step(text)` | Return `(observation, reward, done, info)`. The server ignores reward; the standalone player displays it. | Available for V3. Outcome semantics and transcript differences need adaptation, as described below. |
 | `close()` | Cleanup on reboot, console exit, and failed console initialization. | Available and idempotent. |
-| `get_state()`, `set_state(state)` | Autosave each turn; restore without advancing the game or emitting output. The save codec requires a nine-field tuple. | Deterministic checkpoints are available, using immutable named fields. Persistent encoding and legacy tuple conversion remain migration work. |
+| `get_state()`, `set_state(state)` | Autosave each turn; restore without advancing the game or emitting output. The existing save codec requires a nine-field tuple. | Deterministic checkpoints are available, using immutable named fields. Update the consumer to persist Fernz snapshots in a new format; legacy tuple conversion is out of scope for this integration. |
 | `get_score()`, `get_moves()` | Read actual restored values, instead of trusting save-file metadata. | Available for V3 score-based games, including after quit. Time-based games need additional metadata; the final Zork move count has a documented difference. |
 | `get_max_score()` | Render `Score current/maximum` whenever info includes a score. | Missing. This blocks the server's initial screen for Zork even before its first command. Requires story-specific metadata. |
 | `get_player_location()` | Return an object with integer `.num` and string `.name`, or no supported location. Both form the map key. | Missing. The caller tolerates `None`, `AttributeError`, or `RuntimeError`, but room mapping then disappears. Needs a public result type and validated player/location identification. |
@@ -85,28 +92,24 @@ measured story metadata; the Z-machine format does not supply universal fields.
 
 ### Persistent snapshots
 
-Cabin Fever's `.bin` files use `CFX86SAVE2`, typed JSON records, a `CFX86DATA`
-sentinel, and concatenated RAM, stack, and narrative bytes. The metadata stores
-five scalar registers (`pc`, `sp`, `fp`, `frame_count`, `opcode`), a three-value
-RNG record, and buffer sizes. The codec reconstructs writable NumPy byte arrays
-for the legacy interpreter. It also persists observation, score, moves, done,
-room name, comments, and the personal map. This format is separate from Quetzal;
-story save/restore opcodes cannot load these files.
+Keep the selected immutable Fernz `GameState` API and add versioned persistence
+for that representation. Cabin Fever can adopt a new save format and start new
+sessions; importing or converting existing `CFX86SAVE2` `.bin` files is out of
+scope. Neither their nine-field tuple layout nor their NumPy buffers constrain
+the new format.
 
-Keep the selected immutable Fernz `GameState` API. Add versioned persistence for
-that representation and a legacy import path at the consumer boundary. The
-existing [state bridge](STATE_INTEROP.md) is test-only, limited to measured V3
-input boundaries on the pinned Linux reference; it is not yet a supported
-package API or a general `.bin` migration tool. Legacy terminal snapshots,
-other story versions, and missing metadata require explicit coverage before
-claiming compatibility. A file's RAM length alone does not identify its story.
+New saves need to retain the complete Fernz checkpoint, including RNG state and
+the input continuation. Cabin Fever should also persist its observation, room
+and map information, comments, and display metadata alongside the checkpoint.
+Loading should restore the saved screen without executing a command, then read
+current status from the restored environment. Validate the snapshot schema and
+story identity, including the story hash already captured by `GameState`;
+corrupt or wrong-story saves must leave the running environment unchanged.
 
-Newer Cabin Fever saves include release, serial, and checksum; its server checks
-these before restoration. Older files may omit them. Fernz additionally validates
-the story hash in native checkpoints. A legacy importer must verify all available
-identity data and make uncertainty explicit rather than treating equal RAM sizes
-as proof. Preserve observation and map records during migration. Corrupt or
-wrong-story saves must leave the running environment unchanged.
+The [state bridge](STATE_INTEROP.md) remains test-only for cross-interpreter
+functional comparisons. Its measured V3 input pause conversion is still useful
+for that independent testing goal; it does not need to become a supported
+package API for Cabin Fever. Quetzal story saves retain their separate contract.
 
 ### RNG on reload
 
@@ -156,10 +159,10 @@ game profile. Retain Fernz's existing excluded-game policy when selecting ROMs.
    explicit consumer done policy and documented behavior for unsupported games.
    Exercise a normal turn, a loss, victory, and quit; repeat queries after
    snapshots, copies, reset, restart, and restoration.
-3. Add versioned Fernz snapshot persistence and legacy Cabin Fever import,
-   preserving screen/map metadata. Test a fresh-process resume, wrong story,
-   malformed data, legacy files without a signature, terminal state, and the
-   existing input pause boundary conversion.
+3. Add versioned Fernz snapshot persistence and update Cabin Fever's save layer
+   to use it, retaining screen/map metadata in new saves. Test fresh-process
+   resume, wrong story, malformed data, unsupported schema versions, terminal
+   state, and deterministic continuation. No old-file import tests are required.
 4. Add the optional immediate RNG reload policy at the integration boundary,
    while retaining exact default checkpoint restoration. Test both counting and
    non-counting states, a supplied replacement seed, and subsequent reseeding.
@@ -172,5 +175,6 @@ game profile. Retain Fernz's existing excluded-game policy when selecting ROMs.
 
 These are tracked requirements, not implemented features or passing integration
 tests. Existing CI already verifies the four environment helpers and deterministic
-state transfer. Full Cabin Fever compatibility requires the work above and a
-consumer adapter; changing the import alone will not suffice.
+state transfer. Future Cabin Fever integration requires the work above and
+consumer changes. Backward compatibility with its current save files is not an
+acceptance criterion.

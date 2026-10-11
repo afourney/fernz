@@ -606,12 +606,14 @@ The [Cabin Fever compatibility audit](CABIN_FEVER_COMPATIBILITY.md) covers the
 server, standalone player, and custom snapshot persistence at a pinned consumer
 revision. In addition to current V3 interaction and score/move queries, it needs
 maximum score, room objects with stable numbers and names, and loss/victory
-queries. Its `.bin` saves wrap the nine-field reference checkpoint, so they need
-a migration path separate from Quetzal. Its optional change of RNG trajectory on
-server reload also needs an explicit adapter policy, preserving deterministic
-Fernz checkpoint restoration. The audit records every call, behavioral gaps, and
-CI acceptance requirements. Private native-library access remains outside the
-public contract; the consumer's two such calls require public replacements.
+queries. The target is future integration: Cabin Fever may change its calls and
+adopt a new save format based on Fernz's immutable checkpoints. Importing existing
+`.bin` saves and preserving their tuple layout are out of scope. Its optional
+change of RNG trajectory on server reload needs an explicit adapter policy,
+preserving deterministic Fernz checkpoint restoration. The audit records every
+call, behavioral gaps, and CI acceptance requirements. Private native-library
+access remains outside the public contract; the consumer's two such calls
+require public replacements.
 
 API tests use temporary synthetic files without requesting the game fixture
 or downloading ROMs. Package validation also exercises the installed command and
