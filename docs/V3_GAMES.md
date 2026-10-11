@@ -68,7 +68,8 @@ For every game besides Zork I, the live and portable suites cover:
   These include unknown verbs, wrong nouns, unresolved pronouns, directions,
   red herrings, parser questions, wait, inventory, and unsuccessful interactions.
 - One measured loss sequence and subsequent input, including the replay prompts
-  in Infidel and Planetfall. Each branch is replayed from its original snapshot.
+  in Infidel and Planetfall and the explicit restart choice in Wishbringer.
+  Each branch is replayed from its original snapshot.
 - Save, rejected restart, confirmed restart, restore, and continued play, with
   assertions that the actual save/restore callbacks ran.
 - Independent copies, detached object-query results, and seeds 1, 42, and 1000.

@@ -490,6 +490,7 @@ SEED_FOLLOWUPS = {"zork2": ("north", "look", "south", "look", "wait", "inventory
 LOSS_CONTINUATIONS = {
     "infidel": ("yes", "look", "inventory"),
     "planetfall": ("yes", "look", "inventory"),
+    "wishbringer": ("restart", "look", "inventory"),
 }
 
 
