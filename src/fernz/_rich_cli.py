@@ -96,7 +96,7 @@ class RichCLI(App[int]):
     Screen { background: #101419; }
     Header { background: #1c2833; }
     #upper { height: auto; max-height: 60%; display: none; background: black; }
-    #lower { height: 1fr; background: black; }
+    #lower { height: 1fr; background: black; overflow-x: hidden; }
     #upper-text, #lower-text { width: auto; height: auto; background: black; color: white; }
     #lower-text { width: 1fr; }
     #status { height: 1; padding: 0 1; color: #94a3b8; }
