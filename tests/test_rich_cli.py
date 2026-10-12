@@ -480,3 +480,72 @@ def test_fern_loam_uses_the_selected_palette_exactly():
         "dark": True,
     }
     assert {key: getattr(FERN_LOAM, key) for key in expected} == expected
+
+
+@pytest.mark.parametrize("system", ["truecolor", "256"])
+def test_terminal_colour_depth_selects_theme_and_preserves_story_colours(
+    tmp_path, monkeypatch, system
+):
+    from io import StringIO
+
+    from rich.color import Color, ColorSystem
+    from rich.console import Console
+    from textual import constants
+
+    from fernz._rich_cli import FERN_LOAM, FERN_LOAM_256
+
+    monkeypatch.setattr(constants, "COLOR_SYSTEM", system)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    app = player(tmp_path, READ)
+    assert app.current_theme == (FERN_LOAM_256 if system == "256" else FERN_LOAM)
+
+    async def run():
+        async with app.run_test(size=(110, 34)) as pilot:
+            await settled(app, pilot)
+            app.buffer.apply(
+                "<reset><size 80 3>A<color red #123456><bold>B<color default default>C"
+            )
+            app._refresh_screen()
+            await pilot.pause()
+            row = list(app.query_one("#lower-text").render_line(0))
+            styles = {
+                char: segment.style for segment in row for char in segment.text if char in "ABC"
+            }
+            expected = app.current_theme
+            assert styles["A"].color == Color.parse(expected.foreground)
+            assert styles["A"].bgcolor == Color.parse(expected.background)
+            assert styles["B"].color == Color.parse("#ff0000")
+            assert styles["B"].bgcolor == Color.parse("#123456")
+            assert styles["B"].bold
+            assert styles["C"].color == styles["A"].color
+            assert styles["C"].bgcolor == styles["A"].bgcolor
+            if system == "256":
+                # Verify actual emitted ANSI colours, not a true-colour SVG export.
+                stream = StringIO()
+                console = Console(
+                    file=stream,
+                    color_system="256",
+                    force_terminal=True,
+                    highlight=False,
+                    markup=False,
+                )
+                for strip in app.screen._compositor.render_strips():
+                    for segment in strip:
+                        console.print(segment.text, style=segment.style, end="")
+                ansi = stream.getvalue()
+                for index in (233, 235, 236):
+                    assert f"48;5;{index}" in ansi
+                for index in (22, 52, 58):
+                    assert f"48;5;{index}m" not in ansi
+                assert "48;2;" not in ansi
+                for field in ("primary", "secondary", "accent", "background", "surface", "panel"):
+                    colour = Color.parse(getattr(expected, field))
+                    assert colour.downgrade(ColorSystem.EIGHT_BIT).get_truecolor() == colour.triplet
+            app.theme = "nord"
+            await pilot.pause()
+            assert app.current_theme.name == "nord"
+            app.theme = "fern-loam"
+            await pilot.pause()
+            assert app.current_theme == expected
+
+    asyncio.run(run())

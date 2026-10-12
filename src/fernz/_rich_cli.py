@@ -1,6 +1,7 @@
 """Optional Textual player; the interpreter remains independent of this UI."""
 
 from concurrent.futures import Future
+from dataclasses import replace
 from pathlib import Path
 from typing import ClassVar
 
@@ -33,6 +34,25 @@ FERN_LOAM = Theme(
     error="#CC7967",
     success="#86A871",
     dark=True,
+)
+
+
+# The xterm cube has no dark muted greens/browns: its first nonzero channel
+# is 95. Use the grayscale ramp for dark surfaces and keep colour in accents,
+# rather than letting RGB rounding turn those surfaces red, green or olive.
+FERN_LOAM_256 = replace(
+    FERN_LOAM,
+    primary="#5F875F",
+    secondary="#AF875F",
+    accent="#AFAF5F",
+    foreground="#DADADA",
+    background="#121212",
+    surface="#262626",
+    panel="#303030",
+    boost="#87AF87",
+    warning="#D7AF5F",
+    error="#AF5F5F",
+    success="#87AF5F",
 )
 
 
@@ -136,7 +156,7 @@ class RichCLI(App[int]):
     def __init__(self) -> None:
         """Create UI state without importing or running a story."""
         super().__init__()
-        self.register_theme(FERN_LOAM)
+        self.register_theme(FERN_LOAM_256 if self.console.color_system == "256" else FERN_LOAM)
         self.theme = FERN_LOAM.name
         self.env: FernzEnv
         self.buffer = ScreenBuffer()
