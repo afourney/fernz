@@ -18,6 +18,10 @@ from ._random import RandomGenerator
 from ._state import FrameState, GameState, InputRequest, OutputState, StoredInputRequest
 from ._text import Text
 
+# Lost Pig can legitimately exceed 250,000 instructions in a single command.
+# Keep execution bounded, with headroom for its measured parser/scope searches.
+DEFAULT_MAX_STEPS = 1_000_000
+
 
 def signed(value: int) -> int:
     """Interpret an unsigned word as a signed 16-bit integer."""
@@ -283,7 +287,7 @@ class Machine:
             raise ExecutionError(f"Array access outside the 64 KiB address space: {address:#x}")
         return address
 
-    def run(self, *, max_steps: int = 250_000) -> str:
+    def run(self, *, max_steps: int = DEFAULT_MAX_STEPS) -> str:
         """Run until input or quit and drain output; enforce an instruction budget."""
         max_steps = index(max_steps)
         if max_steps <= 0:

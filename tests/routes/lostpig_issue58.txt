@@ -1,0 +1,38 @@
+listen
+listen
+ne
+take torch
+east
+take pig
+examine fountain
+open curtain
+examine curtain
+north
+examine statue
+examine west wall
+examine east wall
+put torch in hand
+take torch
+south
+southeast
+open chest
+take pole
+examine pole
+west
+west
+read marks
+examine marks
+open box
+examine box
+pull lever
+look under table
+ne
+east
+examine reddish thing
+jump across stream
+east
+look under bench
+examine bench
+take bench
+examine pants
+light torch
