@@ -222,11 +222,11 @@ def test_lower_text_remains_visible_across_terminal_resizes(tmp_path, split, log
             state = app.env.get_state()
             for size in [(80, 24), (116, 41), (60, 24), (80, 24)]:
                 await pilot.resize_terminal(*size)
-                await pilot.pause()
+                await rendered(app, pilot)
                 pane = app.query_one("#lower")
                 text = app.query_one("#lower-text")
                 pane.scroll_home(animate=False)
-                await pilot.pause()
+                await rendered(app, pilot)
                 viewport = pane.scrollable_content_region
                 assert text.size.width == viewport.width
                 assert pane.max_scroll_x == 0
