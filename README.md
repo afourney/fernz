@@ -1,4 +1,4 @@
-![Fernz banner: a white house and mailbox surrounded by ferns](https://raw.githubusercontent.com/afourney/fernz/main/doc/imgs/fernz_banner.png)
+![Fernz banner: a white house and mailbox surrounded by ferns](https://raw.githubusercontent.com/afourney/fernz/main/docs/images/fernz_banner.png)
 
 # Fernz
 
@@ -65,7 +65,7 @@ Try `look`, `open mailbox`, and `read leaflet`. Press **Ctrl+Q** to exit.
 Textual is selected automatically when installed; `--simple` selects plain text.
 The game's `save` and `restore` commands open file dialogs.
 
-![Zork I running in the Fernz terminal interface](https://raw.githubusercontent.com/afourney/fernz/main/doc/imgs/fernz_cli.png)
+![Zork I running in the Fernz terminal interface](https://raw.githubusercontent.com/afourney/fernz/main/docs/images/fernz_cli.png)
 
 ## Use the API
 
