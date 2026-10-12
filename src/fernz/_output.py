@@ -198,7 +198,17 @@ class Output:
         colours = list(self.state.colours)
         colours[self.state.window] = tuple(pair)
         self.state = replace(self.state, colours=tuple(colours))
-        self.command("color", *pair)
+        # Preserve operand intent for theme-aware consumers while keeping the
+        # VM's resolved colour state and checkpoints unchanged.
+        tokens = [
+            "current"
+            if value == (-2 if true else 0)
+            else "default"
+            if value == (-1 if true else 1)
+            else pair[i]
+            for i, value in enumerate((foreground, background))
+        ]
+        self.command("color", *tokens)
 
     def buffer(self, enabled: int) -> None:
         """Record the lower window's buffering policy, irrespective of selection."""

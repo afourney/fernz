@@ -231,3 +231,25 @@ def test_zork_prompt_stays_in_stream_and_questions_stay_in_text(jericho_games):
         assert env.step("no") == continued
     finally:
         env.close()
+
+
+@pytest.mark.parametrize(
+    "true,default,current,white,black", [(False, 1, 0, 9, 2), (True, -1, -2, 0x7FFF, 0)]
+)
+def test_colour_stream_retains_default_intent_without_changing_vm_state(
+    tmp_path, true, default, current, white, black
+):
+    from fernz._output import Output
+
+    env = fixture_env(tmp_path, READ + b"\x10")
+    env.reset()
+    output = Output(env.memory)
+    output.colour(white, black, true=true)
+    output.emit("A")
+    output.colour(default, current, true=true)
+    output.emit("B")
+    output.colour(current, default, true=true)
+    output.emit("C")
+    stream = output.drain()
+    assert "<color default current>B<color current default>C" in stream
+    assert output.state.colours[0] == ("white", "black")
