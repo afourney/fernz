@@ -79,7 +79,13 @@ class ScreenBuffer:
         elif name in ("top", "bottom"):
             self.window = int(name == "top")
         elif name == "split":
-            self.split = int(args[0])
+            split = int(args[0])
+            # Splitting changes window ownership, not the physical screen.
+            # Preserve cells (including styles) as rows cross the boundary.
+            source, target = (0, 1) if split > self.split else (1, 0)
+            for row in range(min(self.split, split), max(self.split, split)):
+                self.cells[target][row] = self.cells[source][row].copy()
+            self.split = split
         elif name == "at":
             window = int(args[2] == "top") if len(args) == 3 else self.window
             self.cursors[window] = (int(args[0]) - 1, int(args[1]) - 1)
