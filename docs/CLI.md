@@ -35,6 +35,14 @@ exit with status 2.
 
 ## Textual player
 
+The default theme is **Fern & Loam** (`fern-loam`): deep forest green, earthy
+brown panels, warm cream text and muted old-gold accents. Use Textual's command
+palette (Ctrl+P) to change themes during play. UI surfaces and interpreter-default
+story colours follow the selected theme, including existing scrollback. Explicit
+story colours and bold, italic or inverted styles remain story-controlled.
+
+![Fern & Loam in Zork at 110 columns by 34 rows](images/fern-loam.png)
+
 The upper window stays above the lower window, which has scrollback. The player
 applies the ordered [display stream](OBSERVATIONS.md): cursor positioning,
 overwriting, clearing, window splits, colours, bold, italic and inverted text.

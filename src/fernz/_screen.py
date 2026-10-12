@@ -24,7 +24,8 @@ PALETTE = {
     "medium-grey": "#808080",
     "dark-grey": "#404040",
 }
-DEFAULT_STYLE = Style(color="#ffffff", bgcolor="#000000")
+# Keep interpreter defaults symbolic so rendered text inherits the active theme.
+DEFAULT_STYLE = Style(color="default", bgcolor="default")
 Cell = tuple[str, Style]
 
 
@@ -96,7 +97,10 @@ class ScreenBuffer:
             self.styles[self.window] = Style(color=style.color, bgcolor=style.bgcolor)
         elif name == "color":
             foreground, background = (PALETTE.get(value, value) for value in args)
-            self.styles[self.window] += Style(color=foreground, bgcolor=background)
+            self.styles[self.window] += Style(
+                color=None if foreground == "current" else foreground,
+                bgcolor=None if background == "current" else background,
+            )
         elif name in ("font", "fixed"):
             pass  # Terminal cells already use a fixed-width font.
         elif name == "buffer":
@@ -159,5 +163,13 @@ class ScreenBuffer:
             if number:
                 result.append("\n")
             for style, cells in groupby(row, key=lambda cell: cell[1]):
-                result.append("".join(char for char, _ in cells), style)
+                # Omit symbolic defaults from the Rich span, allowing widget CSS
+                # to supply them even when the user switches themes later.
+                rendered_style = style.without_color + Style(
+                    color=None if style.color is None or style.color.is_default else style.color,
+                    bgcolor=None
+                    if style.bgcolor is None or style.bgcolor.is_default
+                    else style.bgcolor,
+                )
+                result.append("".join(char for char, _ in cells), rendered_style)
         return result
