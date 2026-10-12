@@ -66,15 +66,16 @@ that renders HTML must escape decoded story text as usual.
 | `<bold>`, `<italic>`, `<invert>`, `<fixed>` | Enable a style for subsequent text in the selected window. Styles accumulate. `<invert>` exchanges foreground/background appearance; it does not change text order or writing direction. |
 | `<normal>` | Clear the selected window's style bits; font and colours remain selected. |
 | `<font 1>`, `<font 4>` | Select the normal or fixed-width font for the selected window. A font query emits nothing. |
-| `<color FOREGROUND BACKGROUND>` | Set the selected window's resolved colours. Values are palette names or lowercase `#rrggbb`. |
+| `<color FOREGROUND BACKGROUND>` | Set the selected window's colours. Values are palette names, lowercase `#rrggbb`, `default`, or `current`. |
 | `<clear top>`, `<clear bottom>`, `<clear all>` | Erase the named area. Erasure itself does not move cursors or change selection, styles, or split; those effects are separate commands. |
 | `<clear-line>` | Erase from the selected upper cursor through the right edge without moving it. |
 | `<buffer on>`, `<buffer off>` | Set the lower window's buffering policy, regardless of the selected window. The upper window stays unbuffered. |
 
 Palette names are `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`,
-`white`, `light-grey`, `medium-grey`, and `dark-grey`. Current/default colour
-operands are resolved before emission; defaults are white on black. True colour
-expands the Standard's five-bit RGB components to eight bits.
+`white`, `light-grey`, `medium-grey`, and `dark-grey`. `current` retains that
+channel; `default` restores the interpreter default for that channel. Consumers may theme defaults independently of explicit palette
+colours (including black and white). VM state still resolves defaults to white
+on black. True colour expands the Standard's five-bit RGB components to eight bits.
 
 The environment emits effective operations rather than a literal opcode dump.
 For example, selecting the upper window emits `<top><at 1 1>`, a V3 split also

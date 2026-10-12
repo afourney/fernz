@@ -239,10 +239,16 @@ def test_lower_text_remains_visible_across_terminal_resizes(tmp_path, split, log
                 )
                 assert "".join(visible.split()) == "".join((word_row + long_row).split())
                 # Folding retains styles, and resizing never mutates logical cells or VM state.
-                tail_row = next(
-                    row for row in range(text.size.height) if "TAIL" in text.render_line(row).text
-                )
-                assert any(segment.style.bold for segment in text.render_line(tail_row))
+                rendered_cells = [
+                    (char, segment.style)
+                    for row in range(text.size.height)
+                    for segment in text.render_line(row)
+                    for char in segment.text
+                    if not char.isspace()
+                ]
+                # The tail itself may fold across two viewport rows.
+                assert "".join(char for char, _ in rendered_cells[-4:]) == "TAIL"
+                assert all(style.bold for _, style in rendered_cells[-4:])
                 assert app.buffer.render(0).plain == logical
                 assert app.env.get_state() == state
                 if split:
@@ -367,3 +373,76 @@ def test_repeated_commands_follow_long_responses(tmp_path):
             assert command.has_focus and not command.disabled
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("theme", ["fern-loam", "textual-dark", "textual-light", "nord"])
+def test_themes_recolour_defaults_and_scrollback_but_preserve_story_colours(tmp_path, theme):
+    from textual.color import Color
+
+    app = player(tmp_path, READ)
+
+    async def run():
+        async with app.run_test(size=(110, 34)) as pilot:
+            await settled(app, pilot)
+            assert app.theme == "fern-loam"
+            app.buffer.apply(
+                "<reset><size 80 3>history\n<bold><italic><invert>A<normal><color white black>B<color red #123456>C<color default default>D"
+            )
+            app.buffer.write("\nline\nlast")
+            app._refresh_screen()
+            before = app.buffer.render(0)
+            state = app.env.get_state()
+            app.theme = theme
+            await pilot.pause()
+            text = app.query_one("#lower-text")
+            variables = app.get_css_variables()
+            foreground = Color.parse(variables["foreground"]).rich_color
+            background = Color.parse(variables["background"]).rich_color
+            segments = list(text.render_line(0))
+            assert any(
+                "history" in segment.text
+                and segment.style.color == foreground
+                and segment.style.bgcolor == background
+                for segment in segments
+            )
+            segments = list(text.render_line(1))
+            by_char = {
+                char: segment.style
+                for segment in segments
+                for char in segment.text
+                if char in "ABCD"
+            }
+            assert by_char["A"].bold and by_char["A"].italic and by_char["A"].reverse
+            assert by_char["B"].color.get_truecolor() == (255, 255, 255)
+            assert by_char["B"].bgcolor.get_truecolor() == (0, 0, 0)
+            assert by_char["C"].color.get_truecolor() == (255, 0, 0)
+            assert by_char["C"].bgcolor.get_truecolor() == (18, 52, 86)
+            assert by_char["D"].color == foreground and by_char["D"].bgcolor == background
+            assert app.buffer.render(0) == before
+            assert app.env.get_state() == state
+            command = app.query_one("#command", Input)
+            assert command.has_focus
+            assert command.styles.border_top[1] == Color.parse(variables["accent"])
+
+    asyncio.run(run())
+
+
+def test_fern_loam_uses_the_selected_palette_exactly():
+    from fernz._rich_cli import FERN_LOAM
+
+    expected = {
+        "name": "fern-loam",
+        "primary": "#496B45",
+        "secondary": "#987A53",
+        "accent": "#C4A45A",
+        "foreground": "#E3DFCF",
+        "background": "#101B14",
+        "surface": "#243126",
+        "panel": "#302A20",
+        "boost": "#A3B485",
+        "warning": "#D0AC5D",
+        "error": "#CC7967",
+        "success": "#86A871",
+        "dark": True,
+    }
+    assert {key: getattr(FERN_LOAM, key) for key in expected} == expected

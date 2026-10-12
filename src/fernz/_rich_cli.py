@@ -10,6 +10,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.screen import ModalScreen
+from textual.theme import Theme
 from textual.widgets import Button, Footer, Header, Input, Static
 
 from ._cli_files import write_save
@@ -17,6 +18,22 @@ from ._env import FernzEnv
 from ._errors import ExecutionError
 from ._observation import Observation
 from ._screen import ScreenBuffer
+
+FERN_LOAM = Theme(
+    name="fern-loam",
+    primary="#496B45",
+    secondary="#987A53",
+    accent="#C4A45A",
+    foreground="#E3DFCF",
+    background="#101B14",
+    surface="#243126",
+    panel="#302A20",
+    boost="#A3B485",
+    warning="#D0AC5D",
+    error="#CC7967",
+    success="#86A871",
+    dark=True,
+)
 
 
 class FilePrompt(ModalScreen[str | None]):
@@ -93,18 +110,23 @@ class RichCLI(App[int]):
         Binding("ctrl+c", "interrupt", "Interrupt", show=False, priority=True),
     ]
     CSS = """
-    Screen { background: #101419; }
-    Header { background: #1c2833; }
-    #upper { height: auto; max-height: 60%; display: none; background: black; }
-    #lower { height: 1fr; background: black; overflow-x: hidden; }
-    #upper-text, #lower-text { width: auto; height: auto; background: black; color: white; }
+    Screen { background: $background; color: $foreground; }
+    Header { background: $surface; color: $foreground; }
+    #upper { height: auto; max-height: 60%; display: none; background: $background; }
+    #lower { height: 1fr; background: $background; overflow-x: hidden; }
+    #upper-text, #lower-text { width: auto; height: auto; background: $background; color: $foreground; }
     #lower-text { width: 1fr; }
-    #status { height: 1; padding: 0 1; color: #94a3b8; }
-    #command { margin: 0 1; }
-    Footer { background: #1c2833; }
+    #status { height: 1; color: $text-muted; background: $panel; }
+    #command { background: $panel; color: $foreground; border: tall $primary; }
+    #command:focus { border: tall $accent; }
+    #command > .input--placeholder { color: $text-muted; }
+    #command > .input--cursor { background: $accent; color: $background; }
+    Footer { background: $surface; color: $foreground; }
+    FooterKey > .footer-key--key { background: $primary; color: $foreground; }
+    FooterKey > .footer-key--description { background: $surface; color: $foreground; }
     FilePrompt, ConfirmOverwrite { align: center middle; background: #00000088; }
     #dialog { width: 64; max-width: 95%; height: auto; padding: 1 2;
-              border: round #708da5; background: #1c2833; }
+              border: round $accent; background: $surface; }
     .dialog-title { margin-bottom: 1; text-style: bold; }
     .dialog-buttons { height: auto; align-horizontal: right; margin-top: 1; }
     .dialog-buttons Button { margin-left: 1; }
@@ -114,6 +136,8 @@ class RichCLI(App[int]):
     def __init__(self) -> None:
         """Create UI state without importing or running a story."""
         super().__init__()
+        self.register_theme(FERN_LOAM)
+        self.theme = FERN_LOAM.name
         self.env: FernzEnv
         self.buffer = ScreenBuffer()
         self.busy = True

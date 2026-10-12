@@ -2,6 +2,8 @@ import pytest
 
 pytest.importorskip("textual")
 
+from rich.console import Console
+
 from fernz._screen import ScreenBuffer
 
 
@@ -61,3 +63,19 @@ def test_reset_discards_scrollback_and_resets_rendering_state():
     assert screen.split == 0 and screen.buffered
     assert lines(screen) == ["x", "", ""]
     assert not screen.cells[0][0][0][1].reverse
+
+
+def test_default_colours_remain_distinct_from_explicit_black_and_white():
+    screen = ScreenBuffer(12, 3)
+    screen.apply("<bold><italic><invert>A<color white black>B<color default current>C")
+    screen.apply("<color current default>D<normal>E")
+    styles = [screen.render(0).get_style_at_offset(Console(), i) for i in range(5)]
+    assert styles[0].color is None and styles[0].bgcolor is None
+    assert styles[1].color.get_truecolor() == (255, 255, 255)
+    assert styles[1].bgcolor.get_truecolor() == (0, 0, 0)
+    assert styles[2].color is None and styles[2].bgcolor == styles[1].bgcolor
+    assert styles[3].color is None and styles[3].bgcolor is None
+    assert all(style.bold and style.italic and style.reverse for style in styles[:4])
+    assert not styles[4].bold and not styles[4].italic and not styles[4].reverse
+    screen.apply("<color red #123456><clear-line><clear bottom><reset>")
+    assert screen.styles[0].color.is_default and screen.styles[0].bgcolor.is_default
