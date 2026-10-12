@@ -277,6 +277,80 @@ async def rendered(app, pilot):
     await pilot.pause()
 
 
+@pytest.mark.parametrize("split", [1, 3])
+@pytest.mark.parametrize("initial_size", [(110, 34), (80, 24)])
+def test_upper_rows_remain_visible_across_resizes_and_input(
+    tmp_path, monkeypatch, split, initial_size
+):
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    app = player(tmp_path, (READ + b"\x10") * 3, version=8)
+    app.env = FernzEnv(app.env.game_path, screen_width=100, screen_height=30)
+
+    async def run():
+        async with app.run_test(size=initial_size) as pilot:
+            await settled(app, pilot)
+            app.buffer.apply(
+                f"<split {split}><top><invert>Example room<normal>"
+                "<at 1 30><color red #123456>COLOR<color default default>"
+                "<at 1 74><invert>day two<normal><at 1 97>EDGE"
+                f"<at {split} 1><invert>Room {split}<normal><bottom><at {split + 1} 1>"
+            )
+            app._refresh_screen()
+            logical = app.buffer.render(1)
+            state = app.env.get_state()
+
+            async def check(size):
+                await pilot.resize_terminal(*size)
+                await rendered(app, pilot)
+                pane = app.query_one("#upper")
+                viewport = pane.scrollable_content_region
+                assert viewport.height == split
+                assert not pane.show_horizontal_scrollbar
+                assert not pane.show_vertical_scrollbar
+                rows = app.screen._compositor.render_strips()[viewport.y : viewport.bottom]
+                # Inspect the composited screen: the child can render correctly
+                # even when a scrollbar consumes the entire one-row viewport.
+                for row, strip in enumerate(rows):
+                    expected = logical.plain.splitlines()[row][: viewport.width]
+                    assert strip.crop(viewport.x, viewport.right).text.rstrip() == expected.rstrip()
+                assert f"Room {split}" in rows[-1].text
+                assert "day two" in rows[0].text
+                assert ("EDGE" in rows[0].text) == (size[0] >= 100)
+                styles = [
+                    segment.style for segment in rows[0].crop(viewport.x + 29, viewport.x + 34)
+                ]
+                assert all(style.color.get_truecolor() == (255, 0, 0) for style in styles), styles
+                assert all(style.bgcolor.get_truecolor() == (18, 52, 86) for style in styles), (
+                    styles
+                )
+                assert all(
+                    segment.style.reverse for segment in rows[-1].crop(viewport.x, viewport.x + 6)
+                )
+                assert app.theme == "fern-loam"
+                assert app.buffer.render(1) == logical
+                assert app.buffer.width == app.env.screen_width == 100
+                assert app.buffer.height == app.env.screen_height == 30
+
+            for size in [initial_size, (110, 34), (80, 24), (110, 34), (80, 24)]:
+                await check(size)
+                assert app.env.get_state() == state
+            command = app.query_one("#command", Input)
+            command.value = "inventory"
+            await pilot.press("enter")
+            await settled(app, pilot)
+            assert command.has_focus and not command.disabled
+            assert "inventory" in app.buffer.render(0).plain
+            await check((80, 24))
+            await check((110, 34))
+            # Removing the split must still return its space to the lower pane.
+            app.buffer.apply("<split 0>")
+            app._refresh_screen()
+            await rendered(app, pilot)
+            assert not app.query_one("#upper").display
+
+    asyncio.run(run())
+
+
 async def following(app, pilot):
     # Worker completion and a single pause need not exhaust layout messages
     # posted by the previous frame. Bound the wait so a stuck viewport fails.

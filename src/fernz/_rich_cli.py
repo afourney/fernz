@@ -133,6 +133,9 @@ class RichCLI(App[int]):
     Screen { background: $background; color: $foreground; }
     Header { background: $surface; color: $foreground; }
     #upper { height: auto; max-height: 60%; display: none; background: $background; }
+    /* A horizontal scrollbar would consume the entire one-row status window.
+       Clip wide logical rows without wrapping or changing the VM's split. */
+    #upper { overflow-x: hidden; }
     #lower { height: 1fr; background: $background; overflow-x: hidden; }
     #upper-text, #lower-text { width: auto; height: auto; background: $background; color: $foreground; }
     #lower-text { width: 1fr; }
