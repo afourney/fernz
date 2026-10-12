@@ -288,6 +288,14 @@ async def rendered(app, pilot):
     await pilot.pause()
 
 
+async def scrolled(app, pilot):
+    # Textual starts a deferred scroll after refresh. Waiting on the animator
+    # before that refresh can return while the scroll is still only queued.
+    await rendered(app, pilot)
+    await asyncio.wait_for(pilot.wait_for_scheduled_animations(), timeout=5)
+    await rendered(app, pilot)
+
+
 @pytest.mark.parametrize("split", [1, 3, 20])
 @pytest.mark.parametrize("initial_size", [(110, 40), (80, 24)])
 def test_upper_rows_remain_accessible_across_resizes_and_input(tmp_path, split, initial_size):
@@ -326,16 +334,14 @@ def test_upper_rows_remain_accessible_across_resizes_and_input(tmp_path, split, 
                 if view.show_horizontal_scrollbar:
                     view.focus()
                     await pilot.press("ctrl+pagedown")
-                    await app.animator.wait_until_complete()
-                    await rendered(app, pilot)
+                    await scrolled(app, pilot)
                     assert view.scroll_x == view.max_scroll_x > 0
                     assert "END01" in visible_game(app)
                     # Wheel navigation is applied to the shared game viewport.
                     view.post_message(
                         events.MouseScrollLeft(view, 1, 1, 0, 0, 0, False, False, False)
                     )
-                    await rendered(app, pilot)
-                    await app.animator.wait_until_complete()
+                    await scrolled(app, pilot)
                     assert view.scroll_x < view.max_scroll_x
                 if split == 20:
                     view.scroll_to(x=0, animate=False, immediate=True)
@@ -394,10 +400,12 @@ def test_split_preserves_blank_rows_and_stable_shared_scrollbar_geometry(tmp_pat
 async def following(app, pilot):
     # Worker completion and a single pause need not exhaust layout messages
     # posted by the previous frame. Bound the wait so a stuck viewport fails.
+    await rendered(app, pilot)
     pane = app.query_one("#lower")
     async with asyncio.timeout(1):
         while pane.scroll_y != pane.max_scroll_y:
             await pilot.pause(0.01)
+    await rendered(app, pilot)
 
 
 def test_live_output_follows_late_layout_and_resizes(tmp_path):
@@ -488,7 +496,7 @@ def test_repeated_commands_follow_long_responses(tmp_path):
             # A real wheel event releases following, even across command echo,
             # worker completion, and focus returning to the enabled input.
             pane.post_message(events.MouseScrollUp(pane, 1, 1, 0, 0, 0, False, False, False))
-            await pilot.pause()
+            await scrolled(app, pilot)
             position = pane.scroll_y
             assert position < pane.max_scroll_y
             command.value = "look"
