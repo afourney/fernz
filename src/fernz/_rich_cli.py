@@ -12,6 +12,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.screen import ModalScreen
+from textual.scrollbar import ScrollBar, ScrollDown, ScrollTo, ScrollUp
 from textual.theme import Theme
 from textual.widgets import Button, Footer, Header, Input, Static
 
@@ -121,6 +122,68 @@ class ConfirmOverwrite(ModalScreen[bool]):
         self.dismiss(False)
 
 
+class HistoryBar(ScrollBar, can_focus=True):
+    """Control lower-window history from the visible edge, outside the canvas."""
+
+    BINDINGS: ClassVar = [
+        Binding("up", "history('up')", show=False),
+        Binding("down", "history('down')", show=False),
+        Binding("pageup", "history('page_up')", show=False),
+        Binding("pagedown", "history('page_down')", show=False),
+        Binding("home", "history('home')", show=False),
+        Binding("end", "history('end')", show=False),
+    ]
+
+    def __init__(self) -> None:
+        """Reserve a stable, independently focusable history gutter."""
+        super().__init__(thickness=2)
+        self.styles.width = self.thickness
+        self.id = "history-bar"
+        self.tooltip = "Story history · Home/End, PageUp/PageDown (F6)"
+
+    @property
+    def history(self) -> ScrollableContainer:
+        """Return the fixed lower window controlled by this scrollbar."""
+        return self.app.query_one("#lower", ScrollableContainer)
+
+    def action_history(self, direction: str) -> None:
+        """Scroll history without changing the canvas pan or command draft."""
+        getattr(self.history, f"scroll_{direction}")()
+
+    def _on_scroll_to(self, message: ScrollTo) -> None:
+        self.history.scroll_to(y=message.y, animate=message.animate)
+        message.stop()
+
+    def _on_scroll_up(self, event: ScrollUp) -> None:
+        self.history.scroll_page_up()
+        event.stop()
+
+    def _on_scroll_down(self, event: ScrollDown) -> None:
+        self.history.scroll_page_down()
+        event.stop()
+
+    def _on_mouse_scroll_up(self, event: events.MouseScrollUp) -> None:
+        self.history.scroll_up(animate=False)
+        event.stop()
+
+    def _on_mouse_scroll_down(self, event: events.MouseScrollDown) -> None:
+        self.history.scroll_down(animate=False)
+        event.stop()
+
+    async def _on_mouse_move(self, event: events.MouseMove) -> None:
+        event.prevent_default()  # Do not also run ScrollBar's logical-height drag.
+        # The track is viewport-sized, but the controlled window is game-sized.
+        # Convert pointer travel using the visible track, not the logical height.
+        if self.grabbed and self.size.height:
+            self.history.scroll_to(
+                y=self.grabbed_position
+                + (event.screen_y - self.grabbed.y) * self.window_virtual_size / self.size.height,
+                animate=False,
+                immediate=True,
+            )
+        event.stop()
+
+
 class RichCLI(App[int]):
     """Keep the UI responsive while a single worker owns VM execution."""
 
@@ -129,16 +192,23 @@ class RichCLI(App[int]):
         Binding("ctrl+q", "leave", "Quit", priority=True),
         Binding("ctrl+d", "leave", "Quit", show=False, priority=True),
         Binding("ctrl+c", "interrupt", "Interrupt", show=False, priority=True),
+        Binding("f6", "focus_history", "History", priority=True),
+        Binding("f7", "focus_canvas", "Canvas", priority=True),
+        Binding("f8", "focus_command", "Command", priority=True),
     ]
     CSS = """
-    Screen { background: $background; color: $foreground; }
+    Screen { background: $background; color: $foreground; align: center middle; }
+    #player { width: 100%; height: 100%; background: $background; overflow: hidden; }
+    #game-row { height: 1fr; min-height: 0; overflow: hidden;
+                scrollbar-color: $accent; }
+    #history-bar { height: 1fr; }
+    #history-bar:focus { background: $accent; }
     Header { background: $surface; color: $foreground; }
-    #game-view { height: 1fr; background: $background; }
-    #game-frame { width: auto; height: auto; min-height: 100%; background: $background; }
+    #game-view { width: 1fr; height: 1fr; background: $background; }
     #game-screen { width: 0; height: 0; background: $background; }
     #upper { height: 0; display: none; background: $background; overflow: hidden; }
     #lower { height: 1fr; min-height: 0; background: $background;
-             overflow-x: hidden; scrollbar-gutter: stable; }
+             overflow-x: hidden; scrollbar-size-vertical: 0; }
     #upper-text, #lower-text { width: auto; height: auto; background: $background; color: $foreground; }
     #status { height: 1; color: $text-muted; background: $panel; }
     #command { background: $panel; color: $foreground; border: tall $primary; }
@@ -181,24 +251,22 @@ class RichCLI(App[int]):
         self._player_exit_code = 0
         self._player_closing = False
         self._dialog_result: Future | None = None
+        self._game_size: tuple[int, int] | None = None
 
     def compose(self) -> ComposeResult:
-        """Keep the live screen contiguous inside one shared terminal viewport."""
-        yield Header()
-        # The frame fills spare viewport height below the finite game screen.
-        # It prevents bottom anchoring from moving a short screen downwards.
-        with (
-            ScrollableContainer(id="game-view"),
-            Vertical(id="game-frame"),
-            Vertical(id="game-screen"),
-        ):
-            with ScrollableContainer(id="upper"):
-                yield Static(id="upper-text")
-            with ScrollableContainer(id="lower"):
-                yield Static(id="lower-text")
-        yield Static("Opening story…", id="status")
-        yield Input(placeholder="Command", id="command", disabled=True)
-        yield Footer()
+        """Pan only the game; keep controls and history at the viewport edges."""
+        with Vertical(id="player"):
+            yield Header()
+            with Horizontal(id="game-row"):
+                with ScrollableContainer(id="game-view"), Vertical(id="game-screen"):
+                    with ScrollableContainer(id="upper", can_focus=False):
+                        yield Static(id="upper-text")
+                    with ScrollableContainer(id="lower", can_focus=False):
+                        yield Static(id="lower-text")
+                yield HistoryBar()
+            yield Static("Opening story…", id="status")
+            yield Input(placeholder="Command", id="command", disabled=True)
+            yield Footer()
 
     def run_repl(self) -> int:
         """Enter the application; main closes the environment created at startup."""
@@ -215,9 +283,8 @@ class RichCLI(App[int]):
         viewport = self.query_one("#game-view", ScrollableContainer)
         lower = self.query_one("#lower", ScrollableContainer)
         area = viewport.content_size
-        # Reserve the lower window's stable history gutter from the outset:
-        # accumulating scrollback must not steal columns from the live screen.
-        gutter = lower.styles.scrollbar_size_vertical
+        # The separately laid-out history gutter is already outside this area.
+        # Reserve canvas bars too, without reducing any configured dimension.
         horizontal = vertical = False
         # Either scrollbar can require the other. Two follow-up passes resolve
         # their space while recomputing only dimensions the user left automatic.
@@ -225,14 +292,12 @@ class RichCLI(App[int]):
             columns = area.width - (viewport.styles.scrollbar_size_vertical if vertical else 0)
             rows = area.height - (viewport.styles.scrollbar_size_horizontal if horizontal else 0)
             width = (
-                self.screen_width
-                if self.screen_width is not None
-                else max(1, min(255, columns - gutter))
+                self.screen_width if self.screen_width is not None else max(1, min(255, columns))
             )
             height = (
                 self.screen_height if self.screen_height is not None else max(1, min(254, rows))
             )
-            horizontal = width + gutter > columns
+            horizontal = width > columns
             vertical = height > rows
         try:
             self.env = self.open_game(width, height)
@@ -245,8 +310,93 @@ class RichCLI(App[int]):
         # Textual releases this anchor on user scrolling and restores it when
         # the user returns to the bottom; output refreshes must not reset it.
         lower.anchor()
-        viewport.anchor()
+        self._game_size = (width, height)
+        self._layout_player()
+        for attribute in ("scroll_y", "virtual_size"):
+            self.watch(lower, attribute, self._sync_history)
+        for selector in ("Header", "#status", "#command", "Footer"):
+            self.watch(self.query_one(selector), "virtual_size", self._layout_player)
         self._advance(None)
+
+    def on_resize(self) -> None:
+        """Recenter the shell while preserving the VM's initial geometry."""
+        self.call_after_refresh(self._layout_player)
+
+    def _layout_player(self) -> None:
+        if self._game_size is None:
+            return
+        width, height = self._game_size
+        viewport = self.screen_stack[0].query_one("#game-view")
+        history = self.screen_stack[0].query_one(HistoryBar)
+        controls = sum(
+            self.screen_stack[0].query_one(selector).outer_size.height
+            for selector in ("Header", "#status", "#command", "Footer")
+        )
+        available = self.size
+        # Hidden bars may not have a compositor size yet; their reserved rail
+        # must still count in the preferred shell width.
+        gutter = history.thickness
+        horizontal = vertical = False
+        # A bar can induce overflow on the other axis. Start without bars on
+        # each resize so they also disappear when the canvas fits again.
+        for _ in range(3):
+            columns = (
+                available.width
+                - gutter
+                - (viewport.styles.scrollbar_size_vertical if vertical else 0)
+            )
+            rows = (
+                available.height
+                - controls
+                - (viewport.styles.scrollbar_size_horizontal if horizontal else 0)
+            )
+            horizontal = width > columns
+            vertical = height > rows
+        # Use the resolved pair explicitly: Textual's automatic bars can retain
+        # the previous pair during a cross-axis overflow/resize cycle.
+        viewport.styles.overflow_x = "scroll" if horizontal else "hidden"
+        viewport.styles.overflow_y = "scroll" if vertical else "hidden"
+        # Hidden overflow disables ordinary scroll actions. Clear obsolete pan
+        # offsets explicitly when an axis fits again, before centering it.
+        viewport.scroll_to(
+            x=None if horizontal else 0,
+            y=None if vertical else 0,
+            force=True,
+            animate=False,
+            immediate=True,
+        )
+        shell = self.screen_stack[0].query_one("#player")
+        shell.styles.width = min(
+            available.width,
+            width + gutter + (viewport.styles.scrollbar_size_vertical if vertical else 0),
+        )
+        shell.styles.height = min(
+            available.height,
+            height + controls + (viewport.styles.scrollbar_size_horizontal if horizontal else 0),
+        )
+
+    def _sync_history(self) -> None:
+        lower = self.screen_stack[0].query_one("#lower", ScrollableContainer)
+        bar = self.screen_stack[0].query_one(HistoryBar)
+        bar.window_virtual_size = lower.virtual_size.height
+        bar.window_size = lower.scrollable_content_region.height
+        bar.position = lower.scroll_y
+        bar.styles.visibility = "visible" if lower.display and lower.max_scroll_y else "hidden"
+
+    def action_focus_history(self) -> None:
+        """Reach story history without panning to its logical right edge."""
+        if len(self.screen_stack) == 1:
+            self.query_one(HistoryBar).focus(scroll_visible=False)
+
+    def action_focus_canvas(self) -> None:
+        """Reach the shared canvas's keyboard panning controls."""
+        if len(self.screen_stack) == 1:
+            self.query_one("#game-view").focus(scroll_visible=False)
+
+    def action_focus_command(self) -> None:
+        """Return to the pinned command field without changing either scroll."""
+        if len(self.screen_stack) == 1:
+            self.query_one("#command").focus(scroll_visible=False)
 
     @work(thread=True)
     def _advance(self, action: str | None) -> None:
@@ -283,13 +433,16 @@ class RichCLI(App[int]):
         upper = self.query_one("#upper", ScrollableContainer)
         lower = self.query_one("#lower", ScrollableContainer)
         screen = self.query_one("#game-screen")
-        screen.styles.width = self.buffer.width + lower.styles.scrollbar_size_vertical
+        self._game_size = (self.buffer.width, self.buffer.height)
+        self._layout_player()
+        screen.styles.width = self.buffer.width
         screen.styles.height = self.buffer.height
         upper.display = self.buffer.split > 0
         upper.styles.height = self.buffer.split
         lower.display = self.buffer.split < self.buffer.height
         self.query_one("#upper-text", Static).update(self.buffer.render(1))
         self.query_one("#lower-text", Static).update(self.buffer.render(0))
+        self.call_after_refresh(self._sync_history)
 
     def _failed(self, message: str) -> None:
         self._player_exit_code = 1
@@ -328,7 +481,7 @@ class RichCLI(App[int]):
             if event.key == "enter" or (event.character and event.character.isprintable()):
                 event.stop()
                 event.prevent_default()
-                self._submit("" if event.key == "enter" else event.character)
+                self._submit("" if event.key == "enter" else event.character or "")
         elif event.key in ("up", "down") and self.focused is self.query_one("#command"):
             event.stop()
             event.prevent_default()

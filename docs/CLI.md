@@ -51,10 +51,11 @@ launching Fernz. The fallback can be tested with `TEXTUAL_COLOR_SYSTEM=256`.
 
 The upper and lower windows occupy one contiguous logical screen. The lower
 window has scrollback; when following live output, older history cannot appear
-between the two windows. Surplus terminal rows remain blank below the screen.
-The player
-applies the ordered [display stream](OBSERVATIONS.md): cursor positioning,
-overwriting, clearing, window splits, colours, bold, italic and inverted text.
+between the two windows. When the terminal is larger, the player shell is
+centered horizontally and vertically against the same theme background. Its
+header, help, command field and footer stay at the visible shell edges when
+the game canvas needs panning. The player applies the ordered
+[display stream](OBSERVATIONS.md): cursor positioning, overwriting, clearing, window splits, colours, bold, italic and inverted text.
 Both supported fonts use the terminal's fixed-width font. Story text is literal,
 so brackets and angle brackets cannot become Textual/Rich markup.
 
@@ -63,12 +64,17 @@ so brackets and angle brackets cannot become Textual/Rich markup.
 - When a game requests a single character, press that character directly;
   Enter supplies the return character. The command field is disabled meanwhile.
 - Scroll the output with the mouse or trackpad. Scrollback retains up to 2,000
-  rows in addition to the current logical screen.
+  rows in addition to the current logical screen. Its gold scrollbar stays on
+  the visible right edge, even when the canvas is panned. F6 focuses history;
+  use Up/Down, PageUp/PageDown or Home/End. F8 returns to the command field.
 - If the terminal is smaller than the logical screen, scroll the shared game
   viewport to see its other rows or columns. Its horizontal scrollbar sits
-  below both windows. Tab to the viewport and use Ctrl+PageUp/Ctrl+PageDown
-  to scroll horizontally; Home/End scroll vertically. The live grid keeps its
-  coordinates when the viewport changes size.
+  below both windows, above the controls. F7 focuses the viewport: use
+  Ctrl+PageUp/Ctrl+PageDown to scroll horizontally and Home/End vertically.
+  Its scrollbars stay at the visible edges and disappear when the canvas fits;
+  a separate vertical bar may appear beside the history bar. Panning and
+  history scrolling are independent. New output follows history when already
+  at its end, but never pans the canvas away from your chosen position.
 - Ctrl+Q or Ctrl+D exits. Ctrl+C exits with the usual interrupt status, 130.
   When the story quits, its last output stays visible until you exit.
 - Game-issued save/restore requests open a filename dialog. Escape or a blank
@@ -102,9 +108,9 @@ overrides. Width must be 1–255 and height 1–254.
 
 The Textual player measures unspecified dimensions once, after laying out its
 header, status line, command field and footer, before the game starts. It uses
-the remaining game area, reserving a stable gutter for the lower window's
-vertical history scrollbar. If an explicit width requires horizontal scrolling,
-it also subtracts the shared horizontal scrollbar's height. A height override
+the remaining game area, reserving a stable two-column gutter outside the
+canvas for the history scrollbar. If an explicit width requires horizontal
+scrolling, it also subtracts the shared horizontal scrollbar's height. A height override
 that requires vertical scrolling similarly reduces the available width.
 For example, a 116×40 terminal with the standard controls gives the game
 114 columns and 34 rows. Very large measured sizes are capped at 255×254.
@@ -114,8 +120,13 @@ output uses 80×25. Explicit overrides apply in either case. The library's
 `FernzEnv` defaults remain 80×25, and inspection does not measure a terminal.
 
 Resizing during play changes only the viewport, preserving the game's initial
-geometry. Lower-window text wraps at the logical width; terminal resizing does
-not reflow existing cells. Both windows scroll horizontally together when
+geometry. The shell centers only on axes that fit, and adds any needed canvas
+scrollbar gutters outside the logical game dimensions. For a configured
+100×30 game, the standard shell is 102×36; a wide, short terminal needs two
+more columns for vertical panning, while a narrow, tall terminal needs one
+more row for horizontal panning. Neither scrollbar consumes VM columns or
+requested upper-window rows. Lower-window text wraps at the logical width;
+terminal resizing does not reflow existing cells. Both windows scroll horizontally together when
 necessary. The upper window never scrolls its contents in response to story
 output. A quotation left behind by a contracting split becomes part of the
 lower window and scrolls away naturally.
