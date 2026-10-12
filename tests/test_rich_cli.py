@@ -1074,11 +1074,11 @@ def test_outer_texture_is_composited_behind_player_and_dialog(tmp_path, monkeypa
                     ansi = stream.getvalue()
                     assert "▓" in ansi
                     if system == "256":
-                        assert "38;5;22" in ansi  # Darkest fixed xterm green, never rounded black.
+                        assert "38;5;233" in ansi  # Fern & Loam's actual 256-colour background.
                         assert "48;5;16" in ansi
                         assert "38;2;" not in ansi
                     else:
-                        assert "38;2;16;48;32" in ansi
+                        assert "38;2;16;27;20" in ansi
                         assert "48;2;0;0;0" in ansi
             app.push_screen(FilePrompt("Save"))
             await rendered(app, pilot)
@@ -1090,5 +1090,80 @@ def test_outer_texture_is_composited_behind_player_and_dialog(tmp_path, monkeypa
             await pilot.press("escape")
             await rendered(app, pilot)
             assert app.buffer.render(0) == logical
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("system", ["truecolor", "256"])
+def test_backdrop_tracks_runtime_theme_and_visible_background(tmp_path, monkeypatch, system):
+    from rich.color import Color, ColorSystem
+    from rich.style import Style
+    from textual import constants
+    from textual.theme import Theme
+
+    monkeypatch.setattr(constants, "COLOR_SYSTEM", system)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    app = player(tmp_path, READ, version=5, width=100, height=30)
+    for name, background in (("sky", "#87cefa"), ("black", "#000000"), ("near-black", "#010201")):
+        app.register_theme(Theme(name=name, primary="#808080", background=background))
+
+    async def run():
+        async with app.run_test(size=(126, 46)) as pilot:
+            await settled(app, pilot)
+            app.buffer.apply("<color red #123456>VM<color default default>DEFAULT")
+            app._refresh_screen()
+            logical = app.buffer.render(0)
+            state = app.env.get_state()
+            for theme in (
+                "fern-loam",
+                "textual-light",
+                "textual-dark",
+                "sky",
+                "black",
+                "near-black",
+                "fern-loam",
+            ):
+                app.theme = theme
+                await rendered(app, pilot)
+                # Inspect the composed outer cell after each live theme switch.
+                segment = next(iter(app.screen._compositor.render_strips()[0]))
+                assert segment.text.startswith("▓")
+                background = app.query_one("#game-view").styles.background.rich_color
+                expected = background
+                if system == "256":
+                    expected = expected.downgrade(ColorSystem.EIGHT_BIT)
+                if expected.get_truecolor() == (0, 0, 0):
+                    expected = Color.parse("#303030")
+                assert segment.style.color.get_truecolor() == expected.get_truecolor()
+                assert segment.style.bgcolor == Color.parse("#000000")
+                # Render a fresh style directly: Rich caches ANSI by style,
+                # so sharing styles between true-colour/256 consoles in this
+                # process can otherwise reuse codes from the previous console.
+                ansi = Style(color=segment.style.color, bgcolor=segment.style.bgcolor).render(
+                    segment.text,
+                    color_system=ColorSystem.EIGHT_BIT
+                    if system == "256"
+                    else ColorSystem.TRUECOLOR,
+                )
+                if theme == "black" or (theme == "near-black" and system == "256"):
+                    assert ("38;5;236" if system == "256" else "38;2;48;48;48") in ansi
+                if theme == "sky":
+                    assert ("38;5;117" if system == "256" else "38;2;135;206;250") in ansi
+                for size in ((78, 25), (126, 46), (126, 46)):
+                    await pilot.resize_terminal(*size)
+                    app.refresh()
+                    await rendered(app, pilot)
+                    view = app.query_one("#game-view").region
+                    blank = app.screen._compositor.render_strips()[view.y + 5].crop(
+                        view.x + 5, view.x + 6
+                    )
+                    assert blank.text == " "
+                    assert next(iter(blank)).style.bgcolor == background
+                assert app.buffer.render(0) == logical
+                assert app.env.get_state() == state
+                row = list(app.query_one("#lower-text").render_line(0))
+                vm_style = next(segment.style for segment in row if "VM" in segment.text)
+                assert vm_style.color == Color.parse("#ff0000")
+                assert vm_style.bgcolor == Color.parse("#123456")
 
     asyncio.run(run())

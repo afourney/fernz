@@ -136,9 +136,10 @@ The frontend cell buffer and scrollback belong to the player, not the VM's
 
 The history, canvas and command focus shortcuts stay hidden in the footer.
 Alt shortcuts avoid command-editing keys; the F-key aliases remain available.
-On enlarged terminals, unused space around the centered player uses dark green
-`▓` on black. The darkest fixed xterm green is stronger in 256-color terminals
-than the muted true-color version. Game colors are unchanged.
+On enlarged terminals, unused space around the centered player uses `▓` on black.
+The shade foreground follows the current play-area background, including live
+theme changes. Black backgrounds (including colors rounded to black in 256-color
+terminals) use dark gray instead so the texture stays visible. Game colors are unchanged.
 
 ## Validation
 
