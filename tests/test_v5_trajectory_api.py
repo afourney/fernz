@@ -25,7 +25,7 @@ def test_box_quote_cursor_expands_upper_window_within_screen():
     assert display.state.cursors[1] == (24, 1)
     assert display.state.split_lines == before.split_lines
     before = display.state
-    for position in ((26, 1), (0, 1), (25, 0)):
+    for position in ((65536, 1), (0, 1), (25, 0)):
         with pytest.raises(ExecutionError, match="outside"):
             display.move(*position)
         assert display.state == before

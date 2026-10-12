@@ -118,7 +118,9 @@ class FernzEnv:
                 text = text[:-1]
             elif text.endswith(" >"):
                 text = text[:-2]
-        return Observation(stream=machine.last_stream, text=text)
+        return Observation(
+            stream=machine.last_stream, text=text, diagnostics=machine.last_diagnostics
+        )
 
     def _record_outcomes(self, observation: str) -> None:
         self._game_over, self._victory = (

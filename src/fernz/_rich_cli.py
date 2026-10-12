@@ -122,6 +122,54 @@ class ConfirmOverwrite(ModalScreen[bool]):
         self.dismiss(False)
 
 
+class ClippingWarning(ModalScreen[bool]):
+    """Explain clipped game output without consuming a pending story input."""
+
+    BINDINGS: ClassVar = [Binding("escape", "dismiss_once", "Dismiss", priority=True)]
+
+    def __init__(self, width: int, height: int) -> None:
+        """Describe the logical canvas, not the terminal viewport."""
+        super().__init__()
+        self.width, self.height = width, height
+
+    def compose(self) -> ComposeResult:
+        """Offer a one-time dismissal or session-only clipping suppression."""
+        with Vertical(id="dialog"):
+            yield Static("Game output does not fit", classes="dialog-title")
+            yield Static(
+                f"Some output was clipped outside the {self.width} x {self.height} game screen. "
+                "Enlarging the terminal will not change this session's game dimensions. "
+                "Relaunch with larger screen dimensions to display more game output.\n\n"
+                "Mute warnings hides only these clipped-output warnings until you close Fernz.",
+                id="clipping-message",
+            )
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Dismiss", id="dismiss", variant="primary")
+                yield Button("Mute warnings", id="mute")
+
+    def on_mount(self) -> None:
+        """Make Enter dismiss once by default."""
+        self.query_one("#dismiss", Button).focus()
+
+    def on_key(self, event: events.Key) -> None:
+        """Never bubble dialog keys into the game's character-input handler."""
+        if event.key in ("tab", "shift+tab"):
+            return  # Let Textual move focus between the dialog buttons.
+        event.stop()
+        if event.key in ("enter", "space") and isinstance(self.app.focused, Button):
+            event.prevent_default()
+            self.app.focused.press()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Return only the warning preference, never a story input."""
+        event.stop()
+        self.dismiss(event.button.id == "mute")
+
+    def action_dismiss_once(self) -> None:
+        """Acknowledge this boundary without changing future warnings."""
+        self.dismiss(False)
+
+
 class HistoryBar(ScrollBar, can_focus=True):
     """Control lower-window history from the visible edge, outside the canvas."""
 
@@ -218,7 +266,9 @@ class RichCLI(App[int]):
     Footer { background: $surface; color: $foreground; }
     FooterKey > .footer-key--key { background: $primary; color: $foreground; }
     FooterKey > .footer-key--description { background: $surface; color: $foreground; }
-    FilePrompt, ConfirmOverwrite { align: center middle; background: #00000088; }
+    FilePrompt, ConfirmOverwrite, ClippingWarning {
+        align: center middle; background: #00000088;
+    }
     #dialog { width: 64; max-width: 95%; height: auto; padding: 1 2;
               border: round $accent; background: $surface; }
     .dialog-title { margin-bottom: 1; text-style: bold; }
@@ -252,6 +302,8 @@ class RichCLI(App[int]):
         self._player_closing = False
         self._dialog_result: Future | None = None
         self._game_size: tuple[int, int] | None = None
+        self._clipping_warning_open = False
+        self._mute_clipping_warnings = False
 
     def compose(self) -> ComposeResult:
         """Pan only the game; keep controls and history at the viewport edges."""
@@ -415,6 +467,23 @@ class RichCLI(App[int]):
         self._refresh_screen()
         self.sub_title = " · ".join(f"{key.capitalize()}: {value}" for key, value in info.items())
         self.busy = False
+        if observation.diagnostics and not self._mute_clipping_warnings:
+            self._clipping_warning_open = True
+            self.query_one("#command", Input).disabled = True
+            self.push_screen(
+                ClippingWarning(self.buffer.width, self.buffer.height), self._clipping_dismissed
+            )
+            return
+        self._resume_input()
+
+    def _clipping_dismissed(self, mute: bool | None) -> None:
+        self._clipping_warning_open = False
+        self._mute_clipping_warnings |= bool(mute)
+        if not self._player_closing:
+            self._resume_input()
+
+    def _resume_input(self) -> None:
+        """Restore the pending input mode without advancing the story."""
         request = self.env.get_state().input_request
         self.character_input = bool(getattr(request, "character", False))
         command = self.query_one("#command", Input)
@@ -454,7 +523,7 @@ class RichCLI(App[int]):
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Echo a line once, remember it, and advance the story."""
-        if event.input.id != "command" or self.busy:
+        if event.input.id != "command" or self.busy or self._clipping_warning_open:
             return
         event.stop()
         action = event.value
@@ -468,6 +537,8 @@ class RichCLI(App[int]):
         self._submit(action)
 
     def _submit(self, action: str) -> None:
+        if self._clipping_warning_open:
+            return
         self.busy = True
         self.query_one("#command", Input).disabled = True
         self.query_one("#status", Static).update("Working…")
@@ -475,7 +546,13 @@ class RichCLI(App[int]):
 
     def on_key(self, event: events.Key) -> None:
         """Support single-key reads and preserve an unfinished history draft."""
-        if self.busy or self._player_closing or len(self.screen_stack) != 1 or self.env.done:
+        if (
+            self.busy
+            or self._clipping_warning_open
+            or self._player_closing
+            or len(self.screen_stack) != 1
+            or self.env.done
+        ):
             return
         if self.character_input:
             if event.key == "enter" or (event.character and event.character.isprintable()):
