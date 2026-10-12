@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ._errors import ExecutionError
 from ._host_io import HostIO, OutputHandler, RestoreHandler, SaveHandler
-from ._machine import Machine, signed
+from ._machine import DEFAULT_MAX_STEPS, Machine, signed
 from ._memory import Memory
 from ._objects import ZObject
 from ._observation import Observation
@@ -83,7 +83,7 @@ class FernzEnv:
         """Return the configured display height in character rows."""
         return self._screen_height
 
-    def reset(self, *, max_steps: int = 250_000) -> tuple[Observation, dict[str, object]]:
+    def reset(self, *, max_steps: int = DEFAULT_MAX_STEPS) -> tuple[Observation, dict[str, object]]:
         """Run a fresh supported episode to its first input request or quit.
 
         Return an Observation with ordered display commands and a plain transcript,
@@ -356,7 +356,7 @@ class FernzEnv:
         return self._machine is not None and self._machine.halted
 
     def step(
-        self, action: str, *, max_steps: int = 250_000
+        self, action: str, *, max_steps: int = DEFAULT_MAX_STEPS
     ) -> tuple[Observation, int, bool, dict[str, object]]:
         """Submit one line and run to the next input request or quit.
 

@@ -241,7 +241,9 @@ successful loader call is insufficient to enable all tools.
 
 ### 5. Budgets and failure recovery: required handling, especially for larger games
 
-Fernz defaults to 250,000 instructions per reset/step. The existing Afflicted
+At review time, Fernz defaulted to 250,000 instructions per reset/step. The
+[Lost Pig fix](ISSUE58.md) raises this to 1,000,000 without revalidating all
+Afflicted paths. The existing Afflicted
 tests use 2,000,000. This review reproduced a normal `n` command in its
 walkthrough prefix exhausting the default budget. Restoring the pre-command
 checkpoint and retrying with the test's larger budget succeeded.

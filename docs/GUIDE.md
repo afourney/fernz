@@ -90,7 +90,7 @@ for the protocol, migration, and screen-state responsibilities.
 
 `step()` returns only new output, a score delta, quit status, and status globals. Start with `reset()` or
 restore a checkpoint with `set_state()`. Each reset and step has a default
-budget of 250,000 instructions, adjustable with `max_steps=...`. Unsupported
+budget of 1,000,000 instructions, adjustable with `max_steps=...`. Unsupported
 opcodes fail with their name and address. Undo and full V3
 execution support remain future work; `done` detects the `quit` opcode, not victory
 or death that leaves the story running.
