@@ -6,6 +6,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import ClassVar
 
+from rich.color import Color, ColorSystem
 from rich.segment import Segment
 from rich.style import Style
 from rich.text import Text
@@ -66,11 +67,17 @@ class PlayerScreen(Screen):
 
     def render_line(self, y: int) -> Strip:
         """Use dark-shade cells without changing game or theme colours."""
-        # The darkest fixed xterm green is brighter than our true-colour ink.
-        # Select it explicitly: darker RGB values can quantize to black and
-        # erase the texture. Black keeps both versions as quiet as possible.
-        ink = "#005f00" if self.app.console.color_system == "256" else "#103020"
-        return Strip([Segment("▓" * self.size.width, Style.parse(f"{ink} on #000000"))])
+        # Screen and the opaque game view resolve the same $background. Read
+        # the computed CSS colour so runtime theme changes and theme defaults
+        # are reflected without changing any VM-supplied cell colours.
+        ink = self.styles.background.rich_color
+        if self.app.console.color_system == "256":
+            ink = ink.downgrade(ColorSystem.EIGHT_BIT)
+        # Test the emitted colour: a nonblack RGB value can round to black in
+        # the xterm palette. Keep the shade visible in that case as well.
+        if ink.get_truecolor() == (0, 0, 0):
+            ink = Color.parse("#303030")
+        return Strip([Segment("▓" * self.size.width, Style(color=ink, bgcolor="#000000"))])
 
 
 class FilePrompt(ModalScreen[str | None]):
