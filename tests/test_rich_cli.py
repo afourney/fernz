@@ -114,6 +114,10 @@ def test_save_dialog_requires_explicit_overwrite(tmp_path, replace):
     async def run():
         async with app.run_test(size=(100, 40)) as pilot:
             await dialog(app, pilot)
+            await pilot.resize_terminal(78, 25)
+            await pilot.press("f6", "f7", "f8")
+            assert app.screen.query_one(Input).has_focus
+            await pilot.resize_terminal(126, 46)
             app.screen.query_one(Input).value = str(path)
             await pilot.press("enter")
             await dialog(app, pilot, ConfirmOverwrite)
@@ -188,6 +192,10 @@ def test_restore_resumes_a_real_save_or_reports_failure_to_story(tmp_path, missi
             app.query_one("#command", Input).value = "restore"
             await pilot.press("enter")
             await dialog(app, pilot)
+            await pilot.resize_terminal(78, 25)
+            await pilot.press("f6", "f7", "f8")
+            assert app.screen.query_one(Input).has_focus
+            await pilot.resize_terminal(126, 46)
             app.screen.query_one(Input).value = str(path)
             await pilot.press("enter")
             await settled(app, pilot)
@@ -195,6 +203,9 @@ def test_restore_resumes_a_real_save_or_reports_failure_to_story(tmp_path, missi
             assert ("R=7" in text) is not missing
             assert app._player_exit_code == 0
             assert app.query_one("#command", Input).has_focus
+            assert (app.env.screen_width, app.env.screen_height) == (80, 25)
+            assert (app.buffer.width, app.buffer.height) == (80, 25)
+            assert app.query_one("#game-screen").size == (80, 25)
 
     asyncio.run(run())
 
@@ -383,6 +394,7 @@ def test_split_preserves_blank_rows_and_stable_shared_scrollbar_geometry(tmp_pat
                     assert (upper.region, lower.region, view.scrollbars_enabled) == geometry
                     assert upper.display == bool(split)
                     assert lower.display == (split < 30)
+                    assert not app.query_one("#history-bar").visible
                     if split:
                         assert upper.size.height == split
                     if split < 30:
@@ -419,13 +431,17 @@ def test_live_output_follows_late_layout_and_resizes(tmp_path):
             app._refresh_screen()
             await rendered(app, pilot)
             assert pane.scroll_y == pane.max_scroll_y > 0
+            app.query_one("#game-view").scroll_end(animate=False, immediate=True, x_axis=False)
+            await rendered(app, pilot)
             assert "LATEST>" in visible_lower(app)
             # A subsequent layout pass can happen after scroll_end's callback.
-            # Wrapping and viewport height both change without another response.
+            # Only the visible viewport changes; pan to the last logical row.
             for size in [(64, 24), (110, 34), (80, 24)]:
                 await pilot.resize_terminal(*size)
                 await rendered(app, pilot)
                 assert pane.scroll_y == pane.max_scroll_y
+                app.query_one("#game-view").scroll_end(animate=False, immediate=True, x_axis=False)
+                await rendered(app, pilot)
                 assert "LATEST>" in visible_lower(app)
             # Changing the pinned window also reduces the transcript viewport.
             app.buffer.apply("<split 5>")
@@ -467,6 +483,8 @@ def test_output_preserves_scrollback_and_resumes_at_bottom(tmp_path):
             app._refresh_screen()
             await rendered(app, pilot)
             assert pane.scroll_y == pane.max_scroll_y
+            app.query_one("#game-view").scroll_end(animate=False, immediate=True, x_axis=False)
+            await rendered(app, pilot)
             assert "RESUMED>" in visible_lower(app)
 
     asyncio.run(run())
@@ -485,6 +503,8 @@ def test_repeated_commands_follow_long_responses(tmp_path):
             for _ in range(7):
                 await following(app, pilot)
                 assert pane.scroll_y == pane.max_scroll_y > 0
+                app.query_one("#game-view").scroll_end(animate=False, immediate=True, x_axis=False)
+                await rendered(app, pilot)
                 assert visible_lower(app).rstrip().endswith(">")
                 assert command.has_focus and not command.disabled
                 command.value = "look"
@@ -766,7 +786,7 @@ def test_quote_and_second_status_row_stay_adjacent_with_history(tmp_path):
             assert app.buffer.history
             lower = app.query_one("#lower")
             view = app.query_one("#game-view")
-            for size in [(116, 40), (116, 36), (80, 40), (116, 34), (116, 40)]:
+            for size in [(116, 40), (116, 36), (78, 25), (80, 40), (116, 34), (116, 40)]:
                 await pilot.resize_terminal(*size)
                 await rendered(app, pilot)
                 view.scroll_home(animate=False, immediate=True)
@@ -794,7 +814,10 @@ def test_quote_and_second_status_row_stay_adjacent_with_history(tmp_path):
 @pytest.mark.parametrize("width", [None, 130])
 def test_automatic_size_uses_actual_control_layout(tmp_path, width):
     class TallControls(RichCLI):
-        CSS = "Header {height: 2;} #status {height: 2;} #command {height: 4;} Footer {height: 2;}"
+        CSS = (
+            RichCLI.CSS
+            + "Header {height: 2;} #status {height: 2;} #command {height: 4;} Footer {height: 2;}"
+        )
 
     app = player(tmp_path, READ, width=width, height=None, app_type=TallControls)
 
@@ -834,3 +857,172 @@ def test_deferred_load_failure_returns_to_cli_without_running_a_story(monkeypatc
     monkeypatch.setattr(app, "run", lambda: app.return_value)
     with pytest.raises(type(error), match=str(error)):
         app.run_repl()
+
+
+@pytest.mark.parametrize(
+    "size,shell_size,bars",
+    [
+        ((102, 36), (102, 36), (False, False)),
+        ((126, 46), (102, 36), (False, False)),
+        ((78, 25), (78, 25), (True, True)),
+        ((126, 27), (104, 27), (True, False)),
+        ((78, 46), (78, 37), (False, True)),
+        # An otherwise fitting axis overflows when the other needs a bar.
+        ((102, 35), (102, 35), (True, True)),
+        ((101, 36), (101, 36), (True, True)),
+        ((104, 35), (104, 35), (True, False)),
+        ((101, 37), (101, 37), (False, True)),
+    ],
+)
+def test_fixed_canvas_centering_and_pinned_edges(tmp_path, size, shell_size, bars):
+    app = player(tmp_path, (READ + b"\x10") * 3, version=5, width=100, height=30)
+
+    async def run():
+        async with app.run_test(size=(102, 36)) as pilot:
+            await settled(app, pilot)
+            await rendered(app, pilot)
+            assert app.query_one("#player").size == (102, 36)
+            assert app.query_one("#game-view").size == (100, 30)
+            assert not app.query_one("#history-bar").visible
+            app.buffer.apply("<split 2><top><invert>STATUS ONE<at 2 1>STATUS TWO<bottom>")
+            app.buffer.write("history\n" * 60)
+            app._refresh_screen()
+            await rendered(app, pilot)
+            view = app.query_one("#game-view")
+            lower = app.query_one("#lower")
+            bar = app.query_one("#history-bar")
+            command = app.query_one("#command", Input)
+            command.value = "unfinished draft"
+            logical = (app.buffer.render(0), app.buffer.render(1))
+            state = app.env.get_state()
+            for terminal in (size, (102, 36), size, (126, 46), size):
+                await pilot.resize_terminal(*terminal)
+                await rendered(app, pilot)
+                shell = app.query_one("#player")
+                expected = shell_size if terminal == size else (102, 36)
+                expected_bars = bars if terminal == size else (False, False)
+                assert tuple(shell.region.size) == expected
+                assert shell.region.x == (terminal[0] - expected[0]) // 2
+                assert shell.region.y == (terminal[1] - expected[1]) // 2
+                assert view.scrollbars_enabled == expected_bars
+                assert app.query_one("#game-screen").size == (100, 30)
+                assert app.query_one("#upper").size == (100, 2)
+                assert lower.size == (100, 28)
+                assert lower.scrollable_content_region.width == 100
+                assert not lower.show_horizontal_scrollbar
+                assert bar.visible
+                assert bar.region.right == shell.region.right
+                assert bar.window_size == 28
+                assert bar.window_virtual_size == lower.virtual_size.height
+                for scrollbar, visible in (
+                    (view.vertical_scrollbar, expected_bars[0]),
+                    (view.horizontal_scrollbar, expected_bars[1]),
+                ):
+                    assert scrollbar.display == visible
+                    if visible:
+                        assert view.region.contains_region(scrollbar.region)
+                pinned = [app.query_one(s) for s in ("Header", "#status", "#command", "Footer")]
+                regions = [w.region for w in pinned] + [bar.region]
+                for x, y in ((0, 0), (view.max_scroll_x, view.max_scroll_y)):
+                    view.scroll_to(x=x, y=y, animate=False, immediate=True)
+                    await rendered(app, pilot)
+                    assert [w.region for w in pinned] + [bar.region] == regions
+                    for widget in pinned:
+                        assert shell.region.contains_region(widget.region)
+                        assert widget.region.width == shell.region.width
+                    assert view.region.y == pinned[0].region.bottom
+                    assert view.region.bottom == pinned[1].region.y
+                    assert pinned[1].region.bottom == pinned[2].region.y
+                    assert pinned[2].region.bottom == pinned[3].region.y
+                assert command.has_focus and command.value == "unfinished draft"
+                assert (app.buffer.render(0), app.buffer.render(1)) == logical
+                assert app.env.get_state() == state
+                assert lower.scroll_y == lower.max_scroll_y
+                assert app.screen.styles.background == shell.styles.background
+            await pilot.press("ctrl+q")
+
+    asyncio.run(run())
+
+
+def test_pinned_history_mouse_keyboard_and_canvas_are_independent(tmp_path):
+    app = player(tmp_path, READ * 3, width=100, height=30)
+
+    async def run():
+        async with app.run_test(size=(78, 25)) as pilot:
+            await settled(app, pilot)
+            app.buffer.write("history\n" * 90)
+            app._refresh_screen()
+            await rendered(app, pilot)
+            view = app.query_one("#game-view")
+            lower = app.query_one("#lower")
+            bar = app.query_one("#history-bar")
+            command = app.query_one("#command", Input)
+            assert view.scroll_y == 0  # No bottom anchor hiding status at startup.
+            view.scroll_end(animate=False, immediate=True)
+            await rendered(app, pilot)
+            pan = view.scroll_offset
+            pinned = bar.region
+            command.value = "draft"
+            await pilot.press("f6", "home")
+            await scrolled(app, pilot)
+            assert bar.has_focus and lower.scroll_y == 0
+            assert view.scroll_offset == pan
+            assert bar.position == 0
+            # Click below the thumb, then drag from the top to the track bottom.
+            assert await pilot.click(bar, offset=(0, bar.size.height - 1))
+            await scrolled(app, pilot)
+            assert 0 < lower.scroll_y <= lower.max_scroll_y
+            await pilot.press("home")
+            await scrolled(app, pilot)
+            await pilot.mouse_down(bar, offset=(0, 0))
+            await pilot.hover(bar, offset=(0, bar.size.height - 1))
+            await pilot.mouse_up(bar, offset=(0, bar.size.height - 1))
+            await scrolled(app, pilot)
+            assert lower.scroll_y == lower.max_scroll_y
+            assert bar.position == lower.scroll_y
+            assert view.scroll_offset == pan and bar.region == pinned
+            # Wheel events on the visible rail reach history even at the far pan.
+            bar.post_message(events.MouseScrollUp(bar, 0, 1, 0, 0, 0, False, False, False))
+            await scrolled(app, pilot)
+            assert lower.scroll_y < lower.max_scroll_y
+            position = lower.scroll_y
+            await pilot.press("f7", "home", "ctrl+pageup")
+            await scrolled(app, pilot)
+            assert view.has_focus and view.scroll_offset == (0, 0)
+            assert lower.scroll_y == position
+            await pilot.press("f8")
+            assert command.has_focus and command.value == "draft"
+            await pilot.press("enter")
+            await settled(app, pilot)
+            assert command.has_focus and not command.disabled
+            assert view.scroll_offset == (0, 0)
+            assert lower.scroll_y == position
+
+    asyncio.run(run())
+
+
+def test_single_key_input_after_panning_with_fixed_geometry(tmp_path):
+    app = player(
+        tmp_path, bytes.fromhex("f6 7f 01 10 e5 bf 10 ba"), version=5, width=100, height=30
+    )
+
+    async def run():
+        async with app.run_test(size=(78, 25)) as pilot:
+            await settled(app, pilot)
+            await pilot.press("f7", "end", "ctrl+pagedown")
+            await scrolled(app, pilot)
+            assert app.character_input
+            view = app.query_one("#game-view")
+            assert view.scroll_offset == (view.max_scroll_x, view.max_scroll_y)
+            await pilot.resize_terminal(126, 46)
+            await rendered(app, pilot)
+            await pilot.resize_terminal(78, 25)
+            await rendered(app, pilot)
+            await pilot.press("A")
+            await settled(app, pilot)
+            assert app.env.done
+            assert app.buffer.render(0).plain.strip() == "A"
+            assert (app.env.screen_width, app.env.screen_height) == (100, 30)
+            assert app.query_one("#command", Input).disabled
+
+    asyncio.run(run())

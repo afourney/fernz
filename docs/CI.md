@@ -9,8 +9,10 @@ named **comprehensive**, and runs only when explicitly dispatched. Pushes to
 
 The PR workflow aims to finish within **three minutes of runner execution**,
 including installation and fixture setup. Queue time is outside this budget.
-Every job has a five-minute safety limit, and each test command has a two-minute
-limit. A timeout fails the check; it does not silently skip remaining tests.
+Every job has a five-minute safety limit. Test commands have a two-minute
+limit, except portable smoke checks, which allow three minutes for the full
+Textual resize matrix and Windows process shutdown. A timeout fails the check;
+it does not silently skip remaining tests.
 These are guardrails, not a reason to grow the suite to fill the available time.
 
 The automatic checks keep:
