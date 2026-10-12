@@ -4,7 +4,7 @@ from dataclasses import replace
 
 from ._errors import ExecutionError
 from ._memory import Memory
-from ._observation import COLOURS
+from ._observation import COLOURS, ScreenOutputClipped
 from ._state import OutputState
 from ._text import Text
 
@@ -22,6 +22,7 @@ class Output:
         self.memory = memory
         self.state = state if state is not None else OutputState()
         self._stream: list[str] = []
+        self._clipped: ScreenOutputClipped | None = None
 
     @property
     def width(self) -> int:
@@ -65,16 +66,41 @@ class Output:
             return ""
         self._stream.append(text.replace("<", "<<"))
         row, column = self.state.cursors[self.state.window]
-        last_row = max(1, self.state.split_lines) if self.state.window else self.height
+        # Upper-window painting never scrolls or returns to a visible row on
+        # overflow. Keep coordinates representable by get_cursor's word fields.
+        last_row = 0xFFFF if self.state.window else self.height
+        if self.state.window and self.memory.story.header.version == 3:
+            last_row = max(1, self.state.split_lines)
         for character in text:
             if character == "\n":
                 row, column = min(last_row, row + 1), 1
             else:
                 if column > self.width:
                     row, column = min(last_row, row + 1), 1
+                if self.state.window and row > self.height:
+                    self._record_clipping(row, column)
                 column += 1
         self._cursor(row, column)
         return text
+
+    def _record_clipping(self, row: int, column: int) -> None:
+        previous = self._clipped
+        self._clipped = ScreenOutputClipped(
+            self.width,
+            self.height,
+            self.state.window,
+            1 if previous is None else previous.clipped_cells + 1,
+            row if previous is None else min(previous.min_row, row),
+            row if previous is None else max(previous.max_row, row),
+            column if previous is None else min(previous.min_column, column),
+            column if previous is None else max(previous.max_column, column),
+        )
+
+    def drain_diagnostics(self) -> tuple[ScreenOutputClipped, ...]:
+        """Report clipping once per execution boundary, outside saved state."""
+        result = () if self._clipped is None else (self._clipped,)
+        self._clipped = None
+        return result
 
     def memory_stream(self, table: int | None) -> None:
         """Push a stream-3 table, or finish the innermost selected stream."""
@@ -105,8 +131,12 @@ class Output:
 
     def split(self, lines: int) -> None:
         """Resize the upper window, retaining separate cursor positions."""
-        if not 0 <= lines <= self.height:
+        if not 0 <= lines <= 0xFFFF:
             raise ExecutionError("Upper window height is outside the screen")
+        if lines > self.height:
+            if self.memory.story.header.version not in (4, 5, 7, 8):
+                raise ExecutionError("Upper window height is outside the screen")
+            lines = self.height
         previous = self.state.cursors
         lower, upper = previous
         if upper[0] > lines:
@@ -135,7 +165,7 @@ class Output:
         """Position the upper-window cursor; lower-window positioning is ignored."""
         if self.state.window == 0:
             return
-        if not 1 <= row <= self.height or column < 1:
+        if not 1 <= row <= 0xFFFF or column < 1:
             raise ExecutionError("Cursor is outside the upper window")
         if column > self.width:
             # Saves made on wider displays can retain story-owned cursor
@@ -151,7 +181,7 @@ class Output:
             # whose requested cursor extends below the current upper window.
             if self.memory.story.header.version not in (4, 5, 7, 8):
                 raise ExecutionError("Cursor is outside the upper window")
-            self.split(row)
+            self.split(min(row, self.height))
         self._cursor(row, column)
         self.command("at", row, column)
 

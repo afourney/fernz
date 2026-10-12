@@ -118,6 +118,8 @@ class ScreenBuffer:
     def _newline(self) -> None:
         row, _ = self.cursors[self.window]
         row += 1
+        if self.window == 1:
+            row = min(row, 0xFFFF - 1)
         if self.window == 0 and row >= self.height:
             row = self.height - 1
             if self.split < self.height:

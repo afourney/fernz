@@ -88,6 +88,40 @@ audio playback, sound tags, and completion callbacks remain unimplemented.
 
 ## Geometry and lifecycle
 
+### Clipped output diagnostics
+
+`Observation.diagnostics` is an immutable tuple, empty when no painting was
+clipped beyond the logical screen. A `ScreenOutputClipped` value reports the
+screen `width` and `height`, affected `window`, `clipped_cells`, and one-based
+`min_row`, `max_row`, `min_column`, and `max_column`. Its `code` is
+`screen_output_clipped`. Multiple clipped writes coalesce into one report per
+`reset()` or `step()` response, including boundaries waiting for character
+input or ending the story. These transient reports are not saved in checkpoints.
+
+For V4/V5-style windows (also V8), an upper cursor below the split still expands
+the upper window when possible, as recommended by the Standard's section 8
+remarks about Sherlock's quote boxes. Splits are capped at the logical screen
+height. Positive cursor rows beyond the screen are retained, and painting there
+is clipped instead of stopping execution or overwriting the last visible row.
+Upper cursors and their advancement saturate at 65535, the largest row that
+`get_cursor` can represent. Lower-window cursor bounds remain unchanged.
+This is a compatibility policy for otherwise undefined out-of-window requests,
+not permission for stories to depend on such coordinates.
+
+Spaces, including styled box borders, count as painting. Cursor movement and
+newlines alone, memory-stream output, and disabled screen output do not report
+clipping. Both `text` and `stream` retain the full emitted text; renderers clip
+painting to their finite screen. An off-screen `<at>` therefore need not refer
+to an allocated row. Resizing the physical terminal or panning a larger logical
+canvas does not produce this diagnostic.
+
+The Textual player shows one warning at the next input boundary. **Dismiss**
+returns to the pending input without sending a key to the game. **Mute warnings**
+hides only clipping warnings until the player closes, including across save,
+restore and restart. It does not change VM diagnostics or saved-game data.
+To use a larger logical canvas, relaunch with `--screen-height` and/or
+`--screen-width`; physical terminal resizing does not change those dimensions.
+
 `screen_width` defaults to 80 and accepts integers 1–255. `screen_height`
 defaults to 25 and accepts integers 1–254. Booleans and non-integers are rejected.
 The height sentinel 255 means an infinite screen in the specification and is

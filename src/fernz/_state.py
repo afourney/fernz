@@ -64,10 +64,13 @@ class OutputState:
         _integer(self.split_lines, 0, self.height, "Upper window height")
         if type(self.cursors) is not tuple or len(self.cursors) != 2:
             raise TypeError("Expected two immutable window cursors")
-        for cursor in self.cursors:
+        for window, cursor in enumerate(self.cursors):
             if type(cursor) is not tuple or len(cursor) != 2:
                 raise TypeError("Expected an immutable row/column cursor")
-            _integer(cursor[0], 1, self.height, "Cursor row")
+            maximum_row = (
+                0xFFFF if window == 1 and story.header.version in (4, 5, 7, 8) else self.height
+            )
+            _integer(cursor[0], 1, maximum_row, "Cursor row")
             _integer(cursor[1], 1, self.width + 1, "Cursor column")
         if type(self.fonts) is not tuple or len(self.fonts) != 2:
             raise TypeError("Expected two immutable font selections")

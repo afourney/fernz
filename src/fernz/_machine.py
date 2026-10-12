@@ -71,6 +71,7 @@ class Machine:
         self.display = Output(memory, OutputState(width=screen_width, height=screen_height))
         self.display.start()
         self.last_stream = ""
+        self.last_diagnostics = ()
         self.input_request: InputRequest | None = None
         self.halted = False
 
@@ -120,6 +121,7 @@ class Machine:
         result._narrative = []
         result.last_narrative = ""
         result.last_stream = ""
+        result.last_diagnostics = ()
         result.screen_enabled = state.screen_enabled
         result.display = Output(memory, state.output)
         result.input_request = state.input_request
@@ -310,6 +312,7 @@ class Machine:
         self.last_narrative = "".join(self._narrative)
         self._narrative.clear()
         self.last_stream = self.display.drain()
+        self.last_diagnostics = self.display.drain_diagnostics()
         return output
 
     def accept_input(self, line: str) -> None:
