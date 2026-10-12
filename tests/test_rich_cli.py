@@ -367,3 +367,37 @@ def test_repeated_commands_follow_long_responses(tmp_path):
             assert command.has_focus and not command.disabled
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("size", [(110, 36), (116, 41)])
+def test_quote_survives_split_shrink_before_next_input(tmp_path, size):
+    # V5: first read, expand upper window, position beyond the split (the
+    # interpreter expands it implicitly), print a quote, shrink, then read.
+    # This is a synthetic story, with no ROM or saved-game dependency.
+    read = READ + b"\x10"
+    quote = "Visiting hours: 7 to 6"
+    code = (
+        b"\xbb" * 30
+        + read
+        + bytes.fromhex("ea 7f 08 eb 7f 01 f1 7f 01 ef 5f 09 15")
+        + b"".join(bytes((0xE5, 0x7F, ord(char))) for char in quote)
+        + bytes.fromhex("f1 7f 00 eb 7f 00 ea 7f 01 bb e5 7f 3e")
+        + read
+        + b"\xba"
+    )
+    app = player(tmp_path, code, version=5)
+
+    async def run():
+        async with app.run_test(size=size) as pilot:
+            await settled(app, pilot)
+            command = app.query_one("#command", Input)
+            command.value = "read sign"
+            await pilot.press("enter")
+            await settled(app, pilot)
+            assert app.buffer.split == 1
+            assert quote in visible_lower(app)
+            assert visible_lower(app).rstrip().endswith(">")
+            assert command.has_focus and not command.disabled
+            assert not app.character_input
+
+    asyncio.run(run())
