@@ -326,6 +326,8 @@ def test_upper_rows_remain_accessible_across_resizes_and_input(
                 viewport = pane.scrollable_content_region
                 narrow = size[0] < 100
                 assert pane.show_horizontal_scrollbar == narrow
+                assert pane.styles.height.is_cells
+                assert pane.styles.height.value == split + int(narrow)
                 if split <= 3:
                     assert viewport.height == split
                     assert pane.size.height == split + int(narrow)
@@ -395,6 +397,59 @@ def test_upper_rows_remain_accessible_across_resizes_and_input(
                     assert pane.size.height == new_split + 1
                 else:
                     assert pane.size.height == 0
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("text", ["", "<at 1 1>LABEL"])
+def test_upper_explicit_height_tracks_blank_rows_and_scrollbar_changes(tmp_path, text):
+    app = player(tmp_path, READ * 3)
+
+    async def run():
+        async with app.run_test(size=(110, 34)) as pilot:
+            await settled(app, pilot)
+            pane = app.query_one("#upper")
+            changes = []
+            app.watch(pane, "show_horizontal_scrollbar", lambda value: changes.append(value))
+            for split in (0, 1, 3, 20, 3, 1, 0):
+                app.buffer.apply(f"<reset><size 100 30><split {split}><top>{text}<bottom>")
+                app._refresh_screen()
+                logical = app.buffer.render(1)
+                # Include exact logical width: use Textual's actual scrollbar
+                # decision rather than predicting it from the terminal width.
+                for size in [(110, 34), (100, 24), (80, 24), (110, 34), (100, 24)]:
+                    await pilot.resize_terminal(*size)
+                    await rendered(app, pilot)
+
+                    def geometry():
+                        return (
+                            pane.styles.height,
+                            pane.size,
+                            pane.scrollable_content_region,
+                            pane.show_horizontal_scrollbar,
+                            pane.show_vertical_scrollbar,
+                        )
+
+                    before = geometry()
+                    count = len(changes)
+                    await rendered(app, pilot)
+                    assert geometry() == before
+                    assert len(changes) == count
+                    assert pane.styles.height.is_cells
+                    assert pane.display == bool(split)
+                    if split:
+                        horizontal = pane.show_horizontal_scrollbar
+                        if size[0] != 100:
+                            assert horizontal == (size[0] < 100)
+                        assert pane.styles.height.value == split + int(horizontal)
+                        if split <= 3:
+                            assert pane.scrollable_content_region.height == split
+                        else:
+                            assert pane.size.height <= size[1] * 0.6
+                            assert pane.show_vertical_scrollbar
+                    else:
+                        assert pane.styles.height.value == pane.size.height == 0
+                    assert app.buffer.render(1) == logical
 
     asyncio.run(run())
 

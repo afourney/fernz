@@ -132,7 +132,7 @@ class RichCLI(App[int]):
     CSS = """
     Screen { background: $background; color: $foreground; }
     Header { background: $surface; color: $foreground; }
-    #upper { height: auto; max-height: 60%; display: none; background: $background; }
+    #upper { height: 0; max-height: 60%; display: none; background: $background; }
     #lower { height: 1fr; background: $background; overflow-x: hidden; }
     #upper-text, #lower-text { width: auto; height: auto; background: $background; color: $foreground; }
     #lower-text { width: 1fr; }
@@ -188,6 +188,11 @@ class RichCLI(App[int]):
     def on_mount(self) -> None:
         """Start execution after the UI can display dialogs and progress."""
         self.title = f"Fernz · {self.env.game_path.name}"
+        self.watch(
+            self.query_one("#upper", ScrollableContainer),
+            "show_horizontal_scrollbar",
+            self._size_upper,
+        )
         # Follow through every layout pass (including wrapping and resizes).
         # Textual releases this anchor on user scrolling and restores it when
         # the user returns to the bottom; output refreshes must not reset it.
@@ -225,11 +230,16 @@ class RichCLI(App[int]):
             command.focus()
         self.query_one("#status", Static).update(status)
 
+    def _size_upper(self, horizontal_scrollbar: bool) -> None:
+        # The VM owns the row count, including blank rows. Add UI chrome only
+        # when Textual's layout actually shows the one-row horizontal scrollbar.
+        split = self.buffer.split
+        self.query_one("#upper").styles.height = split + int(horizontal_scrollbar) if split else 0
+
     def _refresh_screen(self) -> None:
         upper = self.query_one("#upper", ScrollableContainer)
         upper.display = self.buffer.split > 0
-        # Let auto height include scrollbar space as well as the logical rows.
-        # A fixed split height lets a horizontal scrollbar hide a one-row status.
+        self._size_upper(upper.show_horizontal_scrollbar)
         self.query_one("#upper-text", Static).update(self.buffer.render(1))
         lower_text = self.buffer.render(0)
         # Soft-wrap the presentation to the viewport, including its scrollbar.
