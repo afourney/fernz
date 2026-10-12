@@ -277,9 +277,9 @@ async def rendered(app, pilot):
     await pilot.pause()
 
 
-@pytest.mark.parametrize("split", [1, 3])
+@pytest.mark.parametrize("split", [1, 3, 20])
 @pytest.mark.parametrize("initial_size", [(110, 34), (80, 24)])
-def test_upper_rows_remain_visible_across_resizes_and_input(
+def test_upper_rows_remain_accessible_across_resizes_and_input(
     tmp_path, monkeypatch, split, initial_size
 ):
     monkeypatch.delenv("NO_COLOR", raising=False)
@@ -290,51 +290,93 @@ def test_upper_rows_remain_visible_across_resizes_and_input(
         async with app.run_test(size=initial_size) as pilot:
             await settled(app, pilot)
             app.buffer.apply(
-                f"<split {split}><top><invert>Example room<normal>"
-                "<at 1 30><color red #123456>COLOR<color default default>"
-                "<at 1 74><invert>day two<normal><at 1 97>EDGE"
-                f"<at {split} 1><invert>Room {split}<normal><bottom><at {split + 1} 1>"
+                f"<split {split}><top>"
+                + "".join(
+                    f"<at {row} 1><invert>ROW{row:02}<normal><at {row} 96>END{row:02}"
+                    for row in range(1, split + 1)
+                )
+                + "<at 1 30><color red #123456>COLOR<color default default>"
+                + f"<bottom><at {split + 1} 1>"
             )
             app._refresh_screen()
             logical = app.buffer.render(1)
             state = app.env.get_state()
+            pane = app.query_one("#upper")
+            command = app.query_one("#command", Input)
+
+            def visible():
+                viewport = pane.scrollable_content_region
+                return [
+                    strip.crop(viewport.x, viewport.right)
+                    for strip in app.screen._compositor.render_strips()[
+                        viewport.y : viewport.bottom
+                    ]
+                ]
+
+            async def navigation(*keys):
+                await pilot.press(*keys)
+                await asyncio.wait_for(app.animator.wait_until_complete(), timeout=2)
+                await rendered(app, pilot)
 
             async def check(size):
                 await pilot.resize_terminal(*size)
                 await rendered(app, pilot)
-                pane = app.query_one("#upper")
+                pane.scroll_to(x=0, y=0, animate=False, immediate=True)
+                await rendered(app, pilot)
                 viewport = pane.scrollable_content_region
-                assert viewport.height == split
-                assert not pane.show_horizontal_scrollbar
-                assert not pane.show_vertical_scrollbar
-                rows = app.screen._compositor.render_strips()[viewport.y : viewport.bottom]
-                # Inspect the composited screen: the child can render correctly
-                # even when a scrollbar consumes the entire one-row viewport.
+                narrow = size[0] < 100
+                assert pane.show_horizontal_scrollbar == narrow
+                if split <= 3:
+                    assert viewport.height == split
+                    assert pane.size.height == split + int(narrow)
+                    assert not pane.show_vertical_scrollbar
+                else:
+                    assert 0 < viewport.height < split
+                    assert pane.show_vertical_scrollbar
+                    assert pane.size.height <= size[1] * 0.6
+                rows = visible()
+                # Inspect the compositor, not just the child widget's text.
                 for row, strip in enumerate(rows):
                     expected = logical.plain.splitlines()[row][: viewport.width]
-                    assert strip.crop(viewport.x, viewport.right).text.rstrip() == expected.rstrip()
-                assert f"Room {split}" in rows[-1].text
-                assert "day two" in rows[0].text
-                assert ("EDGE" in rows[0].text) == (size[0] >= 100)
-                styles = [
-                    segment.style for segment in rows[0].crop(viewport.x + 29, viewport.x + 34)
-                ]
-                assert all(style.color.get_truecolor() == (255, 0, 0) for style in styles), styles
-                assert all(style.bgcolor.get_truecolor() == (18, 52, 86) for style in styles), (
-                    styles
-                )
-                assert all(
-                    segment.style.reverse for segment in rows[-1].crop(viewport.x, viewport.x + 6)
-                )
+                    assert strip.text.rstrip() == expected.rstrip()
+                assert "ROW01" in rows[0].text
+                styles = [segment.style for segment in rows[0].crop(29, 34)]
+                assert all(style.color.get_truecolor() == (255, 0, 0) for style in styles)
+                assert all(style.bgcolor.get_truecolor() == (18, 52, 86) for style in styles)
+                assert all(segment.style.reverse for segment in rows[0].crop(0, 5))
+                if narrow or split == 20:
+                    command.focus()
+                    await navigation("tab")
+                    assert pane.has_focus
+                if narrow:
+                    assert "END01" not in rows[0].text
+                    await navigation("ctrl+pagedown")
+                    assert pane.scroll_x == pane.max_scroll_x > 0
+                    assert "END01" in visible()[0].text
+                    await navigation("ctrl+pageup")
+                    assert pane.scroll_x == 0
+                    # Exercise the horizontal terminal mouse/trackpad event too.
+                    pane.post_message(
+                        events.MouseScrollRight(pane, 1, 1, 0, 0, 0, False, False, False)
+                    )
+                    await rendered(app, pilot)
+                    await asyncio.wait_for(app.animator.wait_until_complete(), timeout=2)
+                    await rendered(app, pilot)
+                    assert pane.scroll_x > 0
+                if split == 20:
+                    await navigation("end", "ctrl+pagedown")
+                    assert pane.scroll_y == pane.max_scroll_y > 0
+                    assert "END20" in visible()[-1].text
                 assert app.theme == "fern-loam"
                 assert app.buffer.render(1) == logical
                 assert app.buffer.width == app.env.screen_width == 100
                 assert app.buffer.height == app.env.screen_height == 30
 
-            for size in [initial_size, (110, 34), (80, 24), (110, 34), (80, 24)]:
+            other_size = (80, 24) if initial_size == (110, 34) else (110, 34)
+            for size in [initial_size, other_size, initial_size]:
                 await check(size)
                 assert app.env.get_state() == state
-            command = app.query_one("#command", Input)
+            command.focus()
             command.value = "inventory"
             await pilot.press("enter")
             await settled(app, pilot)
@@ -342,11 +384,17 @@ def test_upper_rows_remain_visible_across_resizes_and_input(
             assert "inventory" in app.buffer.render(0).plain
             await check((80, 24))
             await check((110, 34))
-            # Removing the split must still return its space to the lower pane.
-            app.buffer.apply("<split 0>")
-            app._refresh_screen()
-            await rendered(app, pilot)
-            assert not app.query_one("#upper").display
+            await pilot.resize_terminal(80, 24)
+            for new_split in (3, 1, 0):
+                app.buffer.apply(f"<split {new_split}>")
+                app._refresh_screen()
+                await rendered(app, pilot)
+                assert pane.display == bool(new_split)
+                if new_split:
+                    assert pane.scrollable_content_region.height == new_split
+                    assert pane.size.height == new_split + 1
+                else:
+                    assert pane.size.height == 0
 
     asyncio.run(run())
 
