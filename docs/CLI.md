@@ -65,11 +65,11 @@ so brackets and angle brackets cannot become Textual/Rich markup.
   Enter supplies the return character. The command field is disabled meanwhile.
 - Scroll the output with the mouse or trackpad. Scrollback retains up to 2,000
   rows in addition to the current logical screen. Its gold scrollbar stays on
-  the visible right edge, even when the canvas is panned. F6 focuses history;
-  use Up/Down, PageUp/PageDown or Home/End. F8 returns to the command field.
+  the visible right edge, even when the canvas is panned. Alt+H (or F6) focuses history;
+  use Up/Down, PageUp/PageDown or Home/End. Alt+I (or F8) returns to the command field.
 - If the terminal is smaller than the logical screen, scroll the shared game
   viewport to see its other rows or columns. Its horizontal scrollbar sits
-  below both windows, above the controls. F7 focuses the viewport: use
+  below both windows, above the controls. Alt+G (or F7) focuses the viewport: use
   Ctrl+PageUp/Ctrl+PageDown to scroll horizontally and Home/End vertically.
   Its scrollbars stay at the visible edges and disappear when the canvas fits;
   a separate vertical bar may appear beside the history bar. Panning and
@@ -133,6 +133,12 @@ lower window and scrolls away naturally.
 
 The frontend cell buffer and scrollback belong to the player, not the VM's
 `GameState`. There are no changes to checkpoint formats or vector archives.
+
+The history, canvas and command focus shortcuts stay hidden in the footer.
+Alt shortcuts avoid command-editing keys; the F-key aliases remain available.
+On enlarged terminals, unused space around the centered player uses dark green
+`▓` on black. The darkest fixed xterm green is stronger in 256-color terminals
+than the muted true-color version. Game colors are unchanged.
 
 ## Validation
 
