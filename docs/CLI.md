@@ -49,8 +49,6 @@ terminal's normal colour conversion. To request true colour in a capable
 terminal whose detection falls back, set `TEXTUAL_COLOR_SYSTEM=truecolor` before
 launching Fernz. The fallback can be tested with `TEXTUAL_COLOR_SYSTEM=256`.
 
-![Fern & Loam in Zork at 110 columns by 34 rows](images/fern-loam.png)
-
 The upper window stays above the lower window, which has scrollback. The player
 applies the ordered [display stream](OBSERVATIONS.md): cursor positioning,
 overwriting, clearing, window splits, colours, bold, italic and inverted text.
