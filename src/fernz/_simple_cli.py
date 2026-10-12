@@ -1,7 +1,9 @@
 """Dependency-free terminal REPL, including redirected input and output."""
 
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from shutil import get_terminal_size
 
 from ._cli_files import write_save
 from ._env import FernzEnv
@@ -9,6 +11,17 @@ from ._env import FernzEnv
 
 class SimpleCLI:
     """Read edited lines and stream plain output immediately to the terminal."""
+
+    def __init__(
+        self,
+        open_game: Callable[[int, int], FernzEnv],
+        *,
+        screen_width: int | None = None,
+        screen_height: int | None = None,
+    ) -> None:
+        """Defer game creation until the terminal dimensions are known."""
+        self.open_game = open_game
+        self.screen_width, self.screen_height = screen_width, screen_height
 
     @staticmethod
     def output(text: str) -> None:
@@ -48,9 +61,13 @@ class SimpleCLI:
             print(f"fernz: {exc}", file=sys.stderr)
             return None
 
-    @staticmethod
-    def run_repl(env: FernzEnv) -> int:
+    def run_repl(self) -> int:
         """Run until VM quit or EOF, leaving exception reporting to main."""
+        width, height = get_terminal_size((80, 25)) if sys.stdout.isatty() else (80, 25)
+        env = self.open_game(
+            self.screen_width if self.screen_width is not None else max(1, min(255, width)),
+            self.screen_height if self.screen_height is not None else max(1, min(254, height)),
+        )
         env.reset()
         while not env.done:
             line = sys.stdin.readline()

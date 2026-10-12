@@ -14,15 +14,27 @@ from .save_story import save_story
 from .story_files import READ, program_bytes
 
 
-def player(tmp_path, code, version=3):
+def player(tmp_path, code, version=3, *, width=80, height=25, app_type=RichCLI):
     game = tmp_path / "interactive story.z3"
     game.write_bytes(program_bytes(code, version=version))
-    app = RichCLI()
-    app.env = FernzEnv(game, save_handler=app.save, restore_handler=app.restore)
+
+    def open_game(columns, rows):
+        return FernzEnv(
+            game,
+            save_handler=app.save,
+            restore_handler=app.restore,
+            screen_width=columns,
+            screen_height=rows,
+        )
+
+    app = app_type(open_game, screen_width=width, screen_height=height)
     return app
 
 
 async def settled(app, pilot):
+    async with asyncio.timeout(5):
+        while app.busy:
+            await pilot.pause(0.01)
     await asyncio.wait_for(app.workers.wait_for_complete(), timeout=5)
     await pilot.pause()
 
@@ -154,7 +166,7 @@ def test_quitting_during_storage_unblocks_the_vm(tmp_path):
 @pytest.mark.parametrize("missing", [False, True])
 def test_restore_resumes_a_real_save_or_reports_failure_to_story(tmp_path, missing):
     app = player(tmp_path, b"\xba")
-    game = app.env.game_path
+    game = tmp_path / "interactive story.z3"
     game.write_bytes(save_story())
     path = tmp_path / "saved game.qzl"
     if not missing:
@@ -169,7 +181,6 @@ def test_restore_resumes_a_real_save_or_reports_failure_to_story(tmp_path, missi
             source.step("save")
         finally:
             source.close()
-    app.env = FernzEnv(game, save_handler=app.save, restore_handler=app.restore)
 
     async def run():
         async with app.run_test() as pilot:
@@ -203,64 +214,64 @@ def test_execution_failure_stays_visible_and_exits_nonzero(tmp_path):
 
 @pytest.mark.parametrize("split", [0, 1])
 @pytest.mark.parametrize("logical_width", [80, 120])
-def test_lower_text_remains_visible_across_terminal_resizes(tmp_path, split, logical_width):
+def test_live_rows_keep_coordinates_across_terminal_resizes(tmp_path, split, logical_width):
     app = player(tmp_path, READ)
-    # Independent synthetic rows exercise both word wrapping and long-word folding.
-    word_row = "word " * (logical_width // 5 - 1) + "EDGE!"
-    long_row = "x" * (logical_width - 4) + "TAIL"
 
     async def run():
         async with app.run_test(size=(80, 24)) as pilot:
             await settled(app, pilot)
             app.buffer.apply(
                 f"<reset><size {logical_width} 25><split {split}>"
-                f"<top><at 1 {logical_width - 3}><invert>HEAD<at 1 1>UPPER<normal><bottom>"
-                f"<at {split + 1} 1>{word_row}\n<bold>{long_row}"
+                f"<top>UPPER<at 1 {logical_width - 3}><invert>HEAD<normal><bottom>"
+                f"<at {split + 1} 1>LOWER<at {split + 1} {logical_width - 3}><bold>TAIL"
             )
             app._refresh_screen()
-            logical = app.buffer.render(0).plain
+            logical = app.buffer.render(0)
             state = app.env.get_state()
+            view = app.query_one("#game-view")
+            lower = app.query_one("#lower")
+            text = app.query_one("#lower-text")
             for size in [(80, 24), (116, 41), (60, 24), (80, 24)]:
                 await pilot.resize_terminal(*size)
                 await rendered(app, pilot)
-                pane = app.query_one("#lower")
-                text = app.query_one("#lower-text")
-                pane.scroll_home(animate=False)
+                view.scroll_home(animate=False, immediate=True)
+                lower.scroll_home(animate=False, immediate=True)
                 await rendered(app, pilot)
-                viewport = pane.scrollable_content_region
-                assert text.size.width == viewport.width
-                assert pane.max_scroll_x == 0
-                # Read the actual composited viewport, not the logical buffer.
-                visible = "".join(
-                    strip.crop(viewport.x, viewport.right).text
-                    for strip in app.screen._compositor.render_strips()[
-                        viewport.y : viewport.bottom
-                    ]
-                )
-                assert "".join(visible.split()) == "".join((word_row + long_row).split())
-                # Folding retains styles, and resizing never mutates logical cells or VM state.
-                rendered_cells = [
-                    (char, segment.style)
-                    for row in range(text.size.height)
-                    for segment in text.render_line(row)
-                    for char in segment.text
-                    if not char.isspace()
-                ]
-                # The tail itself may fold across two viewport rows.
-                assert "".join(char for char, _ in rendered_cells[-4:]) == "TAIL"
-                assert all(style.bold for _, style in rendered_cells[-4:])
-                assert app.buffer.render(0).plain == logical
-                assert app.env.get_state() == state
+                assert text.size.width == logical_width
+                assert text.size.height == 25 - split
+                assert lower.scrollable_content_region.width == logical_width
+                assert "LOWER" in visible_game(app)
+                assert not lower.show_horizontal_scrollbar
+                # Both windows share one horizontal scrollbar, below the game.
+                assert not app.query_one("#upper").show_horizontal_scrollbar
+                view.scroll_to(x=view.max_scroll_x, animate=False, immediate=True)
+                await rendered(app, pilot)
+                assert "TAIL" in visible_game(app)
                 if split:
-                    upper = app.query_one("#upper-text")
-                    assert upper.size.height == 1
-                    assert upper.render_line(0).text == "UPPER" + " " * (logical_width - 9) + "HEAD"
+                    assert "HEAD" in visible_game(app)
+                    assert app.query_one("#upper").region.bottom == lower.region.y
+                tail = text.render_line(0).crop(logical_width - 4, logical_width)
+                assert tail.text == "TAIL"
+                assert all(segment.style.bold for segment in tail)
+                assert app.buffer.render(0) == logical
+                assert app.env.get_state() == state
+            await pilot.press("ctrl+q")
 
     asyncio.run(run())
 
 
+def visible_game(app):
+    viewport = app.query_one("#game-view").scrollable_content_region
+    return "\n".join(
+        strip.crop(viewport.x, viewport.right).text
+        for strip in app.screen._compositor.render_strips()[viewport.y : viewport.bottom]
+    )
+
+
 def visible_lower(app):
-    viewport = app.query_one("#lower").scrollable_content_region
+    viewport = app.query_one("#lower").scrollable_content_region.intersection(
+        app.query_one("#game-view").scrollable_content_region
+    )
     return "\n".join(
         strip.crop(viewport.x, viewport.right).text
         for strip in app.screen._compositor.render_strips()[viewport.y : viewport.bottom]
@@ -278,13 +289,9 @@ async def rendered(app, pilot):
 
 
 @pytest.mark.parametrize("split", [1, 3, 20])
-@pytest.mark.parametrize("initial_size", [(110, 34), (80, 24)])
-def test_upper_rows_remain_accessible_across_resizes_and_input(
-    tmp_path, monkeypatch, split, initial_size
-):
-    monkeypatch.delenv("NO_COLOR", raising=False)
-    app = player(tmp_path, (READ + b"\x10") * 3, version=8)
-    app.env = FernzEnv(app.env.game_path, screen_width=100, screen_height=30)
+@pytest.mark.parametrize("initial_size", [(110, 40), (80, 24)])
+def test_upper_rows_remain_accessible_across_resizes_and_input(tmp_path, split, initial_size):
+    app = player(tmp_path, (READ + b"\x10") * 3, version=8, width=100, height=30)
 
     async def run():
         async with app.run_test(size=initial_size) as pilot:
@@ -295,88 +302,47 @@ def test_upper_rows_remain_accessible_across_resizes_and_input(
                     f"<at {row} 1><invert>ROW{row:02}<normal><at {row} 96>END{row:02}"
                     for row in range(1, split + 1)
                 )
-                + "<at 1 30><color red #123456>COLOR<color default default>"
                 + f"<bottom><at {split + 1} 1>"
             )
             app._refresh_screen()
             logical = app.buffer.render(1)
             state = app.env.get_state()
-            pane = app.query_one("#upper")
+            view = app.query_one("#game-view")
+            upper = app.query_one("#upper")
+            lower = app.query_one("#lower")
             command = app.query_one("#command", Input)
-
-            def visible():
-                viewport = pane.scrollable_content_region
-                return [
-                    strip.crop(viewport.x, viewport.right)
-                    for strip in app.screen._compositor.render_strips()[
-                        viewport.y : viewport.bottom
-                    ]
-                ]
-
-            async def navigation(*keys):
-                await pilot.press(*keys)
-                await asyncio.wait_for(app.animator.wait_until_complete(), timeout=2)
-                await rendered(app, pilot)
-
-            async def check(size):
+            for size in [initial_size, (80, 24), (110, 40), initial_size]:
                 await pilot.resize_terminal(*size)
                 await rendered(app, pilot)
-                pane.scroll_to(x=0, y=0, animate=False, immediate=True)
+                view.scroll_home(animate=False, immediate=True)
                 await rendered(app, pilot)
-                viewport = pane.scrollable_content_region
-                narrow = size[0] < 100
-                assert pane.show_horizontal_scrollbar == narrow
-                assert pane.styles.height.is_cells
-                assert pane.styles.height.value == split + int(narrow)
-                if split <= 3:
-                    assert viewport.height == split
-                    assert pane.size.height == split + int(narrow)
-                    assert not pane.show_vertical_scrollbar
-                else:
-                    assert 0 < viewport.height < split
-                    assert pane.show_vertical_scrollbar
-                    assert pane.size.height <= size[1] * 0.6
-                rows = visible()
-                # Inspect the compositor, not just the child widget's text.
-                for row, strip in enumerate(rows):
-                    expected = logical.plain.splitlines()[row][: viewport.width]
-                    assert strip.text.rstrip() == expected.rstrip()
-                assert "ROW01" in rows[0].text
-                styles = [segment.style for segment in rows[0].crop(29, 34)]
-                assert all(style.color.get_truecolor() == (255, 0, 0) for style in styles)
-                assert all(style.bgcolor.get_truecolor() == (18, 52, 86) for style in styles)
-                assert all(segment.style.reverse for segment in rows[0].crop(0, 5))
-                if narrow or split == 20:
-                    command.focus()
-                    await navigation("tab")
-                    assert pane.has_focus
-                if narrow:
-                    assert "END01" not in rows[0].text
-                    await navigation("ctrl+pagedown")
-                    assert pane.scroll_x == pane.max_scroll_x > 0
-                    assert "END01" in visible()[0].text
-                    await navigation("ctrl+pageup")
-                    assert pane.scroll_x == 0
-                    # Exercise the horizontal terminal mouse/trackpad event too.
-                    pane.post_message(
-                        events.MouseScrollRight(pane, 1, 1, 0, 0, 0, False, False, False)
+                assert upper.region.bottom == lower.region.y
+                assert upper.size.height == split
+                assert lower.size.height == 30 - split
+                assert not upper.show_horizontal_scrollbar
+                assert not upper.show_vertical_scrollbar
+                assert "ROW01" in visible_game(app)
+                assert view.show_horizontal_scrollbar == (size[0] < 102)
+                if view.show_horizontal_scrollbar:
+                    view.focus()
+                    await pilot.press("ctrl+pagedown")
+                    await app.animator.wait_until_complete()
+                    await rendered(app, pilot)
+                    assert view.scroll_x == view.max_scroll_x > 0
+                    assert "END01" in visible_game(app)
+                    # Wheel navigation is applied to the shared game viewport.
+                    view.post_message(
+                        events.MouseScrollLeft(view, 1, 1, 0, 0, 0, False, False, False)
                     )
                     await rendered(app, pilot)
-                    await asyncio.wait_for(app.animator.wait_until_complete(), timeout=2)
-                    await rendered(app, pilot)
-                    assert pane.scroll_x > 0
+                    await app.animator.wait_until_complete()
+                    assert view.scroll_x < view.max_scroll_x
                 if split == 20:
-                    await navigation("end", "ctrl+pagedown")
-                    assert pane.scroll_y == pane.max_scroll_y > 0
-                    assert "END20" in visible()[-1].text
-                assert app.theme == "fern-loam"
+                    view.scroll_to(x=0, animate=False, immediate=True)
+                    view.scroll_end(animate=False, immediate=True, x_axis=False)
+                    await rendered(app, pilot)
+                    assert "ROW20" in visible_game(app)
                 assert app.buffer.render(1) == logical
-                assert app.buffer.width == app.env.screen_width == 100
-                assert app.buffer.height == app.env.screen_height == 30
-
-            other_size = (80, 24) if initial_size == (110, 34) else (110, 34)
-            for size in [initial_size, other_size, initial_size]:
-                await check(size)
                 assert app.env.get_state() == state
             command.focus()
             command.value = "inventory"
@@ -384,72 +350,43 @@ def test_upper_rows_remain_accessible_across_resizes_and_input(
             await settled(app, pilot)
             assert command.has_focus and not command.disabled
             assert "inventory" in app.buffer.render(0).plain
-            await check((80, 24))
-            await check((110, 34))
-            await pilot.resize_terminal(80, 24)
-            for new_split in (3, 1, 0):
-                app.buffer.apply(f"<split {new_split}>")
-                app._refresh_screen()
-                await rendered(app, pilot)
-                assert pane.display == bool(new_split)
-                if new_split:
-                    assert pane.scrollable_content_region.height == new_split
-                    assert pane.size.height == new_split + 1
-                else:
-                    assert pane.size.height == 0
+            await pilot.press("ctrl+q")
 
     asyncio.run(run())
 
 
 @pytest.mark.parametrize("text", ["", "<at 1 1>LABEL"])
-def test_upper_explicit_height_tracks_blank_rows_and_scrollbar_changes(tmp_path, text):
+def test_split_preserves_blank_rows_and_stable_shared_scrollbar_geometry(tmp_path, text):
     app = player(tmp_path, READ * 3)
 
     async def run():
-        async with app.run_test(size=(110, 34)) as pilot:
+        async with app.run_test(size=(110, 40)) as pilot:
             await settled(app, pilot)
-            pane = app.query_one("#upper")
-            changes = []
-            app.watch(pane, "show_horizontal_scrollbar", lambda value: changes.append(value))
-            for split in (0, 1, 3, 20, 3, 1, 0):
+            upper = app.query_one("#upper")
+            lower = app.query_one("#lower")
+            view = app.query_one("#game-view")
+            for split in (0, 1, 3, 20, 30, 3, 1, 0):
                 app.buffer.apply(f"<reset><size 100 30><split {split}><top>{text}<bottom>")
                 app._refresh_screen()
                 logical = app.buffer.render(1)
-                # Include exact logical width: use Textual's actual scrollbar
-                # decision rather than predicting it from the terminal width.
-                for size in [(110, 34), (100, 24), (80, 24), (110, 34), (100, 24)]:
+                for size in [(110, 40), (102, 36), (100, 24), (80, 24), (110, 40)]:
                     await pilot.resize_terminal(*size)
                     await rendered(app, pilot)
-
-                    def geometry():
-                        return (
-                            pane.styles.height,
-                            pane.size,
-                            pane.scrollable_content_region,
-                            pane.show_horizontal_scrollbar,
-                            pane.show_vertical_scrollbar,
-                        )
-
-                    before = geometry()
-                    count = len(changes)
+                    geometry = (upper.region, lower.region, view.scrollbars_enabled)
                     await rendered(app, pilot)
-                    assert geometry() == before
-                    assert len(changes) == count
-                    assert pane.styles.height.is_cells
-                    assert pane.display == bool(split)
+                    assert (upper.region, lower.region, view.scrollbars_enabled) == geometry
+                    assert upper.display == bool(split)
+                    assert lower.display == (split < 30)
                     if split:
-                        horizontal = pane.show_horizontal_scrollbar
-                        if size[0] != 100:
-                            assert horizontal == (size[0] < 100)
-                        assert pane.styles.height.value == split + int(horizontal)
-                        if split <= 3:
-                            assert pane.scrollable_content_region.height == split
-                        else:
-                            assert pane.size.height <= size[1] * 0.6
-                            assert pane.show_vertical_scrollbar
-                    else:
-                        assert pane.styles.height.value == pane.size.height == 0
+                        assert upper.size.height == split
+                    if split < 30:
+                        assert lower.size.height == 30 - split
+                    if 0 < split < 30:
+                        assert upper.region.bottom == lower.region.y
+                    assert not upper.show_horizontal_scrollbar
+                    assert not lower.show_horizontal_scrollbar
                     assert app.buffer.render(1) == logical
+            await pilot.press("ctrl+q")
 
     asyncio.run(run())
 
@@ -737,3 +674,155 @@ def test_terminal_colour_depth_selects_theme_and_preserves_story_colours(
             assert app.current_theme == expected
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "size,width,height,expected,horizontal,vertical",
+    [
+        ((116, 40), None, None, (114, 34), False, False),
+        ((80, 24), None, None, (78, 18), False, False),
+        ((80, 24), 100, None, (100, 17), True, False),
+        ((116, 40), None, 40, (112, 40), False, True),
+        ((116, 40), 100, None, (100, 34), False, False),
+        ((116, 40), None, 30, (114, 30), False, False),
+        ((116, 40), 100, 30, (100, 30), False, False),
+        ((80, 24), 100, 30, (100, 30), True, True),
+        ((270, 265), None, None, (255, 254), False, False),
+    ],
+)
+def test_startup_measures_game_area_and_scrollbars(
+    tmp_path, size, width, height, expected, horizontal, vertical
+):
+    app = player(tmp_path, READ + b"\x10", version=5, width=width, height=height)
+
+    async def run():
+        async with app.run_test(size=size) as pilot:
+            await settled(app, pilot)
+            await rendered(app, pilot)
+            view = app.query_one("#game-view")
+            screen = app.query_one("#game-screen")
+            lower = app.query_one("#lower")
+            assert (app.env.screen_width, app.env.screen_height) == expected
+            assert app.env.memory.read_byte(0x21) == expected[0]
+            assert app.env.memory.read_byte(0x20) == expected[1]
+            assert view.region.y == app.query_one("Header").region.bottom
+            assert view.region.bottom == app.query_one("#status").region.y
+            assert view.show_horizontal_scrollbar == horizontal
+            assert view.show_vertical_scrollbar == vertical
+            assert lower.scrollable_content_region.width == expected[0]
+            assert screen.size.height == expected[1]
+            # Growing history cannot cause a new horizontal scrollbar or change
+            # the game's header dimensions; its gutter was reserved at startup.
+            app.buffer.write("history\n" * (expected[1] + 5))
+            app._refresh_screen()
+            await rendered(app, pilot)
+            assert lower.show_vertical_scrollbar
+            assert view.show_horizontal_scrollbar == horizontal
+            assert lower.scrollable_content_region.width == expected[0]
+            state = app.env.get_state()
+            await pilot.resize_terminal(90, 30)
+            await rendered(app, pilot)
+            assert app.env.get_state() == state
+            assert (app.buffer.width, app.buffer.height) == expected
+            await pilot.press("ctrl+q")
+
+    asyncio.run(run())
+
+
+def test_quote_and_second_status_row_stay_adjacent_with_history(tmp_path):
+    def print_text(text):
+        return b"".join(bytes((0xE5, 0x7F, ord(char))) for char in text)
+
+    read = READ + b"\x10"
+    code = (
+        (print_text("old history") + b"\xbb") * 40
+        + read
+        + bytes.fromhex("ea 7f 02 eb 7f 01 ef 5f 01 01")
+        + print_text("STATUS ONE")
+        + bytes.fromhex("ef 5f 02 01")
+        + print_text("STATUS TWO")
+        + bytes.fromhex("eb 7f 00 ea 7f 0a eb 7f 01 ef 5f 05 04 f1 7f 01")
+        + print_text("QUOTATION")
+        + bytes.fromhex("f1 7f 00 eb 7f 00 ea 7f 01")
+        + read
+    )
+    app = player(tmp_path, code, version=5, width=100, height=30)
+
+    async def run():
+        async with app.run_test(size=(116, 40)) as pilot:
+            await settled(app, pilot)
+            app.query_one("#command", Input).value = "quote"
+            await pilot.press("enter")
+            await settled(app, pilot)
+            assert app.buffer.split == 1
+            assert app.buffer.history
+            lower = app.query_one("#lower")
+            view = app.query_one("#game-view")
+            for size in [(116, 40), (116, 36), (80, 40), (116, 34), (116, 40)]:
+                await pilot.resize_terminal(*size)
+                await rendered(app, pilot)
+                view.scroll_home(animate=False, immediate=True)
+                await rendered(app, pilot)
+                rows = visible_game(app).splitlines()
+                assert rows[0].startswith("STATUS ONE")
+                assert rows[1].startswith("STATUS TWO")
+                assert rows[4][3:].startswith("QUOTATION")
+                if size == (116, 40):
+                    assert all(not row.strip() for row in rows[30:])
+                assert lower.scroll_y == lower.max_scroll_y
+            # History is still available, and returning to live output restores
+            # the exact physical row relationship without changing any cells.
+            lower.scroll_home(animate=False, immediate=True)
+            await rendered(app, pilot)
+            assert "old history" in visible_lower(app)
+            lower.scroll_end(animate=False, immediate=True)
+            await rendered(app, pilot)
+            assert visible_game(app).splitlines()[1].startswith("STATUS TWO")
+            await pilot.press("ctrl+q")
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("width", [None, 130])
+def test_automatic_size_uses_actual_control_layout(tmp_path, width):
+    class TallControls(RichCLI):
+        CSS = "Header {height: 2;} #status {height: 2;} #command {height: 4;} Footer {height: 2;}"
+
+    app = player(tmp_path, READ, width=width, height=None, app_type=TallControls)
+
+    async def run():
+        async with app.run_test(size=(120, 50)) as pilot:
+            await settled(app, pilot)
+            await rendered(app, pilot)
+            controls = sum(
+                app.query_one(selector).region.height
+                for selector in ("Header", "#status", "#command", "Footer")
+            )
+            assert controls == 10  # Includes the input field's borders.
+            view = app.query_one("#game-view")
+            assert view.size.height == 50 - controls
+            assert app.env.screen_height == 50 - controls - int(width is not None)
+            assert app.env.screen_width == (118 if width is None else width)
+            await pilot.press("ctrl+q")
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("error", [FileNotFoundError("missing story"), ValueError("bad story")])
+def test_deferred_load_failure_returns_to_cli_without_running_a_story(monkeypatch, error):
+    def open_game(width, height):
+        raise error
+
+    app = RichCLI(open_game)
+
+    async def run():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+        assert app.return_value == 2
+        assert app._load_error is error
+        assert not hasattr(app, "env")
+
+    asyncio.run(run())
+    monkeypatch.setattr(app, "run", lambda: app.return_value)
+    with pytest.raises(type(error), match=str(error)):
+        app.run_repl()

@@ -38,7 +38,12 @@ def test_textual_selection_when_installed(tmp_path, monkeypatch, args):
     class Frontend:
         output = save = restore = None
 
-        def run_repl(self, env):
+        def __init__(self, open_game, *, screen_width, screen_height):
+            assert screen_width is screen_height is None
+            self.open_game = open_game
+
+        def run_repl(self):
+            env = self.open_game(100, 30)
             calls.append(env.game_path)
             return 17
 
@@ -462,3 +467,42 @@ def test_no_extension_or_recursive_search(tmp_path, monkeypatch, capsys):
         assert "fernz:" in capsys.readouterr().err
     assert _cli.main(["--inspect", "jericho-game-suite/story.z3"]) == 0
     assert json.loads(capsys.readouterr().out)["version"] == 3
+
+
+@pytest.mark.parametrize(
+    "terminal,explicit,expected",
+    [
+        ((100, 40), [], (100, 40)),
+        ((100, 40), ["--screen-width", "80"], (80, 40)),
+        ((100, 40), ["--screen-height", "25"], (100, 25)),
+        ((400, 300), [], (255, 254)),
+    ],
+)
+def test_simple_terminal_measurement(tmp_path, monkeypatch, terminal, explicit, expected):
+    from fernz import FernzEnv, _simple_cli
+
+    game = tmp_path / "quit.z5"
+    game.write_bytes(program_bytes(b"\xba", version=5))
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    monkeypatch.setattr(_simple_cli, "get_terminal_size", lambda fallback: terminal)
+    dimensions = []
+
+    def open_game(*args, **kwargs):
+        dimensions.append((kwargs["screen_width"], kwargs["screen_height"]))
+        return FernzEnv(*args, **kwargs)
+
+    monkeypatch.setattr(_cli, "FernzEnv", open_game)
+    assert _cli.main(["--simple", *explicit, str(game)]) == 0
+    assert dimensions == [expected]
+
+
+@pytest.mark.parametrize("args", [["--screen-width", "0"], ["--screen-height", "255"]])
+def test_invalid_dimensions_are_rejected_before_loading_the_ui(monkeypatch, capsys, args):
+    def unexpected(*args, **kwargs):
+        pytest.fail("Invalid dimensions must be rejected before selecting a frontend")
+
+    monkeypatch.setattr(_cli, "find_spec", unexpected)
+    with pytest.raises(SystemExit) as exc:
+        _cli.main(["--rich", *args, "game.z5"])
+    assert exc.value.code == 2
+    assert "must be between" in capsys.readouterr().err

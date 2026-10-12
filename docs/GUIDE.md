@@ -85,7 +85,8 @@ transcript and an ordered `.stream` containing text and concise display tags.
 Both windows contribute in execution order. The recognized Zork I command prompt
 is omitted from `.text` and retained in `.stream`. Constructor options
 `screen_width=80` and `screen_height=25` configure the display; the CLI accepts
-`--screen-width` and `--screen-height`. See [observations](OBSERVATIONS.md)
+`--screen-width` and `--screen-height`, measuring unspecified dimensions from
+the available terminal game area. See [observations](OBSERVATIONS.md)
 for the protocol, migration, and screen-state responsibilities.
 
 `step()` returns only new output, a score delta, quit status, and status globals. Start with `reset()` or
