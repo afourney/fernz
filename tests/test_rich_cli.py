@@ -261,6 +261,15 @@ def visible_lower(app):
     )
 
 
+async def following(app, pilot):
+    # Worker completion and a single pause need not exhaust layout messages
+    # posted by the previous frame. Bound the wait so a stuck viewport fails.
+    pane = app.query_one("#lower")
+    async with asyncio.timeout(1):
+        while pane.scroll_y != pane.max_scroll_y:
+            await pilot.pause(0.01)
+
+
 def test_live_output_follows_late_layout_and_resizes(tmp_path):
     app = player(tmp_path, READ)
 
@@ -335,12 +344,14 @@ def test_repeated_commands_follow_long_responses(tmp_path):
             pane = app.query_one("#lower")
             command = app.query_one("#command", Input)
             for _ in range(7):
+                await following(app, pilot)
                 assert pane.scroll_y == pane.max_scroll_y > 0
                 assert visible_lower(app).rstrip().endswith(">")
                 assert command.has_focus and not command.disabled
                 command.value = "look"
                 await pilot.press("enter")
                 await settled(app, pilot)
+            await following(app, pilot)
             assert pane.scroll_y == pane.max_scroll_y
             assert visible_lower(app).rstrip().endswith(">")
             # A real wheel event releases following, even across command echo,
