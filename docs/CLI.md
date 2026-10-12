@@ -41,6 +41,14 @@ palette (Ctrl+P) to change themes during play. UI surfaces and interpreter-defau
 story colours follow the selected theme, including existing scrollback. Explicit
 story colours and bold, italic or inverted styles remain story-controlled.
 
+When the terminal reports 256-colour support, Fern & Loam automatically uses
+charcoal surfaces, muted green, warm brown and old-gold accents chosen from
+that palette. The original dark forest palette remains unchanged in true colour.
+Only Fern & Loam's theme colours change; explicit story colours still use the
+terminal's normal colour conversion. To request true colour in a capable
+terminal whose detection falls back, set `TEXTUAL_COLOR_SYSTEM=truecolor` before
+launching Fernz. The fallback can be tested with `TEXTUAL_COLOR_SYSTEM=256`.
+
 ![Fern & Loam in Zork at 110 columns by 34 rows](images/fern-loam.png)
 
 The upper window stays above the lower window, which has scrollback. The player
