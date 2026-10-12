@@ -267,6 +267,16 @@ def visible_lower(app):
     )
 
 
+async def rendered(app, pilot):
+    # pause() drains messages already queued, but layout can post more messages.
+    # Cross a completed refresh before reading compositor geometry or scrolling.
+    await pilot.pause()
+    complete = asyncio.Event()
+    app.call_after_refresh(complete.set)
+    await asyncio.wait_for(complete.wait(), timeout=1)
+    await pilot.pause()
+
+
 async def following(app, pilot):
     # Worker completion and a single pause need not exhaust layout messages
     # posted by the previous frame. Bound the wait so a stuck viewport fails.
@@ -285,20 +295,20 @@ def test_live_output_follows_late_layout_and_resizes(tmp_path):
             pane = app.query_one("#lower")
             app.buffer.write(("word " * 15 + "\n") * 40 + "LATEST>")
             app._refresh_screen()
-            await pilot.pause()
+            await rendered(app, pilot)
             assert pane.scroll_y == pane.max_scroll_y > 0
             assert "LATEST>" in visible_lower(app)
             # A subsequent layout pass can happen after scroll_end's callback.
             # Wrapping and viewport height both change without another response.
             for size in [(64, 24), (110, 34), (80, 24)]:
                 await pilot.resize_terminal(*size)
-                await pilot.pause()
+                await rendered(app, pilot)
                 assert pane.scroll_y == pane.max_scroll_y
                 assert "LATEST>" in visible_lower(app)
             # Changing the pinned window also reduces the transcript viewport.
             app.buffer.apply("<split 5>")
             app._refresh_screen()
-            await pilot.pause()
+            await rendered(app, pilot)
             assert pane.scroll_y == pane.max_scroll_y
             assert "LATEST>" in visible_lower(app)
 
@@ -314,25 +324,26 @@ def test_output_preserves_scrollback_and_resumes_at_bottom(tmp_path):
             pane = app.query_one("#lower")
             app.buffer.write("history\n" * 60)
             app._refresh_screen()
-            await pilot.pause()
+            await rendered(app, pilot)
             # Use the scrolling API used by Textual's user scroll actions.
             pane.scroll_to(y=10, animate=False, immediate=True)
-            await pilot.pause()
+            assert pane.scroll_y == 10
+            await rendered(app, pilot)
             before = visible_lower(app)
             app.buffer.write("new output\n" * 30 + "LATEST>")
             app._refresh_screen()
-            await pilot.pause()
+            await rendered(app, pilot)
             assert pane.scroll_y == 10
             assert visible_lower(app) == before
             await pilot.resize_terminal(64, 24)
-            await pilot.pause()
+            await rendered(app, pilot)
             assert pane.scroll_y == 10
             # Returning to the bottom via ordinary scrolling resumes following.
             pane.scroll_to(y=pane.max_scroll_y, animate=False, immediate=True)
-            await pilot.pause()
+            await rendered(app, pilot)
             app.buffer.write("\nmore output\n" * 30 + "RESUMED>")
             app._refresh_screen()
-            await pilot.pause()
+            await rendered(app, pilot)
             assert pane.scroll_y == pane.max_scroll_y
             assert "RESUMED>" in visible_lower(app)
 
