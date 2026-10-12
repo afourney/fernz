@@ -133,7 +133,10 @@ output is supported. Optional V5 style/colour capabilities remain unadvertised,
 although explicit supported style/colour instructions are recorded.
 
 Both CLI frontends accept `--screen-width` and `--screen-height`. The Textual
-frontend renders the ordered stream; see [the CLI guide](CLI.md). The `--simple`
+frontend measures unspecified dimensions from its available game area at startup,
+accounting for its controls and scrollbars. Explicit dimensions remain fixed;
+resizing changes only the viewport. It renders the ordered stream as a contiguous
+logical screen; see [the CLI guide](CLI.md). The `--simple`
 frontend uses the existing raw `output_handler(str)` callback so
 story prompts and output preceding a save/restore filename request appear
 immediately. That callback receives text from both windows, including prompts,

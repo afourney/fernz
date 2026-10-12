@@ -1,5 +1,6 @@
 """Optional Textual player; the interpreter remains independent of this UI."""
 
+from collections.abc import Callable
 from concurrent.futures import Future
 from dataclasses import replace
 from pathlib import Path
@@ -132,10 +133,13 @@ class RichCLI(App[int]):
     CSS = """
     Screen { background: $background; color: $foreground; }
     Header { background: $surface; color: $foreground; }
-    #upper { height: 0; max-height: 60%; display: none; background: $background; }
-    #lower { height: 1fr; background: $background; overflow-x: hidden; }
+    #game-view { height: 1fr; background: $background; }
+    #game-frame { width: auto; height: auto; min-height: 100%; background: $background; }
+    #game-screen { width: 0; height: 0; background: $background; }
+    #upper { height: 0; display: none; background: $background; overflow: hidden; }
+    #lower { height: 1fr; min-height: 0; background: $background;
+             overflow-x: hidden; scrollbar-gutter: stable; }
     #upper-text, #lower-text { width: auto; height: auto; background: $background; color: $foreground; }
-    #lower-text { width: 1fr; }
     #status { height: 1; color: $text-muted; background: $panel; }
     #command { background: $panel; color: $foreground; border: tall $primary; }
     #command:focus { border: tall $accent; }
@@ -153,9 +157,18 @@ class RichCLI(App[int]):
     """
     output = None  # Complete ordered observations drive rendering, never raw text fragments.
 
-    def __init__(self) -> None:
-        """Create UI state without importing or running a story."""
+    def __init__(
+        self,
+        open_game: Callable[[int, int], FernzEnv],
+        *,
+        screen_width: int | None = None,
+        screen_height: int | None = None,
+    ) -> None:
+        """Create the UI, deferring game creation until its viewport is measured."""
         super().__init__()
+        self.open_game = open_game
+        self.screen_width, self.screen_height = screen_width, screen_height
+        self._load_error: OSError | ValueError | None = None
         self.register_theme(FERN_LOAM_256 if self.console.color_system == "256" else FERN_LOAM)
         self.theme = FERN_LOAM.name
         self.env: FernzEnv
@@ -170,33 +183,69 @@ class RichCLI(App[int]):
         self._dialog_result: Future | None = None
 
     def compose(self) -> ComposeResult:
-        """Pin the upper window above a scrollable lower window and command field."""
+        """Keep the live screen contiguous inside one shared terminal viewport."""
         yield Header()
-        with ScrollableContainer(id="upper"):
-            yield Static(id="upper-text")
-        with ScrollableContainer(id="lower"):
-            yield Static(id="lower-text")
+        # The frame fills spare viewport height below the finite game screen.
+        # It prevents bottom anchoring from moving a short screen downwards.
+        with (
+            ScrollableContainer(id="game-view"),
+            Vertical(id="game-frame"),
+            Vertical(id="game-screen"),
+        ):
+            with ScrollableContainer(id="upper"):
+                yield Static(id="upper-text")
+            with ScrollableContainer(id="lower"):
+                yield Static(id="lower-text")
         yield Static("Opening story…", id="status")
         yield Input(placeholder="Command", id="command", disabled=True)
         yield Footer()
 
-    def run_repl(self, env: FernzEnv) -> int:
-        """Enter the terminal application; main closes the supplied environment."""
-        self.env = env
-        return self.run() or 0
+    def run_repl(self) -> int:
+        """Enter the application; main closes the environment created at startup."""
+        result = self.run() or 0
+        if self._load_error is not None:
+            raise self._load_error
+        return result
 
     def on_mount(self) -> None:
-        """Start execution after the UI can display dialogs and progress."""
+        """Wait for actual header, controls and viewport layout before measuring."""
+        self.call_after_refresh(self._open_story)
+
+    def _open_story(self) -> None:
+        viewport = self.query_one("#game-view", ScrollableContainer)
+        lower = self.query_one("#lower", ScrollableContainer)
+        area = viewport.content_size
+        # Reserve the lower window's stable history gutter from the outset:
+        # accumulating scrollback must not steal columns from the live screen.
+        gutter = lower.styles.scrollbar_size_vertical
+        horizontal = vertical = False
+        # Either scrollbar can require the other. Two follow-up passes resolve
+        # their space while recomputing only dimensions the user left automatic.
+        for _ in range(3):
+            columns = area.width - (viewport.styles.scrollbar_size_vertical if vertical else 0)
+            rows = area.height - (viewport.styles.scrollbar_size_horizontal if horizontal else 0)
+            width = (
+                self.screen_width
+                if self.screen_width is not None
+                else max(1, min(255, columns - gutter))
+            )
+            height = (
+                self.screen_height if self.screen_height is not None else max(1, min(254, rows))
+            )
+            horizontal = width + gutter > columns
+            vertical = height > rows
+        try:
+            self.env = self.open_game(width, height)
+        except (OSError, ValueError) as error:
+            self._load_error = error
+            self.exit(2)
+            return
         self.title = f"Fernz · {self.env.game_path.name}"
-        self.watch(
-            self.query_one("#upper", ScrollableContainer),
-            "show_horizontal_scrollbar",
-            self._size_upper,
-        )
-        # Follow through every layout pass (including wrapping and resizes).
+        # Follow through every layout pass (including screen splits and resizes).
         # Textual releases this anchor on user scrolling and restores it when
         # the user returns to the bottom; output refreshes must not reset it.
-        self.query_one("#lower", ScrollableContainer).anchor()
+        lower.anchor()
+        viewport.anchor()
         self._advance(None)
 
     @work(thread=True)
@@ -230,23 +279,17 @@ class RichCLI(App[int]):
             command.focus()
         self.query_one("#status", Static).update(status)
 
-    def _size_upper(self, horizontal_scrollbar: bool) -> None:
-        # The VM owns the row count, including blank rows. Add UI chrome only
-        # when Textual's layout actually shows the one-row horizontal scrollbar.
-        split = self.buffer.split
-        self.query_one("#upper").styles.height = split + int(horizontal_scrollbar) if split else 0
-
     def _refresh_screen(self) -> None:
         upper = self.query_one("#upper", ScrollableContainer)
+        lower = self.query_one("#lower", ScrollableContainer)
+        screen = self.query_one("#game-screen")
+        screen.styles.width = self.buffer.width + lower.styles.scrollbar_size_vertical
+        screen.styles.height = self.buffer.height
         upper.display = self.buffer.split > 0
-        self._size_upper(upper.show_horizontal_scrollbar)
+        upper.styles.height = self.buffer.split
+        lower.display = self.buffer.split < self.buffer.height
         self.query_one("#upper-text", Static).update(self.buffer.render(1))
-        lower_text = self.buffer.render(0)
-        # Soft-wrap the presentation to the viewport, including its scrollbar.
-        # Keep logical cells and the upper window's cursor positions unchanged.
-        lower_text.no_wrap = False
-        lower_text.overflow = "fold"
-        self.query_one("#lower-text", Static).update(lower_text)
+        self.query_one("#lower-text", Static).update(self.buffer.render(0))
 
     def _failed(self, message: str) -> None:
         self._player_exit_code = 1

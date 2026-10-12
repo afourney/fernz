@@ -58,9 +58,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Download the game suite and exit (default destination: ./games).",
     )
     parser.add_argument(
-        "--screen-width", type=int, default=80, help="Logical columns (default: 80)."
+        "--screen-width", type=int, help="Logical columns (default: measure the terminal)."
     )
-    parser.add_argument("--screen-height", type=int, default=25, help="Logical rows (default: 25).")
+    parser.add_argument(
+        "--screen-height", type=int, help="Logical rows (default: measure the available game area)."
+    )
     parser.add_argument(
         "--inspect", action="store_true", help="Print story metadata as JSON and exit."
     )
@@ -84,34 +86,45 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.game is None:
         parser.error("a game is required unless --download-games is used")
+    for name, value, limit in (
+        ("width", args.screen_width, 255),
+        ("height", args.screen_height, 254),
+    ):
+        if value is not None and not 1 <= value <= limit:
+            parser.error(f"--screen-{name} must be between 1 and {limit}")
+
+    env = None
     frontend = None
-    if not args.inspect:
-        if args.simple:
-            frontend = SimpleCLI()
-        elif find_spec("textual") is not None:
-            from ._rich_cli import RichCLI
 
-            frontend = RichCLI()
-        elif args.rich:
-            parser.error("--rich requires Textual; install it with: pip install 'fernz[textual]'")
-        else:
-            frontend = SimpleCLI()
-
-    try:
+    def open_game(width: int, height: int) -> FernzEnv:
+        # Textual calls this only after laying out its header and controls.
+        nonlocal env
         env = FernzEnv(
             _game_path(args.game),
             save_handler=frontend.save if frontend else None,
             restore_handler=frontend.restore if frontend else None,
             output_handler=frontend.output if frontend else None,
-            screen_width=args.screen_width,
-            screen_height=args.screen_height,
+            screen_width=width,
+            screen_height=height,
         )
-    except (OSError, ValueError) as exc:
-        print(f"fernz: {exc}", file=sys.stderr)
-        return 2
+        return env
+
+    dimensions = {"screen_width": args.screen_width, "screen_height": args.screen_height}
+    if not args.inspect:
+        if args.simple:
+            frontend = SimpleCLI(open_game, **dimensions)
+        elif find_spec("textual") is not None:
+            from ._rich_cli import RichCLI
+
+            frontend = RichCLI(open_game, **dimensions)
+        elif args.rich:
+            parser.error("--rich requires Textual; install it with: pip install 'fernz[textual]'")
+        else:
+            frontend = SimpleCLI(open_game, **dimensions)
 
     try:
         if args.inspect:
+            env = open_game(args.screen_width or 80, args.screen_height or 25)
             story = env.story
             header = story.header
             print(
@@ -133,15 +146,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 0
         assert frontend is not None  # Non-inspection mode always selects a frontend.
-        return frontend.run_repl(env)
+        return frontend.run_repl()
     except KeyboardInterrupt:
         print()
         return 130
-    except (NotImplementedError, ExecutionError, ValueError) as exc:
+    except (OSError, NotImplementedError, ExecutionError, ValueError) as exc:
         print(f"fernz: {exc}", file=sys.stderr)
-        return 1
+        return 2 if env is None else 1
     finally:
-        env.close()
+        if env is not None:
+            env.close()
 
 
 if __name__ == "__main__":
