@@ -944,7 +944,8 @@ def test_fixed_canvas_centering_and_pinned_edges(tmp_path, size, shell_size, bar
     asyncio.run(run())
 
 
-def test_pinned_history_mouse_keyboard_and_canvas_are_independent(tmp_path):
+@pytest.mark.parametrize("keys", [("f6", "f7", "f8"), ("alt+h", "alt+g", "alt+i")])
+def test_pinned_history_mouse_keyboard_and_canvas_are_independent(tmp_path, keys):
     app = player(tmp_path, READ * 3, width=100, height=30)
 
     async def run():
@@ -963,7 +964,11 @@ def test_pinned_history_mouse_keyboard_and_canvas_are_independent(tmp_path):
             pan = view.scroll_offset
             pinned = bar.region
             command.value = "draft"
-            await pilot.press("f6", "home")
+            state = app.env.get_state()
+            assert all(
+                not binding.show for binding in app.BINDINGS if binding.action.startswith("focus_")
+            )
+            await pilot.press(keys[0], "home")
             await scrolled(app, pilot)
             assert bar.has_focus and lower.scroll_y == 0
             assert view.scroll_offset == pan
@@ -986,14 +991,17 @@ def test_pinned_history_mouse_keyboard_and_canvas_are_independent(tmp_path):
             await scrolled(app, pilot)
             assert lower.scroll_y < lower.max_scroll_y
             position = lower.scroll_y
-            await pilot.press("f7", "home", "ctrl+pageup")
+            await pilot.press(keys[1], "home", "ctrl+pageup")
             await scrolled(app, pilot)
             assert view.has_focus and view.scroll_offset == (0, 0)
             assert lower.scroll_y == position
-            await pilot.press("f8")
+            await pilot.press(keys[2])
+            assert app.env.get_state() == state
+            assert not app.commands
             assert command.has_focus and command.value == "draft"
             await pilot.press("enter")
             await settled(app, pilot)
+            assert app.commands == ["draft"]
             assert command.has_focus and not command.disabled
             assert view.scroll_offset == (0, 0)
             assert lower.scroll_y == position
@@ -1001,7 +1009,8 @@ def test_pinned_history_mouse_keyboard_and_canvas_are_independent(tmp_path):
     asyncio.run(run())
 
 
-def test_single_key_input_after_panning_with_fixed_geometry(tmp_path):
+@pytest.mark.parametrize("keys", [("f6", "f7", "f8"), ("alt+h", "alt+g", "alt+i")])
+def test_single_key_input_after_panning_with_fixed_geometry(tmp_path, keys):
     app = player(
         tmp_path, bytes.fromhex("f6 7f 01 10 e5 bf 10 ba"), version=5, width=100, height=30
     )
@@ -1009,7 +1018,10 @@ def test_single_key_input_after_panning_with_fixed_geometry(tmp_path):
     async def run():
         async with app.run_test(size=(78, 25)) as pilot:
             await settled(app, pilot)
-            await pilot.press("f7", "end", "ctrl+pagedown")
+            state = app.env.get_state()
+            await pilot.press(*keys, keys[1], "end", "ctrl+pagedown")
+            assert app.env.get_state() == state
+            assert not app.commands
             await scrolled(app, pilot)
             assert app.character_input
             view = app.query_one("#game-view")
@@ -1024,5 +1036,59 @@ def test_single_key_input_after_panning_with_fixed_geometry(tmp_path):
             assert app.buffer.render(0).plain.strip() == "A"
             assert (app.env.screen_width, app.env.screen_height) == (100, 30)
             assert app.query_one("#command", Input).disabled
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("system", ["truecolor", "256"])
+def test_outer_texture_is_composited_behind_player_and_dialog(tmp_path, monkeypatch, system):
+    from io import StringIO
+
+    from rich.console import Console
+    from textual import constants
+
+    monkeypatch.setattr(constants, "COLOR_SYSTEM", system)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    app = player(tmp_path, READ, version=5, width=100, height=30)
+
+    async def run():
+        async with app.run_test(size=(102, 36)) as pilot:
+            await settled(app, pilot)
+            app.buffer.write("history\n" * 60)
+            app._refresh_screen()
+            logical = app.buffer.render(0)
+            for size in ((126, 46), (102, 36), (78, 25), (126, 27), (78, 46), (126, 46)):
+                await pilot.resize_terminal(*size)
+                await rendered(app, pilot)
+                shell = app.query_one("#player").region
+                strips = app.screen._compositor.render_strips()
+                for y, strip in enumerate(strips):
+                    for x, char in enumerate(strip.text):
+                        assert (char == "▓") == (not shell.contains(x, y))
+                assert app.buffer.render(0) == logical
+                if size == (126, 46):
+                    stream = StringIO()
+                    console = Console(file=stream, color_system=system, force_terminal=True)
+                    for segment in strips[0]:
+                        console.print(segment.text, style=segment.style, end="")
+                    ansi = stream.getvalue()
+                    assert "▓" in ansi
+                    if system == "256":
+                        assert "38;5;22" in ansi  # Darkest fixed xterm green, never rounded black.
+                        assert "48;5;16" in ansi
+                        assert "38;2;" not in ansi
+                    else:
+                        assert "38;2;16;48;32" in ansi
+                        assert "48;2;0;0;0" in ansi
+            app.push_screen(FilePrompt("Save"))
+            await rendered(app, pilot)
+            dialog_region = app.screen.query_one("#dialog").region
+            for strip in app.screen._compositor.render_strips()[
+                dialog_region.y : dialog_region.bottom
+            ]:
+                assert "▓" not in strip.crop(dialog_region.x, dialog_region.right).text
+            await pilot.press("escape")
+            await rendered(app, pilot)
+            assert app.buffer.render(0) == logical
 
     asyncio.run(run())

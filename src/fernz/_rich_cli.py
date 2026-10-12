@@ -6,13 +6,16 @@ from dataclasses import replace
 from pathlib import Path
 from typing import ClassVar
 
+from rich.segment import Segment
+from rich.style import Style
 from rich.text import Text
 from textual import events, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, Vertical
-from textual.screen import ModalScreen
+from textual.screen import ModalScreen, Screen
 from textual.scrollbar import ScrollBar, ScrollDown, ScrollTo, ScrollUp
+from textual.strip import Strip
 from textual.theme import Theme
 from textual.widgets import Button, Footer, Header, Input, Static
 
@@ -56,6 +59,18 @@ FERN_LOAM_256 = replace(
     error="#AF5F5F",
     success="#87AF5F",
 )
+
+
+class PlayerScreen(Screen):
+    """Paint unused space behind the opaque player and modal screens."""
+
+    def render_line(self, y: int) -> Strip:
+        """Use dark-shade cells without changing game or theme colours."""
+        # The darkest fixed xterm green is brighter than our true-colour ink.
+        # Select it explicitly: darker RGB values can quantize to black and
+        # erase the texture. Black keeps both versions as quiet as possible.
+        ink = "#005f00" if self.app.console.color_system == "256" else "#103020"
+        return Strip([Segment("▓" * self.size.width, Style.parse(f"{ink} on #000000"))])
 
 
 class FilePrompt(ModalScreen[str | None]):
@@ -187,7 +202,7 @@ class HistoryBar(ScrollBar, can_focus=True):
         super().__init__(thickness=2)
         self.styles.width = self.thickness
         self.id = "history-bar"
-        self.tooltip = "Story history · Home/End, PageUp/PageDown (F6)"
+        self.tooltip = "Story history · Home/End, PageUp/PageDown (Alt+H / F6)"
 
     @property
     def history(self) -> ScrollableContainer:
@@ -240,9 +255,9 @@ class RichCLI(App[int]):
         Binding("ctrl+q", "leave", "Quit", priority=True),
         Binding("ctrl+d", "leave", "Quit", show=False, priority=True),
         Binding("ctrl+c", "interrupt", "Interrupt", show=False, priority=True),
-        Binding("f6", "focus_history", "History", priority=True),
-        Binding("f7", "focus_canvas", "Canvas", priority=True),
-        Binding("f8", "focus_command", "Command", priority=True),
+        Binding("alt+h,f6", "focus_history", "History", show=False, priority=True),
+        Binding("alt+g,f7", "focus_canvas", "Canvas", show=False, priority=True),
+        Binding("alt+i,f8", "focus_command", "Command", show=False, priority=True),
     ]
     CSS = """
     Screen { background: $background; color: $foreground; align: center middle; }
@@ -304,6 +319,10 @@ class RichCLI(App[int]):
         self._game_size: tuple[int, int] | None = None
         self._clipping_warning_open = False
         self._mute_clipping_warnings = False
+
+    def get_default_screen(self) -> Screen:
+        """Keep the outer texture below all player widgets and dialogs."""
+        return PlayerScreen(id="_default")
 
     def compose(self) -> ComposeResult:
         """Pan only the game; keep controls and history at the viewport edges."""
