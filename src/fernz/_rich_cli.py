@@ -98,6 +98,7 @@ class RichCLI(App[int]):
     #upper { height: auto; max-height: 60%; display: none; background: black; }
     #lower { height: 1fr; background: black; }
     #upper-text, #lower-text { width: auto; height: auto; background: black; color: white; }
+    #lower-text { width: 1fr; }
     #status { height: 1; padding: 0 1; color: #94a3b8; }
     #command { margin: 0 1; }
     Footer { background: #1c2833; }
@@ -181,7 +182,12 @@ class RichCLI(App[int]):
         upper.display = self.buffer.split > 0
         upper.styles.height = self.buffer.split
         self.query_one("#upper-text", Static).update(self.buffer.render(1))
-        self.query_one("#lower-text", Static).update(self.buffer.render(0))
+        lower_text = self.buffer.render(0)
+        # Soft-wrap the presentation to the viewport, including its scrollbar.
+        # Keep logical cells and the upper window's cursor positions unchanged.
+        lower_text.no_wrap = False
+        lower_text.overflow = "fold"
+        self.query_one("#lower-text", Static).update(lower_text)
         self.query_one("#lower", ScrollableContainer).scroll_end(animate=False)
 
     def _failed(self, message: str) -> None:

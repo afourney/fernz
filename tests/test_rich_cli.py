@@ -198,3 +198,55 @@ def test_execution_failure_stays_visible_and_exits_nonzero(tmp_path):
         assert app.return_value == 1
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("split", [0, 1])
+@pytest.mark.parametrize("logical_width", [80, 120])
+def test_lower_text_remains_visible_across_terminal_resizes(tmp_path, split, logical_width):
+    app = player(tmp_path, READ)
+    # Independent synthetic rows exercise both word wrapping and long-word folding.
+    word_row = "word " * (logical_width // 5 - 1) + "EDGE!"
+    long_row = "x" * (logical_width - 4) + "TAIL"
+
+    async def run():
+        async with app.run_test(size=(80, 24)) as pilot:
+            await settled(app, pilot)
+            app.buffer.apply(
+                f"<reset><size {logical_width} 25><split {split}>"
+                f"<top><at 1 {logical_width - 3}><invert>HEAD<at 1 1>UPPER<normal><bottom>"
+                f"<at {split + 1} 1>{word_row}\n<bold>{long_row}"
+            )
+            app._refresh_screen()
+            logical = app.buffer.render(0).plain
+            state = app.env.get_state()
+            for size in [(80, 24), (116, 41), (60, 24), (80, 24)]:
+                await pilot.resize_terminal(*size)
+                await pilot.pause()
+                pane = app.query_one("#lower")
+                text = app.query_one("#lower-text")
+                pane.scroll_home(animate=False)
+                await pilot.pause()
+                viewport = pane.scrollable_content_region
+                assert text.size.width == viewport.width
+                assert pane.max_scroll_x == 0
+                # Read the actual composited viewport, not the logical buffer.
+                visible = "".join(
+                    strip.crop(viewport.x, viewport.right).text
+                    for strip in app.screen._compositor.render_strips()[
+                        viewport.y : viewport.bottom
+                    ]
+                )
+                assert "".join(visible.split()) == "".join((word_row + long_row).split())
+                # Folding retains styles, and resizing never mutates logical cells or VM state.
+                tail_row = next(
+                    row for row in range(text.size.height) if "TAIL" in text.render_line(row).text
+                )
+                assert any(segment.style.bold for segment in text.render_line(tail_row))
+                assert app.buffer.render(0).plain == logical
+                assert app.env.get_state() == state
+                if split:
+                    upper = app.query_one("#upper-text")
+                    assert upper.size.height == 1
+                    assert upper.render_line(0).text == "UPPER" + " " * (logical_width - 9) + "HEAD"
+
+    asyncio.run(run())
