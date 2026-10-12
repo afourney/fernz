@@ -87,8 +87,10 @@ jobs:
       # All offline tests and 57 story files; only five gameplay commands per
       # V3 route plus short replay/reset checks. ZIP hashes are still verified.
       # The fixture downloads ROMs if absent; never cache or upload them.
+      # The expanded Textual resize matrix can take nearly two minutes on
+      # Windows before process shutdown; retain every assertion with headroom.
       - run: uv run --no-sync poe test-fast
-        timeout-minutes: 2
+        timeout-minutes: 3
 
   build:
     runs-on: ubuntu-latest
