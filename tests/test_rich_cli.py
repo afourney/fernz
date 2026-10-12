@@ -4,6 +4,7 @@ import pytest
 
 pytest.importorskip("textual")
 
+from textual import events
 from textual.widgets import Input
 
 from fernz import FernzEnv
@@ -248,5 +249,121 @@ def test_lower_text_remains_visible_across_terminal_resizes(tmp_path, split, log
                     upper = app.query_one("#upper-text")
                     assert upper.size.height == 1
                     assert upper.render_line(0).text == "UPPER" + " " * (logical_width - 9) + "HEAD"
+
+    asyncio.run(run())
+
+
+def visible_lower(app):
+    viewport = app.query_one("#lower").scrollable_content_region
+    return "\n".join(
+        strip.crop(viewport.x, viewport.right).text
+        for strip in app.screen._compositor.render_strips()[viewport.y : viewport.bottom]
+    )
+
+
+async def following(app, pilot):
+    # Worker completion and a single pause need not exhaust layout messages
+    # posted by the previous frame. Bound the wait so a stuck viewport fails.
+    pane = app.query_one("#lower")
+    async with asyncio.timeout(1):
+        while pane.scroll_y != pane.max_scroll_y:
+            await pilot.pause(0.01)
+
+
+def test_live_output_follows_late_layout_and_resizes(tmp_path):
+    app = player(tmp_path, READ)
+
+    async def run():
+        async with app.run_test(size=(80, 24)) as pilot:
+            await settled(app, pilot)
+            pane = app.query_one("#lower")
+            app.buffer.write(("word " * 15 + "\n") * 40 + "LATEST>")
+            app._refresh_screen()
+            await pilot.pause()
+            assert pane.scroll_y == pane.max_scroll_y > 0
+            assert "LATEST>" in visible_lower(app)
+            # A subsequent layout pass can happen after scroll_end's callback.
+            # Wrapping and viewport height both change without another response.
+            for size in [(64, 24), (110, 34), (80, 24)]:
+                await pilot.resize_terminal(*size)
+                await pilot.pause()
+                assert pane.scroll_y == pane.max_scroll_y
+                assert "LATEST>" in visible_lower(app)
+            # Changing the pinned window also reduces the transcript viewport.
+            app.buffer.apply("<split 5>")
+            app._refresh_screen()
+            await pilot.pause()
+            assert pane.scroll_y == pane.max_scroll_y
+            assert "LATEST>" in visible_lower(app)
+
+    asyncio.run(run())
+
+
+def test_output_preserves_scrollback_and_resumes_at_bottom(tmp_path):
+    app = player(tmp_path, READ)
+
+    async def run():
+        async with app.run_test(size=(80, 24)) as pilot:
+            await settled(app, pilot)
+            pane = app.query_one("#lower")
+            app.buffer.write("history\n" * 60)
+            app._refresh_screen()
+            await pilot.pause()
+            # Use the scrolling API used by Textual's user scroll actions.
+            pane.scroll_to(y=10, animate=False, immediate=True)
+            await pilot.pause()
+            before = visible_lower(app)
+            app.buffer.write("new output\n" * 30 + "LATEST>")
+            app._refresh_screen()
+            await pilot.pause()
+            assert pane.scroll_y == 10
+            assert visible_lower(app) == before
+            await pilot.resize_terminal(64, 24)
+            await pilot.pause()
+            assert pane.scroll_y == 10
+            # Returning to the bottom via ordinary scrolling resumes following.
+            pane.scroll_to(y=pane.max_scroll_y, animate=False, immediate=True)
+            await pilot.pause()
+            app.buffer.write("\nmore output\n" * 30 + "RESUMED>")
+            app._refresh_screen()
+            await pilot.pause()
+            assert pane.scroll_y == pane.max_scroll_y
+            assert "RESUMED>" in visible_lower(app)
+
+    asyncio.run(run())
+
+
+def test_repeated_commands_follow_long_responses(tmp_path):
+    # print_char 'x', new_line, repeated past the viewport, then prompt/read.
+    response = bytes.fromhex("e5 7f 78 bb") * 40 + bytes.fromhex("e5 7f 3e")
+    app = player(tmp_path, (response + READ) * 9 + b"\xba")
+
+    async def run():
+        async with app.run_test(size=(80, 24)) as pilot:
+            await settled(app, pilot)
+            pane = app.query_one("#lower")
+            command = app.query_one("#command", Input)
+            for _ in range(7):
+                await following(app, pilot)
+                assert pane.scroll_y == pane.max_scroll_y > 0
+                assert visible_lower(app).rstrip().endswith(">")
+                assert command.has_focus and not command.disabled
+                command.value = "look"
+                await pilot.press("enter")
+                await settled(app, pilot)
+            await following(app, pilot)
+            assert pane.scroll_y == pane.max_scroll_y
+            assert visible_lower(app).rstrip().endswith(">")
+            # A real wheel event releases following, even across command echo,
+            # worker completion, and focus returning to the enabled input.
+            pane.post_message(events.MouseScrollUp(pane, 1, 1, 0, 0, 0, False, False, False))
+            await pilot.pause()
+            position = pane.scroll_y
+            assert position < pane.max_scroll_y
+            command.value = "look"
+            await pilot.press("enter")
+            await settled(app, pilot)
+            assert pane.scroll_y == position
+            assert command.has_focus and not command.disabled
 
     asyncio.run(run())

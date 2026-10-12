@@ -96,7 +96,7 @@ class RichCLI(App[int]):
     Screen { background: #101419; }
     Header { background: #1c2833; }
     #upper { height: auto; max-height: 60%; display: none; background: black; }
-    #lower { height: 1fr; background: black; }
+    #lower { height: 1fr; background: black; overflow-x: hidden; }
     #upper-text, #lower-text { width: auto; height: auto; background: black; color: white; }
     #lower-text { width: 1fr; }
     #status { height: 1; padding: 0 1; color: #94a3b8; }
@@ -144,6 +144,10 @@ class RichCLI(App[int]):
     def on_mount(self) -> None:
         """Start execution after the UI can display dialogs and progress."""
         self.title = f"Fernz · {self.env.game_path.name}"
+        # Follow through every layout pass (including wrapping and resizes).
+        # Textual releases this anchor on user scrolling and restores it when
+        # the user returns to the bottom; output refreshes must not reset it.
+        self.query_one("#lower", ScrollableContainer).anchor()
         self._advance(None)
 
     @work(thread=True)
@@ -188,7 +192,6 @@ class RichCLI(App[int]):
         lower_text.no_wrap = False
         lower_text.overflow = "fold"
         self.query_one("#lower-text", Static).update(lower_text)
-        self.query_one("#lower", ScrollableContainer).scroll_end(animate=False)
 
     def _failed(self, message: str) -> None:
         self._player_exit_code = 1
