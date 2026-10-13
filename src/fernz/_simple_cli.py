@@ -10,7 +10,7 @@ from ._env import FernzEnv
 
 
 class SimpleCLI:
-    """Read edited lines and stream plain output immediately to the terminal."""
+    """Read edited lines and print the plain text of each returned observation."""
 
     def __init__(
         self,
@@ -24,13 +24,15 @@ class SimpleCLI:
         self.screen_width, self.screen_height = screen_width, screen_height
 
     @staticmethod
-    def output(text: str) -> None:
-        """Write raw output, including prompts preceding storage callbacks."""
+    def _write(text: str) -> None:
+        """Write observation text or a host prompt without adding a newline."""
         print(text, end="", flush=True)
 
     @staticmethod
     def _file_path(operation: str) -> Path | None:
-        SimpleCLI.output(f"{operation} file (blank cancels): ")
+        # Storage callbacks run before reset/step returns. Show the host prompt
+        # now; the complete game text will follow in the returned observation.
+        SimpleCLI._write(f"{operation} file (blank cancels): ")
         name = sys.stdin.readline().strip()
         return Path(name).expanduser() if name else None
 
@@ -42,7 +44,7 @@ class SimpleCLI:
             if path is None:
                 return False
             if path.exists():
-                SimpleCLI.output("Overwrite existing file? [y/N]: ")
+                SimpleCLI._write("Overwrite existing file? [y/N]: ")
                 if sys.stdin.readline().strip().lower() not in ("y", "yes"):
                     return False
             write_save(path, data)
@@ -68,10 +70,12 @@ class SimpleCLI:
             self.screen_width if self.screen_width is not None else max(1, min(255, width)),
             self.screen_height if self.screen_height is not None else max(1, min(254, height)),
         )
-        env.reset()
+        observation, _ = env.reset()
+        self._write(observation.text)
         while not env.done:
             line = sys.stdin.readline()
             if not line:
                 break
-            env.step(line.removesuffix("\n").removesuffix("\r"))
+            observation, _, _, _ = env.step(line.removesuffix("\n").removesuffix("\r"))
+            self._write(observation.text)
         return 0

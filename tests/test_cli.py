@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from fernz import _cli, _cli_files
+from fernz import Observation, _cli, _cli_files
 
 from .story_files import READ, program_bytes, story_bytes
 
@@ -232,7 +232,7 @@ def test_cli_delegates_to_library_and_closes(tmp_path, monkeypatch, capsys, widt
             calls.append(("init", path))
             assert handlers.pop("screen_width") == width
             assert handlers.pop("screen_height") == height
-            assert set(handlers) == {"save_handler", "restore_handler", "output_handler"}
+            assert set(handlers) == {"save_handler", "restore_handler"}
             assert all(callable(handler) for handler in handlers.values())
 
         def reset(self):
@@ -250,6 +250,70 @@ def test_cli_delegates_to_library_and_closes(tmp_path, monkeypatch, capsys, widt
     assert _cli.main(args) == 1
     assert calls == [("init", game), "reset", "close"]
     assert "test execution unavailable" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("args", [[], ["--simple"]])
+def test_simple_prints_only_returned_text_once_and_flushes(monkeypatch, args):
+    output = io.StringIO()
+    flushes = []
+    output.flush = lambda: flushes.append(output.getvalue())
+
+    class StubEnv:
+        done = False
+
+        def __init__(self, path, **handlers):
+            assert "output_handler" not in handlers
+
+        def reset(self):
+            return Observation(stream="raw opening >", text="opening\n"), {}
+
+        def step(self, command):
+            assert command == "look"
+            self.done = True
+            return Observation(stream="raw reply >", text="reply"), 0, True, {}
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(_cli, "find_spec", lambda name: None)
+    monkeypatch.setattr(_cli, "FernzEnv", StubEnv)
+    monkeypatch.setattr(sys, "stdin", io.StringIO("look\n"))
+    monkeypatch.setattr(sys, "stdout", output)
+    assert _cli.main([*args, "story.z3"]) == 0
+    assert output.getvalue() == "opening\nreply"
+    assert flushes == ["opening\n", "opening\nreply"]
+
+
+@pytest.mark.parametrize("operation,opcode", [("Save", "b5"), ("Restore", "b6")])
+@pytest.mark.parametrize("during_step", [False, True])
+def test_storage_prompt_is_visible_before_reading_and_game_text_is_deferred(
+    tmp_path, monkeypatch, operation, opcode, during_step
+):
+    game = tmp_path / "prompt.z3"
+    # Print P, request storage, then print S on success or F on cancellation.
+    code = bytes.fromhex(f"e5 7f 50 {opcode} c6 e5 7f 46 ba e5 7f 53 ba")
+    game.write_bytes(program_bytes((READ if during_step else b"") + code))
+    output = io.StringIO()
+    flushes = []
+    output.flush = lambda: flushes.append(output.getvalue())
+    prompt = f"{operation} file (blank cancels): "
+
+    class Input:
+        command_read = False
+
+        def readline(self):
+            if during_step and not self.command_read:
+                self.command_read = True
+                assert output.getvalue() == ""
+                return "command\n"
+            assert output.getvalue() == prompt
+            assert flushes[-1] == prompt
+            return "\n"
+
+    monkeypatch.setattr(sys, "stdin", Input())
+    monkeypatch.setattr(sys, "stdout", output)
+    assert _cli.main(["--simple", str(game)]) == 0
+    assert output.getvalue() == prompt + ("\n" if during_step else "") + "PF"
 
 
 def test_module_entry_point():
@@ -272,14 +336,14 @@ def saving_game(tmp_path):
     return game
 
 
-def test_save_prompt_streams_prior_output_and_writes_quetzal(
+def test_save_prompt_precedes_observation_and_writes_quetzal(
     saving_game, tmp_path, capsys, monkeypatch
 ):
     path = tmp_path / "saved game.qzl"
     monkeypatch.setattr(sys, "stdin", io.StringIO(str(path) + "\n"))
     assert _cli.main(["--simple", str(saving_game)]) == 0
     captured = capsys.readouterr()
-    assert captured.out == "PSave file (blank cancels): S"
+    assert captured.out == "Save file (blank cancels): PS"
     assert captured.err == ""
     assert path.read_bytes()[:12].startswith(b"FORM")
     assert path.read_bytes()[8:12] == b"IFZS"
@@ -290,7 +354,7 @@ def test_save_cancellation_and_eof_report_opcode_failure(saving_game, capsys, mo
     monkeypatch.setattr(sys, "stdin", io.StringIO(answer))
     assert _cli.main(["--simple", str(saving_game)]) == 0
     captured = capsys.readouterr()
-    assert captured.out == "PSave file (blank cancels): F"
+    assert captured.out == "Save file (blank cancels): PF"
     assert captured.err == ""
 
 
@@ -340,6 +404,25 @@ def test_restore_failure_returns_control_to_game(tmp_path, capsys, monkeypatch, 
     captured = capsys.readouterr()
     assert captured.out == "Restore file (blank cancels): F"
     assert ("fernz:" in captured.err) is (kind == "missing")
+
+
+def test_successful_restore_retains_text_before_storage_request(tmp_path, capsys, monkeypatch):
+    game = tmp_path / "restore-output.z3"
+    path = tmp_path / "state.qzl"
+    # Save at startup, print S and read. Print Q before restoring; success
+    # resumes at the saved S and read, rather than the restore's T branch.
+    game.write_bytes(
+        program_bytes(
+            bytes.fromhex("e5 7f 50 b5 c6 e5 7f 46 ba e5 7f 53")
+            + READ
+            + bytes.fromhex("e5 7f 51 b6 c6 e5 7f 46 ba e5 7f 54 ba")
+        )
+    )
+    monkeypatch.setattr(sys, "stdin", io.StringIO(f"{path}\nrestore\n{path}\n"))
+    assert _cli.main(["--simple", str(game)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == "Save file (blank cancels): PSRestore file (blank cancels): \nQS"
+    assert captured.err == ""
 
 
 def test_cli_save_and_restore_in_separate_processes(tmp_path):
