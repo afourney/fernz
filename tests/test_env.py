@@ -63,6 +63,7 @@ def test_reset_runs_to_input_and_restores_memory_stack_and_output(tmp_path):
     game.write_bytes(data)
     env = FernzEnv(game, seed=0)
     assert text_response(env.reset()) == ("A", {"score": 1, "moves": 0})
+    assert not env.awaiting_character  # A line read, not a keypress.
     memory = env.memory
     env.memory.write_word(env.story.header.globals_table + 2, 999)
     assert text_response(env.reset()) == ("A", {"score": 1, "moves": 0})

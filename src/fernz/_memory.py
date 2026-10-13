@@ -13,8 +13,8 @@ class Memory:
     """Independent, mutable memory initialized from an immutable Story.
 
     Reads use absolute byte addresses and may access the whole image, including
-    code and strings above 64 KiB. Future opcodes must enforce their own address
-    modes. Writes follow game permissions: dynamic memory only, with protected
+    code and strings above 64 KiB. Opcodes enforce their own address modes.
+    Writes follow game permissions: dynamic memory only, with protected
     header bits and header-extension words. Values are unsigned and never wrap.
     """
 
@@ -102,7 +102,7 @@ class Memory:
         """Restore the original image exactly, including the initial header.
 
         This is a memory reset, not the VM's restart/restore operation, which
-        will also manage interpreter header fields, flags, stack, and CPU state.
+        also manages interpreter header fields, flags, stack, and CPU state.
         """
         self._data[:] = self.story.data[: self.story.size]
         self._header_configured = False

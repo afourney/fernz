@@ -4,7 +4,7 @@ from hashlib import sha256
 
 import pytest
 
-from .scripts import generate_zork1_vectors
+from .scripts import generate_vectors
 from .scripts.storyfile_vectors import record_story
 from .story_corpus import GAMES
 from .story_files import put_word, story_bytes
@@ -14,7 +14,7 @@ from .vector_archive import read_archive
 def test_generator_rejects_colliding_archive_paths(tmp_path):
     output = str(tmp_path / "both.zip")
     with pytest.raises(SystemExit) as exc:
-        generate_zork1_vectors.main(["--output", output, "--storyfiles-output", output])
+        generate_vectors.main(["--output", output, "--storyfiles-output", output])
     assert exc.value.code == 2
     assert not list(tmp_path.iterdir())
 
@@ -58,8 +58,8 @@ def test_story_only_command_needs_no_reference_and_detects_changed_inputs(tmp_pa
     def unexpected_reference(*args, **kwargs):
         pytest.fail("Story metadata generation must not use the reference interpreter")
 
-    monkeypatch.setattr(generate_zork1_vectors, "version", unexpected_reference)
-    monkeypatch.setattr(generate_zork1_vectors, "generate", unexpected_reference)
+    monkeypatch.setattr(generate_vectors, "version", unexpected_reference)
+    monkeypatch.setattr(generate_vectors, "generate", unexpected_reference)
     suite = tmp_path / "suite"
     suite.mkdir()
     for version, filenames in GAMES.items():
@@ -67,21 +67,21 @@ def test_story_only_command_needs_no_reference_and_detects_changed_inputs(tmp_pa
             (suite / filename).write_bytes(story_bytes(version))
     output = tmp_path / "storyfiles.zip"
     args = ["--only", "storyfiles", "--suite", str(suite), "--storyfiles-output", str(output)]
-    generate_zork1_vectors.main(args)
+    generate_vectors.main(args)
     documents = read_archive(output)
     assert len(documents) == 58
     assert documents["manifest.json"]["story_count"] == 57
     before = output.read_bytes(), output.stat().st_mtime_ns
-    generate_zork1_vectors.main([*args, "--check"])
+    generate_vectors.main([*args, "--check"])
     assert (output.read_bytes(), output.stat().st_mtime_ns) == before
     changed = bytearray((suite / "zork1.z5").read_bytes())
     put_word(changed, 2, 99)  # Release is outside the checksum's covered bytes.
     (suite / "zork1.z5").write_bytes(changed)
     with pytest.raises(SystemExit) as exc:
-        generate_zork1_vectors.main([*args, "--check"])
+        generate_vectors.main([*args, "--check"])
     assert exc.value.code == 1
     assert (output.read_bytes(), output.stat().st_mtime_ns) == before
     (suite / "zork1.z5").unlink()
     with pytest.raises(FileNotFoundError):
-        generate_zork1_vectors.main(args)
+        generate_vectors.main(args)
     assert (output.read_bytes(), output.stat().st_mtime_ns) == before

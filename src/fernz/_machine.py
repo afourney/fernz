@@ -16,6 +16,7 @@ from ._profiles import profile_for
 from ._quetzal import SavedGame, SaveFormatError, dumps, loads
 from ._random import RandomGenerator
 from ._state import FrameState, GameState, InputRequest, OutputState, StoredInputRequest
+from ._story import EXECUTABLE_VERSIONS
 from ._text import Text
 
 # Lost Pig can legitimately exceed 250,000 instructions in a single command.
@@ -38,6 +39,17 @@ class Frame:
     store: int | None = None
     argument_count: int = 0
 
+    @classmethod
+    def from_state(cls, state: FrameState) -> "Frame":
+        """Create a mutable frame from a checkpoint or saved-game frame."""
+        return cls(
+            list(state.locals),
+            list(state.stack),
+            state.return_address,
+            state.store,
+            state.argument_count,
+        )
+
 
 class Machine:
     """Execute V3/V4/V5/V8 with a bounded instruction budget and captured output."""
@@ -52,28 +64,32 @@ class Machine:
         screen_height: int = 25,
     ) -> None:
         """Start a fresh episode, resetting memory, frames, output, and randomness."""
-        if memory.story.header.version not in (3, 4, 5, 8):
-            raise NotImplementedError("Story execution currently supports V3, V4, V5 and V8")
-        self.memory = memory
-        self.io = io or HostIO()
+        self._bind(memory, io)
         self.memory.reset()
         self.memory._configure_header(screen_width, screen_height)
         self.pc = memory.story.header.entry_address
         self.frames = [Frame()]
-        self.text = Text(memory)
-        self.objects = Objects(memory)
-        self._profile = profile_for(memory.story)
         self.rng = RandomGenerator(seed)
-        self.output: list[str] = []
-        self._narrative: list[str] = []
-        self.last_narrative = ""
         self.screen_enabled = True
         self.display = Output(memory, OutputState(width=screen_width, height=screen_height))
         self.display.start()
-        self.last_stream = ""
-        self.last_diagnostics = ()
         self.input_request: InputRequest | None = None
         self.halted = False
+
+    def _bind(self, memory: Memory, io: HostIO | None) -> None:
+        # Shared by both constructors: helpers and empty per-run output buffers.
+        if memory.story.header.version not in EXECUTABLE_VERSIONS:
+            raise NotImplementedError("Story execution currently supports V3, V4, V5 and V8")
+        self.memory = memory
+        self.io = io or HostIO()
+        self.text = Text(memory)
+        self.objects = Objects(memory)
+        self._profile = profile_for(memory.story)
+        self.output: list[str] = []  # Public calls already drained earlier observations.
+        self._narrative: list[str] = []
+        self.last_narrative = ""
+        self.last_stream = ""
+        self.last_diagnostics = ()
 
     def get_state(self) -> GameState:
         """Capture a detached checkpoint at a public input or quit boundary."""
@@ -99,29 +115,15 @@ class Machine:
     @classmethod
     def from_state(cls, memory: Memory, state: GameState, *, io: HostIO | None = None) -> "Machine":
         """Restore a checkpoint, validating everything before changing memory."""
-        if memory.story.header.version not in (3, 4, 5, 8):
-            raise NotImplementedError("Story execution currently supports V3, V4, V5 and V8")
+        # Construct without the startup/reset side effects of __init__.
+        result = cls.__new__(cls)
+        result._bind(memory, io)
         if type(state) is not GameState:
             raise TypeError("Expected a GameState returned by get_state()")
         state._validate(memory.story)
-        # Construct without the startup/reset side effects of __init__.
-        result = cls.__new__(cls)
-        result.memory = memory
-        result.io = io or HostIO()
         result.pc = state.pc
-        result.frames = [
-            Frame(list(f.locals), list(f.stack), f.return_address, f.store, f.argument_count)
-            for f in state.frames
-        ]
-        result.text = Text(memory)
-        result.objects = Objects(memory)
-        result._profile = profile_for(memory.story)
+        result.frames = [Frame.from_state(f) for f in state.frames]
         result.rng = RandomGenerator.from_state(state.rng)
-        result.output = []  # Public calls already drained the previous observation.
-        result._narrative = []
-        result.last_narrative = ""
-        result.last_stream = ""
-        result.last_diagnostics = ()
         result.screen_enabled = state.screen_enabled
         result.display = Output(memory, state.output)
         result.input_request = state.input_request
@@ -241,10 +243,7 @@ class Machine:
             # those fields alone; RNG, output, and host callbacks stay untouched.
             candidate = copy(self)
             candidate.memory = self.memory._prepare_restore(saved.ram)
-            candidate.frames = [
-                Frame(list(f.locals), list(f.stack), f.return_address, f.store, f.argument_count)
-                for f in saved.frames
-            ]
+            candidate.frames = [Frame.from_state(f) for f in saved.frames]
             if self.memory.story.header.version == 3:
                 branch, candidate.pc = decode_branch(candidate.memory, saved.pc)
                 candidate._branch(branch, True)
@@ -610,7 +609,9 @@ class Machine:
                 store(-1)  # Explicitly unavailable; no undo support is advertised.
             case "quit":
                 self.halted = True
-            case "nop" | "show_status" | "extended_nop":
+            case "nop" | "extended_nop":
+                pass
+            case "show_status":
                 pass  # This transcript interface advertises no status-line display.
             case "sound_effect":
                 # Sound resources are external (§9). This text-only host has
@@ -658,7 +659,7 @@ class Machine:
             case "check_unicode":
                 code = args[0]
                 printable = 32 <= code <= 0xFFFF and not 0xD800 <= code <= 0xDFFF and code != 127
-                readable = printable and (code <= 126 or chr(code) in self.text._extra())
+                readable = printable and (code <= 126 or chr(code) in self.text.extra_characters())
                 store(int(printable) | (int(readable) << 1))
             case "print_table":
                 table, width = args[:2]

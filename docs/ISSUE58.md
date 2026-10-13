@@ -2,8 +2,9 @@
 
 The failure is a host execution-policy limit interrupting finite story work.
 No interpreter opcode correction was needed to finish the measured turns.
-The proposed local patch raises the shared default from 250,000 to 1,000,000
-instructions, retaining explicit limits and the existing failure contract.
+The fix raised the shared default from 250,000 to 1,000,000 instructions
+(`DEFAULT_MAX_STEPS` in `src/fernz/_machine.py`), retaining explicit limits and
+the existing failure contract. The rest of this page records the investigation.
 
 ## Provenance
 

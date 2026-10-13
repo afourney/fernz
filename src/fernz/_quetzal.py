@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from struct import iter_unpack
 
 from ._state import FrameState
-from ._story import Story
+from ._story import EXECUTABLE_VERSIONS, Story
 
 
 class SaveFormatError(ValueError):
@@ -24,7 +24,7 @@ def _identity(story: Story) -> bytes:
     data = story.data
     checksum = story.header.checksum
     if checksum is None:
-        checksum = sum(data[64 : story.size]) & 0xFFFF
+        checksum = story.calculated_checksum
     return data[2:4] + data[0x12:0x18] + checksum.to_bytes(2, "big")
 
 
@@ -72,7 +72,7 @@ def _decompress(data: bytes, original: bytes) -> bytes:
 
 def dumps(story: Story, state: SavedGame) -> bytes:
     """Encode IFhd, compressed dynamic memory, and oldest-first stack frames."""
-    if story.header.version not in (3, 4, 5, 8):
+    if story.header.version not in EXECUTABLE_VERSIONS:
         raise SaveFormatError("Saved-game execution currently supports V3, V4, V5 and V8")
     stack = bytearray()
     for number, frame in enumerate(state.frames):
@@ -97,6 +97,9 @@ def dumps(story: Story, state: SavedGame) -> bytes:
 def _frames(data: bytes, story: Story) -> tuple[FrameState, ...]:
     frames = []
     cursor = 0
+    # V3 calls always store and take up to three arguments, later calls up to seven.
+    early = story.header.version == 3
+    argument_masks = (0, 1, 3, 7) if early else (0, 1, 3, 7, 15, 31, 63, 127)
     while cursor < len(data):
         if cursor + 8 > len(data):
             raise SaveFormatError("Truncated stack frame header")
@@ -104,10 +107,7 @@ def _frames(data: bytes, story: Story) -> tuple[FrameState, ...]:
         flags, store, arguments = data[cursor + 3 : cursor + 6]
         count = int.from_bytes(data[cursor + 6 : cursor + 8], "big")
         cursor += 8
-        # Quetzal §4: bit 4 discards a result; bits 0..3 count locals. V3 calls
-        # always store and take up to three arguments, later calls up to seven.
-        early = story.header.version == 3
-        argument_masks = (0, 1, 3, 7) if early else (0, 1, 3, 7, 15, 31, 63, 127)
+        # Quetzal §4: bit 4 discards a result; bits 0..3 count locals.
         if flags & (0xF0 if early else 0xE0) or arguments not in argument_masks:
             raise SaveFormatError(f"Invalid V{story.header.version} frame flags or argument mask")
         locals_count = flags & 15
@@ -142,10 +142,8 @@ def loads(story: Story, data: bytes) -> SavedGame:
     first occurrence of each required component (Quetzal §8.8). All sizes are
     checked against the supplied bytes before reading or expanding data.
     """
-    if story.header.version not in (3, 4, 5, 8):
+    if story.header.version not in EXECUTABLE_VERSIONS:
         raise SaveFormatError("Saved-game execution currently supports V3, V4, V5 and V8")
-    if not isinstance(data, bytes):
-        raise TypeError("A restore handler must return bytes or None")
     if len(data) < 12 or data[:4] != b"FORM" or data[8:12] != b"IFZS":
         raise SaveFormatError("Expected a Quetzal FORM/IFZS file")
     if int.from_bytes(data[4:8], "big") != len(data) - 8:

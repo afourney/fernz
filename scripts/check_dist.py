@@ -13,6 +13,12 @@ from tempfile import TemporaryDirectory
 from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
+# Every file in the package source, so new or removed modules need no edits here.
+PACKAGE_FILES = sorted(
+    path.relative_to(ROOT / "src").as_posix()
+    for path in (ROOT / "src" / "fernz").iterdir()
+    if path.is_file() and path.suffix in (".py", ".typed")
+)
 
 
 def check_no_games(names: list[str]) -> None:
@@ -36,34 +42,7 @@ def main() -> None:
 
     with ZipFile(wheel_path) as wheel:
         names = wheel.namelist()
-        for required in (
-            "fernz/__init__.py",
-            "fernz/_env.py",
-            "fernz/_story.py",
-            "fernz/_memory.py",
-            "fernz/_errors.py",
-            "fernz/_instruction.py",
-            "fernz/_input.py",
-            "fernz/_opcodes.py",
-            "fernz/_text.py",
-            "fernz/_objects.py",
-            "fernz/_output.py",
-            "fernz/_observation.py",
-            "fernz/_profiles.py",
-            "fernz/_machine.py",
-            "fernz/_random.py",
-            "fernz/_state.py",
-            "fernz/_quetzal.py",
-            "fernz/_host_io.py",
-            "fernz/_cli.py",
-            "fernz/_games.py",
-            "fernz/_simple_cli.py",
-            "fernz/_rich_cli.py",
-            "fernz/_screen.py",
-            "fernz/_cli_files.py",
-            "fernz/__main__.py",
-            "fernz/py.typed",
-        ):
+        for required in PACKAGE_FILES:
             assert required in names, f"Missing from wheel: {required}"
         metadata_name = next(name for name in names if name.endswith(".dist-info/METADATA"))
         metadata = email.message_from_bytes(wheel.read(metadata_name))
@@ -87,35 +66,7 @@ def main() -> None:
     with tarfile.open(sdists[0], "r:gz") as sdist:
         names = sdist.getnames()
         relative_names = {"/".join(PurePosixPath(name).parts[1:]) for name in names}
-        for required in (
-            "pyproject.toml",
-            "src/fernz/__init__.py",
-            "src/fernz/_env.py",
-            "src/fernz/_story.py",
-            "src/fernz/_memory.py",
-            "src/fernz/_errors.py",
-            "src/fernz/_instruction.py",
-            "src/fernz/_input.py",
-            "src/fernz/_opcodes.py",
-            "src/fernz/_text.py",
-            "src/fernz/_objects.py",
-            "src/fernz/_output.py",
-            "src/fernz/_observation.py",
-            "src/fernz/_profiles.py",
-            "src/fernz/_machine.py",
-            "src/fernz/_random.py",
-            "src/fernz/_state.py",
-            "src/fernz/_quetzal.py",
-            "src/fernz/_host_io.py",
-            "src/fernz/_cli.py",
-            "src/fernz/_games.py",
-            "src/fernz/_simple_cli.py",
-            "src/fernz/_rich_cli.py",
-            "src/fernz/_screen.py",
-            "src/fernz/_cli_files.py",
-            "src/fernz/__main__.py",
-            "src/fernz/py.typed",
-        ):
+        for required in ("pyproject.toml", *(f"src/{name}" for name in PACKAGE_FILES)):
             assert required in relative_names, f"Missing from source distribution: {required}"
         assert "LICENSE" in relative_names, "Missing source distribution license"
         metadata_name = f"{project['name']}-{project['version']}/PKG-INFO"

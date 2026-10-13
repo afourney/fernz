@@ -18,6 +18,7 @@ from textual.screen import ModalScreen, Screen
 from textual.scrollbar import ScrollBar, ScrollDown, ScrollTo, ScrollUp
 from textual.strip import Strip
 from textual.theme import Theme
+from textual.widget import Widget
 from textual.widgets import Button, Footer, Header, Input, Static
 
 from ._cli_files import write_save
@@ -60,6 +61,27 @@ FERN_LOAM_256 = replace(
     error="#AF5F5F",
     success="#87AF5F",
 )
+
+
+def _resolve_scrollbars(
+    viewport: Widget,
+    columns: int,
+    rows: int,
+    canvas_size: Callable[[int, int], tuple[int, int]],
+) -> tuple[int, int, bool, bool]:
+    """Return the canvas size and which scrollbars it needs within an area.
+
+    Either scrollbar can require the other, so two follow-up passes resolve
+    their space. canvas_size maps the space left by the bars to a canvas size.
+    """
+    horizontal = vertical = False
+    for _ in range(3):
+        available_columns = columns - (viewport.styles.scrollbar_size_vertical if vertical else 0)
+        available_rows = rows - (viewport.styles.scrollbar_size_horizontal if horizontal else 0)
+        width, height = canvas_size(available_columns, available_rows)
+        horizontal = width > available_columns
+        vertical = height > available_rows
+    return width, height, horizontal, vertical
 
 
 class PlayerScreen(Screen):
@@ -362,20 +384,16 @@ class RichCLI(App[int]):
         area = viewport.content_size
         # The separately laid-out history gutter is already outside this area.
         # Reserve canvas bars too, without reducing any configured dimension.
-        horizontal = vertical = False
-        # Either scrollbar can require the other. Two follow-up passes resolve
-        # their space while recomputing only dimensions the user left automatic.
-        for _ in range(3):
-            columns = area.width - (viewport.styles.scrollbar_size_vertical if vertical else 0)
-            rows = area.height - (viewport.styles.scrollbar_size_horizontal if horizontal else 0)
-            width = (
-                self.screen_width if self.screen_width is not None else max(1, min(255, columns))
-            )
-            height = (
-                self.screen_height if self.screen_height is not None else max(1, min(254, rows))
-            )
-            horizontal = width > columns
-            vertical = height > rows
+        # Recompute only dimensions the user left automatic.
+        width, height, _, _ = _resolve_scrollbars(
+            viewport,
+            area.width,
+            area.height,
+            lambda columns, rows: (
+                self.screen_width if self.screen_width is not None else max(1, min(255, columns)),
+                self.screen_height if self.screen_height is not None else max(1, min(254, rows)),
+            ),
+        )
         try:
             self.env = self.open_game(width, height)
         except (OSError, ValueError) as error:
@@ -413,22 +431,14 @@ class RichCLI(App[int]):
         # Hidden bars may not have a compositor size yet; their reserved rail
         # must still count in the preferred shell width.
         gutter = history.thickness
-        horizontal = vertical = False
-        # A bar can induce overflow on the other axis. Start without bars on
-        # each resize so they also disappear when the canvas fits again.
-        for _ in range(3):
-            columns = (
-                available.width
-                - gutter
-                - (viewport.styles.scrollbar_size_vertical if vertical else 0)
-            )
-            rows = (
-                available.height
-                - controls
-                - (viewport.styles.scrollbar_size_horizontal if horizontal else 0)
-            )
-            horizontal = width > columns
-            vertical = height > rows
+        # Start without bars on each resize so they also disappear when the
+        # canvas fits again.
+        _, _, horizontal, vertical = _resolve_scrollbars(
+            viewport,
+            available.width - gutter,
+            available.height - controls,
+            lambda columns, rows: (width, height),
+        )
         # Use the resolved pair explicitly: Textual's automatic bars can retain
         # the previous pair during a cross-axis overflow/resize cycle.
         viewport.styles.overflow_x = "scroll" if horizontal else "hidden"
@@ -509,8 +519,7 @@ class RichCLI(App[int]):
 
     def _resume_input(self) -> None:
         """Restore the pending input mode without advancing the story."""
-        request = self.env.get_state().input_request
-        self.character_input = bool(getattr(request, "character", False))
+        self.character_input = self.env.awaiting_character
         command = self.query_one("#command", Input)
         command.disabled = self.env.done or self.character_input
         if self.env.done:

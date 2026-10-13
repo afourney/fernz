@@ -1,8 +1,7 @@
 # Fernz overview
 
-Fernz is intended to become a Z-machine interpreter for common Z-machine story
-formats. It loads V1-V8 stories and completes the measured winning routes for
-all 17 retained V3 games, including Zork I's 396-command route at seed 12.
+Fernz is a Z-machine interpreter for common Z-machine story formats. It loads
+V1-V8 stories and completes the measured winning routes for all 17 retained V3 games, including Zork I's 396-command route at seed 12.
 See [V3 gameplay coverage](V3_GAMES.md) for exact builds and limitations. The library and a
 minimal interactive CLI support V3, V4, V5 and V8 execution. All 33 retained V5
 builds complete measured winning routes; see [V5](V5.md). V8 covers all six
@@ -48,7 +47,7 @@ The Z-machine specifications will guide interpreter behavior. Jericho's public
 API documentation will guide API compatibility, subject to the clean-room
 requirement above.
 
-Fernz has not been released. Accept only the current Fernz checkpoint and data
+Fernz is pre-1.0 (0.0.x releases). Accept only the current Fernz checkpoint and data
 formats; do not add compatibility shims or migrations for earlier Fernz formats
 unless explicitly requested. Update tests and test adapters with format changes.
 
@@ -74,25 +73,16 @@ unimplemented; this work is paused pending further user direction.
 - [Game collection ZIP download](https://github.com/BYU-PCCL/z-machine-games/archive/master.zip)
   — the archive used during setup.
 
-## Environment setup so far
+## Project layout and game collection
 
-1. Started with the existing `fernz` repository and Python package scaffold.
-   `pyproject.toml` declares Python 3.11 or later, uses the `uv_build` build backend,
-   and currently declares no runtime dependencies. Package source is under
-   `src/fernz/`.
-2. Confirmed that a local `.venv/` already exists and uses CPython 3.12.14. This
-   environment was present before the game collection setup; it was not created
-   as part of these steps.
-3. Downloaded the BYU-PCCL archive linked above, verified its ZIP integrity, and
-   extracted its contents into `games/`. The nested large game collection was
-   also unpacked initially.
-4. Kept only `games/jericho-game-suite/`. Removed the Autoplay suite, the large
-   game collection, the downloaded archives, and the collection-level README.
-5. Removed **Leather Goddesses of Phobos** (`lgop.z3`) from the Jericho suite.
-   This initial exclusion has since been removed; the fixture now retains
-   **57 game files**, including the measured LGOP build.
-6. Created `docs/OVERVIEW.md` to record the project direction, references, and
-   setup history.
+`pyproject.toml` declares Python 3.11 or later, uses the `uv_build` build backend,
+and declares no required runtime dependencies (Textual is an optional extra).
+Package source is under `src/fernz/`.
+
+The test games come from the `jericho-game-suite` directory of the BYU-PCCL
+archive linked above, extracted directly into `games/`: **57 game files**,
+including the measured Leather Goddesses of Phobos build (`lgop.z3`). The other
+collections in that archive are not used.
 
 All 57 retained games are used for loading, checksum, and memory tests. Zork I
 also has startup, mailbox play, quit, reset, and a full walkthrough comparison.
@@ -701,8 +691,6 @@ After `uv sync --dev`, run `uv run fernz --help` or
 import `Story`, `StoryHeader`, `Memory`, `StoryFormatError`, `MemoryAccessError`,
 `ExecutionError`, `UnsupportedOpcodeError`, `GameState`, `Observation`, `ZObject`, and `FernzEnv` from `fernz` for the public library
 interface and `fernz` or `python -m fernz` for the public CLI.
-The earlier immutable `Location` value remains importable, but location queries
-now return `ZObject`.
 `fernz --inspect GAME` prints JSON metadata and exits with 0. It reports both
 physical file size and logical story size, plus checksum validity (null when
 unavailable). A checksum mismatch is reported as false without rejecting the
@@ -737,6 +725,7 @@ The deliberately small public contract is:
 | `env.get_state()` | Return an immutable `GameState` after reset, step, or a successful restore. Raises `RuntimeError` before initialization or after execution failure. |
 | `env.set_state(state)` | Validate and restore a Fernz checkpoint for the same story, including RNG and host seed; return `None`. May be called before reset, after quit, or after execution failure. Invalid input leaves the environment unchanged. |
 | `env.done` | True after the VM executes `quit`; false before reset. It does not infer death or victory while the story is still running. |
+| `env.awaiting_character` | True when the pending input is a single keypress (`read_char`) rather than a line; false before reset or after quit. |
 | `env.close()` | Idempotent resource cleanup; currently a no-op because no resources are held. |
 
 The tuple shapes follow the permitted
@@ -746,8 +735,7 @@ instructions raise `UnsupportedOpcodeError`, a `NotImplementedError` subclass,
 with the opcode and address. Invalid instructions, runtime errors, and budget
 exhaustion raise `ExecutionError`, a `RuntimeError` subclass. A failed episode
 should be reset or restored from a valid checkpoint before reuse. This is not a claim of drop-in Jericho
-compatibility. The original `hello()` helper remains
-available for compatibility with the initial package scaffold.
+compatibility.
 Calling `step()` before a successful reset or restore, after quit, or after
 execution fails raises `RuntimeError`; reset or restore a runnable checkpoint.
 

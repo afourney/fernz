@@ -79,7 +79,6 @@ select = [
 ]
 ignore = [
     "E501",  # the formatter handles line lengths
-    "UP017", # datetime.UTC alias
     "D203",  # use D211: no blank line before class
     "D213",  # use D212: summary on the first line
 ]
@@ -111,8 +110,8 @@ test-v8-reference = "pytest -m 'reference and v8games' -ra --tb=short"
 test-v8-vectors = "pytest -m 'vectors and v8games' -ra --tb=short"
 test-v5-reference = "pytest -m 'reference and v5games' -ra --tb=short"
 test-v5-vectors = "pytest -m 'vectors and v5games' -ra --tb=short"
-generate-vectors = "python -m tests.scripts.generate_zork1_vectors"
-check-vectors = "python -m tests.scripts.generate_zork1_vectors --check"
+generate-vectors = "python -m tests.scripts.generate_vectors"
+check-vectors = "python -m tests.scripts.generate_vectors --check"
 build = "uv build --out-dir dist"
 check-dist = "python scripts/check_dist.py"
 build-check = ["build", "check-dist"]

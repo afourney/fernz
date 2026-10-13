@@ -75,14 +75,18 @@ def test_v4_character_read_survives_checkpoint_copy_and_restore(tmp_path):
     path = tmp_path / "keys.z4"
     path.write_bytes(program_bytes(bytes.fromhex("f6 7f 01 10 e5 bf 10 ba"), version=4))
     env = FernzEnv(path, seed=42)
+    assert not env.awaiting_character
     env.reset()
+    assert env.awaiting_character
     before = env.get_state()
     assert isinstance(before.input_request, StoredInputRequest)
     assert before.input_request.character
     fork = env.copy()
+    assert fork.awaiting_character
     try:
         response = env.step("Z")
         assert response[0].text == "Z" and env.done
+        assert not env.awaiting_character
         env.set_state(before)
         assert env.step("Z") == fork.step("Z") == response
         assert env.get_state() == fork.get_state()

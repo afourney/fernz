@@ -345,7 +345,7 @@ use the two interchangeably for experiment rewind. Callback exceptions can also
 fail execution. See [save/restore contracts](SAVE_RESTORE.md).
 
 At review time, the default instruction budget was 250,000 per reset/step. The
-[Lost Pig fix](ISSUE58.md) raises it to 1,000,000 without revalidating all
+[Lost Pig fix](ISSUE58.md) later raised it to 1,000,000 without revalidating all
 Afflicted paths. An existing Afflicted
 case exceeds it during ordinary play and succeeds at the tests' 2,000,000 budget
 after checkpoint restoration. Following an execution failure, the environment

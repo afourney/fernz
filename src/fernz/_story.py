@@ -6,6 +6,9 @@ from os import PathLike
 from pathlib import Path
 from stat import S_ISREG
 
+# Versions this package can execute; all V1-V8 stories can be loaded and inspected.
+EXECUTABLE_VERSIONS = (3, 4, 5, 8)
+
 
 class StoryFormatError(ValueError):
     """A file is not a structurally valid, raw V1-V8 Z-machine story."""
@@ -201,6 +204,11 @@ class Story:
         """Return the memory image size, excluding declared trailing padding."""
         return self.header.file_length or len(self.data)
 
+    @property
+    def calculated_checksum(self) -> int:
+        """Return the 16-bit sum of the story bytes after the header (§15, verify)."""
+        return sum(self.data[64 : self.size]) & 0xFFFF
+
     def verify_checksum(self) -> bool | None:
         """Check original bytes (§15, verify), or return None if unavailable.
 
@@ -209,4 +217,4 @@ class Story:
         """
         if self.header.checksum is None:
             return None
-        return sum(self.data[64 : self.size]) & 0xFFFF == self.header.checksum
+        return self.calculated_checksum == self.header.checksum
