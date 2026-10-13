@@ -139,7 +139,7 @@ uv run --no-sync poe check-vectors
 uv run --no-sync poe test-vectors
 ```
 
-The helper is `tests/scripts/generate_zork1_vectors.py`. Invoke it as a module
+The helper is `tests/scripts/generate_vectors.py`. Invoke it as a module
 from the repository root. Generation and checking process **all 17 archives by default**. Use
 `--only zork1`, `--only storyfiles`, or another ROM stem to select one.
 `--only v3` selects the 15 additional games; `--v3-shard 1/3` selects five.
@@ -147,8 +147,8 @@ from the repository root. Generation and checking process **all 17 archives by d
 Story metadata can be generated and checked on any platform, without Jericho:
 
 ```sh
-uv run --no-sync python -m tests.scripts.generate_zork1_vectors --only storyfiles
-uv run --no-sync python -m tests.scripts.generate_zork1_vectors --only storyfiles --check
+uv run --no-sync python -m tests.scripts.generate_vectors --only storyfiles
+uv run --no-sync python -m tests.scripts.generate_vectors --only storyfiles --check
 ```
 
 `--suite /path/to/jericho-game-suite` selects an existing corpus. If omitted,

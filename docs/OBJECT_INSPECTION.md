@@ -69,11 +69,9 @@ raises `ExecutionError` rather than looping. Traversing from a single node need
 not reach every object because the world can contain disconnected trees.
 `get_world_objects()` enumerates the table independently of tree reachability.
 
-The earlier `get_player_location()` returned a frozen `Location(num, name)`.
-It now returns the richer, locally mutable `ZObject`; `.num` and `.name` retain
-their meanings. `Location` remains importable as a legacy value type, but is no
-longer the query's result type. Full VM checkpoints remain immutable `GameState`
-values; object snapshots do not change checkpoint semantics.
+`get_player_location()` returns a locally mutable `ZObject`; `.num` and `.name`
+identify the location. Full VM checkpoints remain immutable `GameState` values;
+object snapshots do not change checkpoint semantics.
 
 ## Finding the object count
 

@@ -14,7 +14,7 @@ from ._objects import ZObject
 from ._observation import Observation
 from ._profiles import StoryProfile, profile_for
 from ._random import validate_host_seed
-from ._state import GameState, _integer
+from ._state import GameState, StoredInputRequest, _integer
 from ._story import Story
 
 
@@ -167,8 +167,7 @@ class FernzEnv:
         return info
 
     def _status_value(self, name: str) -> int:
-        if self._machine is None:
-            raise RuntimeError("Call reset() or set_state() before reading game status")
+        self._require_machine()
         if self.story.header.version >= 4 and self._profile is None:
             raise NotImplementedError("Score and move queries require a story profile for V4/V5/V8")
         if self.story.header.flags1 & 2 and self._profile is None:
@@ -214,6 +213,7 @@ class FernzEnv:
         """
         objects = self._require_machine().objects
         number = index(obj_num)
+        # Check the version limit first: impossible numbers need no count inference.
         if number < 1 or number > objects.max_number or number > objects.count:
             return None
         return objects.snapshot(number)
@@ -349,6 +349,16 @@ class FernzEnv:
         if self._machine is not None:
             result._machine = Machine.from_state(result.memory, self.get_state(), io=result._io)
         return result
+
+    @property
+    def awaiting_character(self) -> bool:
+        """Whether the pending input is a single keypress rather than a line."""
+        machine = self._machine
+        return (
+            machine is not None
+            and isinstance(machine.input_request, StoredInputRequest)
+            and machine.input_request.character
+        )
 
     @property
     def done(self) -> bool:

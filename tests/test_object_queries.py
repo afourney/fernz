@@ -164,6 +164,8 @@ def test_enumeration_rejects_ambiguous_initial_layouts(tmp_path, pointer):
     for query in (env.get_world_objects, lambda: env.get_object(1)):
         with pytest.raises(NotImplementedError, match="infer object count"):
             query()
+    # Object 256 cannot exist in V3, so no count inference is needed.
+    assert env.get_object(256) is None
     assert env.get_state() == before
 
 

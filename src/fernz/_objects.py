@@ -10,14 +10,6 @@ from ._profiles import profile_for
 from ._text import Text
 
 
-@dataclass(frozen=True, slots=True)
-class Location:
-    """Legacy immutable location value; queries now return the richer ZObject."""
-
-    num: int
-    name: str
-
-
 @dataclass(slots=True)
 class ZObject:
     """A locally mutable object snapshot, detached from interpreter memory.
@@ -68,6 +60,11 @@ class Objects:
         self._unordered_inspection = (
             profile.unordered_inspection_objects if profile else frozenset()
         )
+
+    @cached_property
+    def text(self) -> Text:
+        """Return the decoder for object names, created when first needed."""
+        return Text(self.memory)
 
     @cached_property
     def count(self) -> int:
@@ -188,7 +185,7 @@ class Objects:
         table = self._table(obj)
         words = self.memory.read_byte(table)
         self._dynamic(table, 1 + 2 * words)
-        return Text(self.memory).decode(table + 1, words=words)
+        return self.text.decode(table + 1, words=words)
 
     def properties(self, obj: int, *, validate_order: bool = True) -> Iterator[Property]:
         """Walk descending properties, allowing legacy V5 duplicates within bounds."""
@@ -262,7 +259,7 @@ class Objects:
 
     def next_property(self, obj: int, number: int) -> int:
         """Return the next property number, or the first when number is zero."""
-        properties = iter(self.properties(obj))
+        properties = self.properties(obj)
         if number:
             for prop in properties:
                 if prop.number == number:

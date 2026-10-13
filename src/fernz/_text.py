@@ -12,7 +12,7 @@ _EXTRA = "äöüÄÖÜß»«ëïÿËÏáéíóúýÁÉÍÓÚÝàèìòùÀÈÌÒ
 
 
 def zscii(code: int) -> str:
-    """Translate V3 output, with a legacy tab extension for plain transcripts."""
+    """Translate standard ZSCII output, with a legacy tab extension for plain transcripts."""
     if code == 0:
         return ""
     if code == 9:
@@ -26,7 +26,7 @@ def zscii(code: int) -> str:
         return chr(code)
     if 155 <= code < 155 + len(_EXTRA):
         return _EXTRA[code - 155]
-    raise ExecutionError(f"Invalid V3 output character {code}")
+    raise ExecutionError(f"Invalid output character {code}")
 
 
 class Text:
@@ -39,7 +39,8 @@ class Text:
         self.memory = memory
         self.key_chars = 6 if memory.story.header.version == 3 else 9
 
-    def _extra(self) -> str:
+    def extra_characters(self) -> str:
+        """Return the characters for ZSCII 155 onward, from the story's Unicode table."""
         header = self.memory.story.header
         extension = header.extension_table
         if extension and self.memory.read_word(extension) >= 3:
@@ -54,7 +55,7 @@ class Text:
     def character(self, code: int) -> str:
         """Translate one ZSCII output code using the story's Unicode table."""
         if 155 <= code <= 251:
-            extra = self._extra()
+            extra = self.extra_characters()
             if code - 155 < len(extra):
                 return extra[code - 155]
             raise ExecutionError(f"Undefined ZSCII output character {code}")
@@ -80,7 +81,7 @@ class Text:
 
     def encode_output(self, text: str) -> bytes:
         """Convert stream-3 output to ZSCII, replacing unrepresentable Unicode."""
-        extra = self._extra()
+        extra = self.extra_characters()
         return bytes(
             13
             if char == "\n"
@@ -101,7 +102,7 @@ class Text:
         if not isinstance(line, str):
             raise TypeError("An action must be a string")
         result = bytearray()
-        extra = self._extra()
+        extra = self.extra_characters()
         for char in line.lower() if lowercase else line:
             if 32 <= ord(char) <= 126:
                 result.append(ord(char))

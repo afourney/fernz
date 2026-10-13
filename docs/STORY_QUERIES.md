@@ -12,11 +12,8 @@ the selected location number is zero. Import `ZObject` from `fernz`.
 The result is detached: subsequent movement or restoration does not change an
 earlier result. Names are the complete decoded object short names, including
 their original spacing. An empty object name remains an empty string.
-The earlier immutable `Location(num, name)` return type has been replaced by the
-complete object record, preserving `.num` and `.name`. See
-[object inspection](OBJECT_INSPECTION.md) for the remaining fields and raw tree,
-direct lookup, player, and inventory methods. `Location` remains importable as a
-legacy value type.
+See [object inspection](OBJECT_INSPECTION.md) for the remaining fields and raw tree,
+direct lookup, player, and inventory methods.
 
 For the supported Zork I build, the location is the immediate parent of player
 object 4. Public reference queries at all 397 boundaries of the opening and

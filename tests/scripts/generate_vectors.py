@@ -1,7 +1,7 @@
-"""Record Zork behavior and retained-story metadata in portable ZIP archives.
+"""Record retained-story behavior and metadata in portable ZIP archives.
 
 Run on little-endian Linux with the pinned reference group:
-    python -m tests.scripts.generate_zork1_vectors [--check]
+    python -m tests.scripts.generate_vectors [--check]
 
 Use --only storyfiles on any platform without the reference dependency.
 """

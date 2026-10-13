@@ -89,7 +89,7 @@ def test_zscii(code, expected):
 
 @pytest.mark.parametrize("code", (-1, 1, 11, 127, 129, 224, 255, 1023))
 def test_undefined_or_input_only_zscii(code):
-    with pytest.raises(ExecutionError, match="Invalid V3 output"):
+    with pytest.raises(ExecutionError, match="Invalid output character"):
         zscii(code)
 
 

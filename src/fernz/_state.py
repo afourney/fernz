@@ -6,6 +6,9 @@ from hashlib import sha256
 from ._observation import COLOURS
 from ._story import Story
 
+# Versions with the V4+ two-window screen model (§8); V6 has its own window model.
+LATE_SCREEN_VERSIONS = (4, 5, 7, 8)
+
 
 def _integer(value: int, minimum: int, maximum: int, name: str) -> None:
     if type(value) is not int:
@@ -68,7 +71,9 @@ class OutputState:
             if type(cursor) is not tuple or len(cursor) != 2:
                 raise TypeError("Expected an immutable row/column cursor")
             maximum_row = (
-                0xFFFF if window == 1 and story.header.version in (4, 5, 7, 8) else self.height
+                0xFFFF
+                if window == 1 and story.header.version in LATE_SCREEN_VERSIONS
+                else self.height
             )
             _integer(cursor[0], 1, maximum_row, "Cursor row")
             _integer(cursor[1], 1, self.width + 1, "Cursor column")

@@ -7,8 +7,8 @@ from collections.abc import Sequence
 from importlib.util import find_spec
 from pathlib import Path
 
-from fernz import ExecutionError, FernzEnv
-
+from ._env import FernzEnv
+from ._errors import ExecutionError
 from ._games import ensure_jericho_games
 from ._simple_cli import SimpleCLI
 
@@ -155,7 +155,3 @@ def main(argv: Sequence[str] | None = None) -> int:
     finally:
         if env is not None:
             env.close()
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

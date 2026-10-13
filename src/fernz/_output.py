@@ -1,11 +1,12 @@
 """Text-only window bookkeeping and nested memory output (Standard §§7-8)."""
 
 from dataclasses import replace
+from functools import cached_property
 
 from ._errors import ExecutionError
 from ._memory import Memory
 from ._observation import COLOURS, ScreenOutputClipped
-from ._state import OutputState
+from ._state import LATE_SCREEN_VERSIONS, OutputState
 from ._text import Text
 
 
@@ -23,6 +24,11 @@ class Output:
         self.state = state if state is not None else OutputState()
         self._stream: list[str] = []
         self._clipped: ScreenOutputClipped | None = None
+
+    @cached_property
+    def text(self) -> Text:
+        """Return the stream-3 encoder, created when first needed."""
+        return Text(self.memory)
 
     @property
     def width(self) -> int:
@@ -58,7 +64,7 @@ class Output:
         streams = self.state.memory_streams
         if streams:
             address, count = streams[-1]
-            data = Text(self.memory).encode_output(text)
+            data = self.text.encode_output(text)
             self.memory.write_bytes(address + 2 + count, data)
             self.state = replace(
                 self.state, memory_streams=(*streams[:-1], (address, count + len(data)))
@@ -134,7 +140,7 @@ class Output:
         if not 0 <= lines <= 0xFFFF:
             raise ExecutionError("Upper window height is outside the screen")
         if lines > self.height:
-            if self.memory.story.header.version not in (4, 5, 7, 8):
+            if self.memory.story.header.version not in LATE_SCREEN_VERSIONS:
                 raise ExecutionError("Upper window height is outside the screen")
             lines = self.height
         previous = self.state.cursors
@@ -171,7 +177,7 @@ class Output:
             # Saves made on wider displays can retain story-owned cursor
             # columns. V4/V5 executable probes move to column 1 on the
             # requested row, rather than storing an off-screen position.
-            if self.memory.story.header.version in (4, 5, 7, 8):
+            if self.memory.story.header.version in LATE_SCREEN_VERSIONS:
                 column = 1
             else:
                 raise ExecutionError("Cursor is outside the upper window")
@@ -179,7 +185,7 @@ class Output:
             # §8 remarks recommend an implicit split for V4/V5 box quotes
             # (also V7/V8 under §1 remarks)
             # whose requested cursor extends below the current upper window.
-            if self.memory.story.header.version not in (4, 5, 7, 8):
+            if self.memory.story.header.version not in LATE_SCREEN_VERSIONS:
                 raise ExecutionError("Cursor is outside the upper window")
             self.split(min(row, self.height))
         self._cursor(row, column)
@@ -266,7 +272,7 @@ class Output:
             self._cursor_command(1)
         elif window == -2:
             self.command("clear", "all")
-        elif window >= 0:
+        else:
             cursors = list(self.state.cursors)
             row = 1
             if window == 0:

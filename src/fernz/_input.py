@@ -117,7 +117,7 @@ def read_line(memory: Memory, text_buffer: int, parse_buffer: int, line: str) ->
     capacity = memory.read_byte(text_buffer)
     early = memory.story.header.version <= 4
     if early and capacity < 2:
-        raise ExecutionError("The V3 text buffer must contain at least three bytes")
+        raise ExecutionError("The V3/V4 text buffer must contain at least three bytes")
     if not early and capacity < 1:
         raise ExecutionError("The V5 text buffer must contain at least three bytes")
     if early:
