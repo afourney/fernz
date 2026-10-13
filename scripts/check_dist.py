@@ -13,6 +13,8 @@ from tempfile import TemporaryDirectory
 from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
+# Required independently of discovery: deleting the marker must fail the check.
+TYPING_MARKER = "fernz/py.typed"
 # Every file in the package source, so new or removed modules need no edits here.
 PACKAGE_FILES = sorted(
     path.relative_to(ROOT / "src").as_posix()
@@ -42,7 +44,7 @@ def main() -> None:
 
     with ZipFile(wheel_path) as wheel:
         names = wheel.namelist()
-        for required in PACKAGE_FILES:
+        for required in (TYPING_MARKER, *PACKAGE_FILES):
             assert required in names, f"Missing from wheel: {required}"
         metadata_name = next(name for name in names if name.endswith(".dist-info/METADATA"))
         metadata = email.message_from_bytes(wheel.read(metadata_name))
@@ -66,7 +68,10 @@ def main() -> None:
     with tarfile.open(sdists[0], "r:gz") as sdist:
         names = sdist.getnames()
         relative_names = {"/".join(PurePosixPath(name).parts[1:]) for name in names}
-        for required in ("pyproject.toml", *(f"src/{name}" for name in PACKAGE_FILES)):
+        for required in (
+            "pyproject.toml",
+            *(f"src/{name}" for name in (TYPING_MARKER, *PACKAGE_FILES)),
+        ):
             assert required in relative_names, f"Missing from source distribution: {required}"
         assert "LICENSE" in relative_names, "Missing source distribution license"
         metadata_name = f"{project['name']}-{project['version']}/PKG-INFO"

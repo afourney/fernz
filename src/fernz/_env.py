@@ -213,7 +213,8 @@ class FernzEnv:
         """
         objects = self._require_machine().objects
         number = index(obj_num)
-        if number < 1 or number > objects.count:
+        # Check the version limit first: impossible numbers need no count inference.
+        if number < 1 or number > objects.max_number or number > objects.count:
             return None
         return objects.snapshot(number)
 
