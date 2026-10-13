@@ -9,7 +9,7 @@ from fernz._machine import Machine
 from fernz._quetzal import loads
 from fernz._random import RandomGenerator
 
-from .observation_helpers import plain_text, text_response
+from .observation_helpers import plain_text, text_response, window_text
 from .save_story import save_story
 from .story_files import READ, program_bytes
 
@@ -100,17 +100,16 @@ def test_host_checkpoints_still_rewind_rng_flags_and_screen_and_keep_recipient_h
     source = FernzEnv(game, seed=42, save_handler=lambda _: False)
     source.reset()
     checkpoint = source.get_state()
-    streamed = []
     env = FernzEnv(
         game,
         seed=99,
         save_handler=storage.save,
         restore_handler=storage.restore,
-        output_handler=streamed.append,
     )
     env.set_state(checkpoint)
     expected = env.step("save")
-    assert "".join(streamed) == expected[0].text
+    assert results(expected[0]) == [7, 8, 9, 0x3333, 14545]
+    assert window_text(expected[0]) == expected[0].text
     env.memory.write_byte(0x11, 3)
     env.set_state(checkpoint)
     assert env.get_state() == checkpoint
@@ -187,7 +186,7 @@ def test_malformed_restore_does_not_change_game_state(game):
     assert env.memory.read_word(0x170) == 0
 
 
-@pytest.mark.parametrize("handler", ["save_handler", "restore_handler", "output_handler"])
+@pytest.mark.parametrize("handler", ["save_handler", "restore_handler"])
 def test_handlers_must_be_callable(game, handler):
     with pytest.raises(TypeError, match="callable"):
         FernzEnv(game, **{handler: True})

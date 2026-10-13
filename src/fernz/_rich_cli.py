@@ -297,7 +297,6 @@ class RichCLI(App[int]):
     .dialog-buttons { height: auto; align-horizontal: right; margin-top: 1; }
     .dialog-buttons Button { margin-left: 1; }
     """
-    output = None  # Complete ordered observations drive rendering, never raw text fragments.
 
     def __init__(
         self,

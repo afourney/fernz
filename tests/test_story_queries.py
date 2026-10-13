@@ -8,6 +8,7 @@ import pytest
 from fernz import ExecutionError, FernzEnv, ZObject, _profiles
 from fernz._profiles import StoryProfile
 
+from .observation_helpers import window_text
 from .story_files import READ, program_bytes, zchars
 
 
@@ -45,16 +46,15 @@ def location(env):
     return room.num, room.name
 
 
-def test_queries_are_detached_and_do_not_execute_or_change_rng(profiled_story):
-    output = []
-    env = FernzEnv(profiled_story, seed=42, output_handler=output.append)
+def test_queries_are_detached_and_do_not_execute_or_change_rng(profiled_story, capsys):
+    env = FernzEnv(profiled_story, seed=42)
     assert env.get_max_score() == 77  # Metadata is available before reset.
     for query in (env.get_player_location, env.game_over, env.victory):
         with pytest.raises(RuntimeError, match="reset"):
             query()
-    env.reset()
+    observation, _ = env.reset()
+    assert observation.text == window_text(observation) == "lost\n"
     saved = env.get_state()
-    output.clear()
     for _ in range(2):
         room = env.get_player_location()
         assert isinstance(room, ZObject)
@@ -62,12 +62,14 @@ def test_queries_are_detached_and_do_not_execute_or_change_rng(profiled_story):
         assert outcomes(env) == (True, False)
         assert env.get_max_score() == 77
         assert env.get_state() == saved
-    assert output == []
+    assert capsys.readouterr() == ("", "")
     room.name = "edited"
     assert location(env) == (1, "abc")
     env.memory.write_bytes(0x201, zchars(29, 30, 31))
     assert location(env) == (1, "xyz")
     assert (room.num, room.name) == (1, "edited")
+    observation = env.step("look")[0]
+    assert observation.text == window_text(observation) == "\nordinary\n"
 
 
 def test_outcomes_copy_restore_reset_and_failed_input(profiled_story, monkeypatch):

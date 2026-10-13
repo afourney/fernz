@@ -103,7 +103,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             _game_path(args.game),
             save_handler=frontend.save if frontend else None,
             restore_handler=frontend.restore if frontend else None,
-            output_handler=frontend.output if frontend else None,
             screen_width=width,
             screen_height=height,
         )

@@ -43,12 +43,6 @@ Supply optional keyword arguments when constructing an environment:
   `True` on success, or `False` for cancellation/failure.
 - `restore_handler() -> bytes | None`: return a complete save file, or `None`
   for cancellation/failure.
-- `output_handler(text: str) -> None`: optionally receive output fragments as
-  execution emits them. This lets a frontend display story output before a
-  storage callback prompts for a filename. `reset()` and `step()` still return
-  the complete `Observation`, so a streaming frontend should not print it again.
-  This callback receives plain text from both windows, including prompts; the
-  [observation's stream](OBSERVATIONS.md) separately carries display commands.
 
 These callbacks are synchronous, must not re-enter the same environment, and
 remain attached to the receiving environment across reset and checkpoint
@@ -56,8 +50,8 @@ restoration. They run only when needed; construction does not execute a story
 or access save storage. No callback is serialized.
 
 `copy()` retains the same callback references. Forked environments have
-independent VM state; external storage and output destinations are shared if
-the callbacks refer to the same resources.
+independent VM state; external storage is shared if the callbacks refer to
+the same resources.
 
 For example, a test can use an in-memory save slot:
 
@@ -116,8 +110,12 @@ to the game as opcode failure.
 
 Prompts read from the same input stream as game commands, so piped sessions
 must include the filename and, when applicable, the overwrite response. The
-CLI streams story output before prompting and does not duplicate returned
-observations. Filename prompts are frontend output, not story observations.
+simple CLI prints only returned `Observation.text`, once per reset or step.
+Filename and overwrite prompts appear immediately, but game text from the current
+call (including text emitted before the storage request) appears after the
+response, when the observation returns. Filename prompts are frontend output,
+not story observations. Textual applies the current turn after its dialog
+finishes.
 
 ## Saved continuation and validation
 

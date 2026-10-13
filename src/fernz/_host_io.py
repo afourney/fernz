@@ -5,20 +5,18 @@ from dataclasses import dataclass
 
 SaveHandler = Callable[[bytes], bool]
 RestoreHandler = Callable[[], bytes | None]
-OutputHandler = Callable[[str], None]
 
 
 @dataclass(frozen=True, slots=True)
 class HostIO:
-    """Optional storage and streaming output services supplied by the caller."""
+    """Optional storage services supplied by the caller."""
 
     save: SaveHandler | None = None
     restore: RestoreHandler | None = None
-    output: OutputHandler | None = None
 
     def __post_init__(self) -> None:
         """Reject invalid handlers before starting execution."""
-        for callback in (self.save, self.restore, self.output):
+        for callback in (self.save, self.restore):
             if callback is not None and not callable(callback):
                 raise TypeError("I/O handlers must be callable or None")
 

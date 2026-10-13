@@ -161,15 +161,14 @@ def test_unprofiled_prompt_and_questions_are_preserved(tmp_path):
 
 
 @pytest.mark.parametrize("version", (3, 5))
-def test_redirected_and_disabled_text_stays_out_of_observation_and_callback(tmp_path, version):
-    parts = []
+def test_redirected_and_disabled_text_stays_out_of_observation(tmp_path, version):
     code = say("A") + bytes.fromhex("f3 4f 03 02 40") + say("<hidden>")
     code += bytes.fromhex("f3 3f ff fd f3 3f ff ff") + say("disabled")
     code += bytes.fromhex("ea 7f 02 eb 7f 01 f3 7f 01") + say("B")
     code += READ + (b"\x10" if version == 5 else b"")
-    env = fixture_env(tmp_path, code, version=version, output_handler=parts.append)
+    env = fixture_env(tmp_path, code, version=version)
     obs, _ = env.reset()
-    assert obs.text == "".join(parts) == "AB"
+    assert obs.text == "AB"
     assert "".join(value for kind, value in stream_events(obs.stream) if kind == "text") == "AB"
     assert "<top>" in obs.stream
     assert env.memory.read_word(0x240) == 8

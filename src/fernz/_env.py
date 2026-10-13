@@ -7,7 +7,7 @@ from os import PathLike
 from pathlib import Path
 
 from ._errors import ExecutionError
-from ._host_io import HostIO, OutputHandler, RestoreHandler, SaveHandler
+from ._host_io import HostIO, RestoreHandler, SaveHandler
 from ._machine import DEFAULT_MAX_STEPS, Machine, signed
 from ._memory import Memory
 from ._objects import ZObject
@@ -29,10 +29,9 @@ class FernzEnv:
 
     save_handler receives Quetzal bytes and returns bool; restore_handler returns
     bytes or None. Missing handlers, cancellation, and OSError report opcode
-    failure. Optional output_handler receives text fragments during execution;
-    reset/step return Observation(stream, text). The callback receives raw text
-    from both windows, including prompts, without display tags. Handlers belong to the
-    receiving environment and are never captured or replaced by checkpoints.
+    failure. reset/step return Observation(stream, text) with output from both
+    windows. Storage handlers belong to the receiving environment and are never
+    captured or replaced by checkpoints.
     screen_width and screen_height configure a finite display in character cells;
     defaults are 80 by 25. Host checkpoint restore adopts its saved geometry.
     """
@@ -44,7 +43,6 @@ class FernzEnv:
         seed: int | None = None,
         save_handler: SaveHandler | None = None,
         restore_handler: RestoreHandler | None = None,
-        output_handler: OutputHandler | None = None,
         screen_width: int = 80,
         screen_height: int = 25,
     ) -> None:
@@ -56,7 +54,7 @@ class FernzEnv:
         self.story = Story.from_file(self.game_path)
         self.memory = Memory(self.story)
         self._seed = validate_host_seed(seed)
-        self._io = HostIO(save_handler, restore_handler, output_handler)
+        self._io = HostIO(save_handler, restore_handler)
         self._machine: Machine | None = None
         self._profile = profile_for(self.story)
         self._game_over = False
@@ -339,8 +337,8 @@ class FernzEnv:
     def copy(self) -> "FernzEnv":
         """Fork memory, frames, pending input, and RNG without advancing the game.
 
-        Share the immutable story and host callback references. Storage and
-        output destinations captured by callbacks remain caller-owned. Copying
+        Share the immutable story and storage callback references. Storage
+        destinations captured by callbacks remain caller-owned. Copying
         neither rereads the ROM nor requests entropy. A pending seed() choice
         is copied separately from the active RNG's host seed.
         An uninitialized or failed environment stays uninitialized in the copy;

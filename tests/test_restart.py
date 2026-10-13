@@ -8,7 +8,7 @@ import pytest
 from fernz import ExecutionError, FernzEnv, Memory, Story
 from fernz._machine import Machine
 
-from .observation_helpers import plain_text, text_response
+from .observation_helpers import plain_text, text_response, window_text
 from .restart_story import restart_story
 from .story_files import READ, program_bytes
 
@@ -21,8 +21,7 @@ def test_restart_discards_nested_state_and_preserves_flags_and_output(
     path = tmp_path / "restart.z3"
     data = restart_story(opcode_seed=opcode_seed, flags2=flags2)
     path.write_bytes(data)
-    emitted = []
-    env = FernzEnv(path, seed=42, output_handler=emitted.append)
+    env = FernzEnv(path, seed=42)
     assert text_response(env.reset()) == ("R=14545\n", {"score": 0, "moves": 0})
     initial = env.get_state()
     memory = env.memory
@@ -32,10 +31,9 @@ def test_restart_discards_nested_state_and_preserves_flags_and_output(
         assert len(nested.frames) == 3
         assert [f.stack for f in nested.frames] == [(0x1111,), (0x2222,), (0x3333,)]
         assert env.memory.read_byte(0x200) == 0xAA
-        emitted.clear()
         result = env.step("again")
         assert text_response(result) == ("\nR=55\nR=14545\n", -73, False, {"score": 0, "moves": 0})
-        assert "".join(emitted) == result[0].text
+        assert window_text(result[0]) == "\nR=55\nR=14545\n"
         assert env.memory is memory
         ram = bytearray(initial.ram)
         ram[0x10:0x12] = (flags2 & ~1).to_bytes(2, "big")

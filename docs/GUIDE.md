@@ -135,7 +135,7 @@ pinned Linux Jericho reference. It is not part of the installed package.
 
 `copy()` forks mutable execution state without running the game or rereading its
 file. Copies share the immutable story and host callback references; external
-storage and output destinations remain caller-owned. `seed(n)` returns the
+storage destinations remain caller-owned. `seed(n)` returns the
 selected value and applies it on the next `reset()`. Calling `seed()` or
 `seed(None)` selects fresh entropy; zero remains deterministic. Checkpoints
 retain their existing seed semantics, described in [RNG compatibility](RNG.md).

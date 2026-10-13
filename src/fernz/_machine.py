@@ -214,8 +214,6 @@ class Machine:
             self.output.append(text)
             if self.display.state.window == 0:
                 self._narrative.append(text)
-            if self.io.output is not None:
-                self.io.output(text)
 
     def _save(self, instruction: Instruction) -> bool:
         # Quetzal §5.8: before applying the result, save the branch address in

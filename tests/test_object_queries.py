@@ -273,7 +273,7 @@ def test_cleaning_is_explicitly_deferred(object_env):
     assert object_env.get_state() == before
 
 
-def test_queries_do_not_call_host_callbacks(object_env):
+def test_queries_do_not_call_host_callbacks_or_change_state(object_env, capsys):
     def forbidden(*args):
         pytest.fail("Inspection must not call the host")
 
@@ -281,11 +281,13 @@ def test_queries_do_not_call_host_callbacks(object_env):
         object_env.game_path,
         save_handler=forbidden,
         restore_handler=forbidden,
-        output_handler=forbidden,
     )
-    env.set_state(object_env.get_state())
+    before = object_env.get_state()
+    env.set_state(before)
     env.get_object(1)
     env.get_world_objects()
     env.get_player_object()
     env.get_player_location()
     env.get_inventory()
+    assert env.get_state() == before
+    assert capsys.readouterr() == ("", "")

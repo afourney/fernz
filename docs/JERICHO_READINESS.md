@@ -157,8 +157,8 @@ and identical equivalence behavior are separate requirements.
 ### Branching must isolate external effects
 
 `copy()` forks memory, frames, pending input, RNG, and outcome flags. It retains
-the same output/save/restore callback references. A speculative command can
-therefore still print to the live output destination or write to shared storage.
+the same save/restore callback references. A speculative command can
+therefore still write to shared storage.
 Checkpoint restoration does not roll those effects back.
 
 Use isolated callbacks/storage for speculative environments and test that

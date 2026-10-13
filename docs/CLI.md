@@ -94,12 +94,22 @@ fernz --simple path/to/story.z3
 printf 'look\ninventory\n' | fernz --simple path/to/story.z3
 ```
 
-The simple player prints raw text immediately, including prompts before a
-save/restore filename request. It reads lines until the story quits or stdin
-reaches EOF. The terminal handles interactive input echo; redirected input is
-not echoed. Window contents appear in execution order, without applying cursor
-operations, styles or screen clearing. Use `--simple` for redirected input even
-when Textual is installed.
+The simple player prints only the returned `Observation.text` after each
+`reset()` and `step()`. Ordinary play therefore exercises the same text
+representation consumed by library clients, including omission of recognized
+story command prompts. It adds no command prompt. It reads lines until the story
+quits or stdin reaches EOF. The terminal handles interactive input echo;
+redirected input is not echoed. Window contents appear in execution order,
+without applying cursor operations, styles or screen clearing. Use `--simple`
+for redirected input even when Textual is installed.
+
+Save/restore filename and overwrite prompts are host output and appear immediately,
+before reading a response. Game text from that execution remains buffered until
+`reset()` or `step()` returns, so even text emitted before the storage request
+appears after the filename response. The complete returned text is printed once.
+Piped sessions must supply filenames and overwrite responses in order; blank
+lines or EOF cancel. If execution raises or is interrupted before returning an
+observation, that call's game text is unavailable to this frontend.
 
 ## Screen size
 
