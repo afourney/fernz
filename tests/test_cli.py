@@ -36,7 +36,7 @@ def test_textual_selection_when_installed(tmp_path, monkeypatch, args):
     calls = []
 
     class Frontend:
-        output = save = restore = None
+        save = restore = None
 
         def __init__(self, open_game, *, screen_width, screen_height):
             assert screen_width is screen_height is None
@@ -262,7 +262,12 @@ def test_simple_prints_only_returned_text_once_and_flushes(monkeypatch, args):
         done = False
 
         def __init__(self, path, **handlers):
-            assert "output_handler" not in handlers
+            assert set(handlers) == {
+                "save_handler",
+                "restore_handler",
+                "screen_width",
+                "screen_height",
+            }
 
         def reset(self):
             return Observation(stream="raw opening >", text="opening\n"), {}

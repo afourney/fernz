@@ -471,10 +471,10 @@ Per [§2.4](https://inform-fiction.org/zmachine/standards/z1point1/sect02.html),
 restart leaves any opcode-seeded predictable mode and reapplies the host RNG
 policy: an explicit seed repeats its sequence, while `None` requests fresh
 entropy. A seed restored through `set_state()` also governs later restarts.
-Host storage and output callbacks remain attached, and existing save files and
+Host storage callbacks remain attached, and existing save files and
 immutable checkpoints remain usable within the supported schema.
 
-Already emitted text remains in the current observation and is streamed only
+Already emitted text remains in the current returned observation exactly
 once. The selected screen stream survives restart, matching public black-box
 Frotz/Jericho probes; a story may explicitly enable it again. No host command
 interception or interpreter confirmation is added: Zork asks its own question,
@@ -552,11 +552,11 @@ has not initialized, or has failed execution, stays uninitialized in its copy
 and needs `reset()` or `set_state()` before play. Loading-only copies also work
 for story versions whose execution is not yet supported.
 
-Copies retain references to the configured storage and output callbacks.
-External files, callback closure state, and output destinations remain owned by
-the caller. Forking VM memory does not duplicate those resources. Copies also
-preserve both the active RNG host seed and the pending next-reset seed; see the
-documented [Jericho copy/seed difference](RNG.md#host-seeding-and-reset).
+Copies retain references to the configured storage callbacks. External files and
+callback closure state remain owned by the caller. Forking VM memory does not
+duplicate those resources. Copies also preserve both the active RNG host seed
+and the pending next-reset seed; see the documented [Jericho copy/seed
+difference](RNG.md#host-seeding-and-reset).
 
 `get_score()` and `get_moves()` use measured profile globals and widths for
 all 17 retained V3 builds, falling back to the V3 status convention for
@@ -721,7 +721,7 @@ The deliberately small public contract is:
 | Interface | Contract |
 | --- | --- |
 | `from fernz import FernzEnv` | Public environment class; no Jericho runtime dependency. |
-| `FernzEnv(game_path, *, seed=None, save_handler=None, restore_handler=None, output_handler=None, screen_width=80, screen_height=25)` | Accepts a string or text path-like object, stores a `Path` in `game_path`, and loads a raw V1-V8 story without executing it. Missing/inaccessible paths raise `OSError` subclasses; non-regular paths raise `ValueError`; invalid story data raises `StoryFormatError`. Optional synchronous callbacks supply storage and streaming output; see [save and restore](SAVE_RESTORE.md). |
+| `FernzEnv(game_path, *, seed=None, save_handler=None, restore_handler=None, screen_width=80, screen_height=25)` | Accepts a string or text path-like object, stores a `Path` in `game_path`, and loads a raw V1-V8 story without executing it. Missing/inaccessible paths raise `OSError` subclasses; non-regular paths raise `ValueError`; invalid story data raises `StoryFormatError`. Optional synchronous callbacks supply storage; see [save and restore](SAVE_RESTORE.md). |
 | `env.story`, `env.memory` | Immutable story image and independent protected memory instance. |
 | `env.reset(*, max_steps=1_000_000)` | Run fresh V3 startup through input or quit and return `(observation: Observation, info: dict[str, object])`. The observation provides a plain transcript and an ordered display stream; see [its contract](OBSERVATIONS.md). Score games expose integer `score` and `moves`; time games expose `hours` and `minutes`. |
 | `env.seed(seed=None)` | Validate and return `int` in `0..2**31-1`, or `None` for automatic seeding, to apply on the next host reset. Does not change the active episode. An omitted argument selects automatic seeding. |

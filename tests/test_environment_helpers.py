@@ -7,7 +7,7 @@ import pytest
 from fernz import ExecutionError, FernzEnv
 
 from .environment_story import seed_story
-from .observation_helpers import plain_text
+from .observation_helpers import plain_text, window_text
 from .story_files import READ, program_bytes, put_word, story_bytes
 from .test_save_restore import Storage, results
 from .test_state import game as game
@@ -92,24 +92,22 @@ def test_copy_retains_host_callback_references_but_not_vm_mutations(tmp_path):
     path.write_bytes(
         program_bytes(READ + bytes.fromhex("b5 c2 e5 7f 53") + READ + bytes.fromhex("b6 c2 ba"))
     )
-    storage, emitted = Storage(), []
+    storage = Storage()
     env = FernzEnv(
         path,
         save_handler=storage.save,
         restore_handler=storage.restore,
-        output_handler=emitted.append,
     )
     env.reset()
     state = env.get_state()
     other = env.copy()
-    assert emitted == []
-    assert plain_text(other.step("save")[0]) == "\nS"
-    assert "".join(emitted) == "\nS"
+    assert other.get_state() == state
+    observation = other.step("save")[0]
+    assert observation.text == window_text(observation) == "\nS"
     assert storage.saves == 1 and storage.data.startswith(b"FORM")
     assert env.get_state() == state
-    emitted.clear()
-    assert plain_text(other.step("restore")[0]) == "\nS"
-    assert "".join(emitted) == "\nS"
+    observation = other.step("restore")[0]
+    assert observation.text == window_text(observation) == "\nS"
     assert storage.restores == 1
     assert env.get_state() == state
 
@@ -190,26 +188,29 @@ def test_seed_normalizes_integer_protocol_values(seeds):
     assert results(plain_text(env.reset()[0])) == [14545]
 
 
-def test_score_and_moves_read_live_status_without_advancing_execution(tmp_path):
+def test_score_and_moves_read_live_status_without_advancing_execution(tmp_path, capsys):
     path = tmp_path / "status.z3"
     path.write_bytes(
         program_bytes(
             READ + bytes.fromhex("cd 4f 11 80 00 0d 12 00 ba"), (0x102, b"\xff\xff\xff\xff")
         )
     )
-    emitted = []
-    env = FernzEnv(path, output_handler=emitted.append)
+    env = FernzEnv(path)
     for query in (env.get_score, env.get_moves):
         with pytest.raises(RuntimeError, match="reset"):
             query()
-    assert env.reset()[1] == {"score": -1, "moves": 65535}
+    observation, info = env.reset()
+    assert info == {"score": -1, "moves": 65535}
+    assert observation.text == window_text(observation) == ""
     saved = env.get_state()
     assert type(env.get_score()) is type(env.get_moves()) is int
     assert (env.get_score(), env.get_moves()) == (-1, 65535)
-    assert env.get_state() == saved and emitted == []
+    assert env.get_state() == saved
+    assert capsys.readouterr() == ("", "")
     env.memory.write_word(0x102, 123)
     assert env.get_score() == 123
-    _, _, done, info = env.step("quit")
+    observation, _, done, info = env.step("quit")
+    assert observation.text == window_text(observation) == "\n"
     assert done and info == {"score": -32768, "moves": 0}
     assert (env.get_score(), env.get_moves()) == (-32768, 0)
     env.set_state(saved)

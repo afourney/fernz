@@ -19,7 +19,7 @@ no reference interpreter implementation was inspected.
 | `get_inventory()` | A list of the player's immediate children in sibling order. Items inside carried containers remain reachable through their child links. An empty inventory returns `[]`. |
 
 All methods require a successful `reset()` or `set_state()`. They work after
-VM quit and neither execute instructions nor invoke output/storage callbacks.
+VM quit and neither execute instructions nor invoke storage callbacks.
 After an execution failure, reset or restore before querying. A query error
 does not invalidate or mutate the running environment.
 
