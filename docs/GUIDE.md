@@ -139,8 +139,8 @@ Jericho tuples require conversion, and saved-game files use a separate format.
 The test suite includes a [V3 state converter](STATE_INTEROP.md) for the
 pinned Linux Jericho reference. It is not part of the installed package.
 
-For persistent checkpoints, use `payload = state.to_bytes()` and
-`GameState.from_bytes(payload, story=env.story)`, importing `GameState` from
+For persistent checkpoints, use `payload = state.to_json()` and
+`GameState.from_json(payload, story=env.story)`, importing `GameState` from
 `fernz`. The public codec validates the versioned payload before restoration.
 `FernzEnv(env.story)` creates an independent environment without rereading the
 ROM, with `game_path` set to `None`. See [checkpoint storage and restore

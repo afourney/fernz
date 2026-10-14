@@ -16,11 +16,11 @@ Do not inspect Jericho or Frotz implementation source.
 
 ## Synthetic checkpoint codec fixtures
 
-`checkpoint_schema5.json` and `checkpoint_schema5_python_rng.json` are fixed
+`checkpoint_json_v1.json` and `checkpoint_json_v1_python_rng.json` are fixed
 public-codec payloads for an independently assembled synthetic V5 story. They
 test decoding and continued execution across Python versions and operating
 systems, using predictable and ordinary-mode RNG states respectively. Together
-they occupy about 10 KB. These fixtures include synthetic RAM; they contain no
+they occupy about 17 KB. These fixtures include synthetic RAM; they contain no
 downloaded game bytes, narrative, or copyrighted game content. The real-game
 ZIP archives described below continue to store measurements and hashes only.
 

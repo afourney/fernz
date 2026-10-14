@@ -19,18 +19,24 @@ from ._state import (
 from ._story import EXECUTABLE_VERSIONS, Story
 
 _FORMAT = "fernz-checkpoint"
+_FORMAT_VERSION = 1
 
 
-def dumps(state: GameState) -> bytes:
-    """Encode a current checkpoint using JSON values and base64 dynamic memory."""
+def dumps(state: GameState) -> str:
+    """Encode a checkpoint as JSON text, with only RAM represented in base64."""
     _integer(
         state.format_version, CHECKPOINT_VERSION, CHECKPOINT_VERSION, "Snapshot format version"
     )
-    document = {"format": _FORMAT, **asdict(state)}
-    document["ram"] = base64.b64encode(state.ram).decode("ascii")
-    return json.dumps(document, ensure_ascii=True, allow_nan=False, separators=(",", ":")).encode(
-        "utf-8"
-    )
+    data = asdict(state)
+    del data["format_version"]
+    del data["ram"]
+    document = {
+        "format": _FORMAT,
+        "format_version": _FORMAT_VERSION,
+        "ram_base64": base64.b64encode(state.ram).decode("ascii"),
+        **data,
+    }
+    return json.dumps(document, ensure_ascii=True, allow_nan=False, indent=2)
 
 
 def _object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -62,8 +68,14 @@ def _decode(document: Any) -> GameState:
     if type(document) is not dict or document.pop("format", None) != _FORMAT:
         raise ValueError("Expected a Fernz checkpoint object")
     version = document.get("format_version")
-    if type(version) is not int or version != CHECKPOINT_VERSION:
+    if type(version) is not int or version != _FORMAT_VERSION:
         raise ValueError(f"Unsupported checkpoint format version: {version!r}")
+    expected = {field.name for field in fields(GameState)} - {"ram"} | {"ram_base64"}
+    if document.keys() != expected:
+        raise ValueError("Expected exactly the fields of a JSON checkpoint")
+    document["ram"] = document.pop("ram_base64")
+    # The public JSON format and in-memory snapshot schema have separate versions.
+    document["format_version"] = CHECKPOINT_VERSION
     data = _record(document, GameState)
     if type(data["ram"]) is not str:
         raise ValueError("Checkpoint RAM must be a base64 string")
@@ -97,18 +109,16 @@ def _decode(document: Any) -> GameState:
     return GameState(**data)
 
 
-def loads(payload: bytes | bytearray | memoryview, story: Story) -> GameState:
+def loads(payload: str, story: Story) -> GameState:
     """Validate the wire format and the story-specific continuation off-line."""
-    if not isinstance(payload, (bytes, bytearray, memoryview)):
-        raise TypeError("Checkpoint payload must be a bytes-like object")
+    if not isinstance(payload, str):
+        raise TypeError("Checkpoint payload must be a JSON string")
     if not isinstance(story, Story):
         raise TypeError("Expected a Story")
     if story.header.version not in EXECUTABLE_VERSIONS:
         raise ValueError("Checkpoint decoding supports V3, V4, V5 and V8")
     try:
-        document = json.loads(
-            bytes(payload).decode("utf-8"), object_pairs_hook=_object, parse_constant=_constant
-        )
+        document = json.loads(payload, object_pairs_hook=_object, parse_constant=_constant)
         state = _decode(document)
         state._validate(story)
         # Check protected header fields using separate memory, just as set_state

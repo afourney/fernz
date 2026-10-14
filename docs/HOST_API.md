@@ -73,24 +73,25 @@ from fernz import FernzEnv, GameState, Story
 story = Story.from_file("games/zork1.z5")
 env = FernzEnv(story, seed=12)
 env.reset()
-payload = env.get_state().to_bytes()
+payload = env.get_state().to_json()
 
-# Store payload in the application's save envelope or as a binary file.
+# Store the JSON string in the application's save envelope or a UTF-8 file.
 # Validate and prepare a replacement without touching the live environment.
-state = GameState.from_bytes(payload, story=story)
+state = GameState.from_json(payload, story=story)
 candidate = FernzEnv(story)
 candidate.set_state(state)
 observation, reward, done, info = candidate.step("look")
 ```
 
-`to_bytes()` serializes the complete `GameState`: story identity, dynamic RAM,
+`to_json()` returns a readable, indented JSON string containing the complete
+`GameState`: story identity, dynamic RAM,
 PC, routine frames, pending input, RNG state and active host seed policy,
 logical output state, and execution/outcome flags. Supply a checkpoint obtained
 through `get_state()`. There is no dependency on pickle, Jericho, NumPy, or an
 application-specific codec.
 
-`from_bytes(payload, *, story)` requires the matching immutable `Story` and
-accepts bytes, bytearray, or memoryview. It validates the format, field sets,
+`from_json(payload, *, story)` requires the matching immutable `Story` and
+accepts a JSON string. It validates the format, field sets,
 component types and bounds, input/frame consistency, RNG and output state,
 story identity, and protected RAM header fields. It returns an immutable
 `GameState`; it does not modify an environment, execute a VM, or consume entropy.
@@ -113,18 +114,25 @@ explicit policy.
 
 ## Format and portability policy
 
-The payload is UTF-8 JSON with `"format":"fernz-checkpoint"` and
-`"format_version":5`. RAM is a standard base64 string; immutable tuples use
-JSON arrays. Input records retain the stored-result and character flags when
+The payload is JSON text with `"format":"fernz-checkpoint"` and
+`"format_version":1`. Only RAM is base64-encoded, under the explicit key
+`ram_base64`. All other fields are ordinary JSON objects, arrays, strings,
+numbers, booleans, or null. For example, the `rng` object has named fields
+`host_seed`, `state`, `period`, `position`, and `python_state`; frames contain
+named `locals`, `stack`, and return-continuation fields.
+Input records retain the stored-result and character flags when
 present. Ordinary-mode RNG records contain Python's version-3 MT state as
 integers, including its position. The JSON contains no module or class names to
 import and no executable-object deserialization instructions.
 
-Only schema **5** is accepted. Earlier or unknown schema versions are rejected;
-there are no compatibility shims or migrations. The schema number is independent
-of the Fernz package release number. Changes to this representation require an
-explicit schema/version decision. Applications should treat the payload as opaque
-and use the public decoder rather than reconstructing private dataclasses.
+Only JSON format version **1** is accepted; unknown versions are rejected.
+There are no compatibility shims or migrations. This is the first public JSON
+format. Its version is separate from the internal `GameState.format_version`
+(currently 5) and the Fernz package release number. The decoder constructs the
+current in-memory snapshot without exposing that internal version in the JSON.
+Changes to this representation require an explicit format/version decision.
+Applications can inspect the JSON, but should use the public decoder rather
+than reconstructing private dataclasses.
 
 The current format is tested across CPython **3.11–3.14**, with macOS, Windows
 x64, and Windows ARM also checked on Python 3.12. Fixed synthetic checkpoints

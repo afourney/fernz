@@ -484,7 +484,7 @@ value is `None`. A checkpoint can be reused, restored after reset or execution
 failure, or loaded into a fresh environment for the same story before any reset.
 The current `env.memory` object keeps its identity during restore.
 
-`state.to_bytes()` and `GameState.from_bytes(payload, story=env.story)` provide
+`state.to_json()` and `GameState.from_json(payload, story=env.story)` provide
 public, versioned JSON serialization without private-dataclass imports. Only
 the current schema is accepted. See [host integration](HOST_API.md) for the
 format, validation, runtime portability, and lifecycle contracts.
@@ -730,7 +730,7 @@ The deliberately small public contract is:
 | `env.step(action: str, *, max_steps=1_000_000)` | Complete a pending V3 read and return `(observation: Observation, reward: int, done: bool, info: dict[str, object])`. Reward is the signed score delta, or zero for time games. The observation contains only new output; `.stream` retains prompts and `.text` omits the recognized Zork command prompt. |
 | `env.get_state()` | Return an immutable `GameState` after reset, step, or a successful restore. Raises `RuntimeError` before initialization or after execution failure. |
 | `env.set_state(state)` | Validate and restore a Fernz checkpoint for the same story, including RNG and host seed; return `None`. May be called before reset, after quit, or after execution failure. Invalid input leaves the environment unchanged. |
-| `state.to_bytes()`, `GameState.from_bytes(payload, *, story)` | Encode or validate/decode the current checkpoint schema using portable JSON bytes; retain all checkpoint fields and exclude callbacks. See [host integration](HOST_API.md). |
+| `state.to_json()`, `GameState.from_json(payload, *, story)` | Encode or validate/decode a portable JSON string; retain all checkpoint fields, use base64 only for RAM, and exclude callbacks. See [host integration](HOST_API.md). |
 | `env.initialized` | True when an execution context exists, including after quit; false before initialization or after execution failure. |
 | `env.done` | True after the VM executes `quit`; false before reset. It does not infer death or victory while the story is still running. |
 | `env.awaiting_character` | True when a live interpreter is waiting for a single keypress (`read_char`); false at a line prompt, before reset, after quit, or after execution failure. |

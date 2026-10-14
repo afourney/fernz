@@ -14,7 +14,7 @@ from ..story_files import READ, program_bytes
 
 
 def main() -> None:
-    """Write deterministic predictable and ordinary-mode schema-5 checkpoints."""
+    """Write deterministic predictable and ordinary-mode JSON v1 checkpoints."""
     read = READ + b"\x10"
     story = Story(
         program_bytes(read + bytes.fromhex("e7 3f 7f ff 11 e6 bf 11") + read + b"\xba", version=5)
@@ -23,10 +23,10 @@ def main() -> None:
     env.reset()
     state = env.get_state()
     root = Path(__file__).resolve().parents[1] / "vectors"
-    (root / "checkpoint_schema5.json").write_bytes(state.to_bytes())
+    (root / "checkpoint_json_v1.json").write_text(state.to_json(), encoding="utf-8", newline="\n")
     ordinary = replace(state.rng, host_seed=None, state=0, python_state=Random(12345).getstate())
-    (root / "checkpoint_schema5_python_rng.json").write_bytes(
-        replace(state, rng=ordinary).to_bytes()
+    (root / "checkpoint_json_v1_python_rng.json").write_text(
+        replace(state, rng=ordinary).to_json(), encoding="utf-8", newline="\n"
     )
 
 

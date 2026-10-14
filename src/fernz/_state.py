@@ -170,11 +170,12 @@ class GameState:
     victory: bool = False
     output: OutputState = OutputState()
 
-    def to_bytes(self) -> bytes:
-        """Encode this checkpoint as portable, versioned UTF-8 JSON bytes.
+    def to_json(self) -> str:
+        """Encode this checkpoint as a portable, versioned JSON string.
 
         Obtain the checkpoint through get_state(). The payload includes RAM,
         RNG and display state, but no host callbacks or external resources.
+        Only RAM uses base64, in the explicitly named ram_base64 field.
         Only the current format is supported; this is not a Quetzal save.
         """
         from ._checkpoint import dumps
@@ -182,8 +183,8 @@ class GameState:
         return dumps(self)
 
     @classmethod
-    def from_bytes(cls, payload: bytes | bytearray | memoryview, *, story: Story) -> "GameState":
-        """Decode and validate a checkpoint against its immutable Story.
+    def from_json(cls, payload: str, *, story: Story) -> "GameState":
+        """Decode a JSON string and validate it against its immutable Story.
 
         Malformed data, unsupported versions, and a different story raise
         ValueError. Wrong argument types raise TypeError. Validation neither
