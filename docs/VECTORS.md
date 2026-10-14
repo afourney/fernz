@@ -14,6 +14,25 @@ The clean-room requirement applies to recording and maintenance: use the
 Z-machine specification, public API documentation, and executable behavior.
 Do not inspect Jericho or Frotz implementation source.
 
+## Synthetic checkpoint codec fixtures
+
+`checkpoint_schema5.json` and `checkpoint_schema5_python_rng.json` are fixed
+public-codec payloads for an independently assembled synthetic V5 story. They
+test decoding and continued execution across Python versions and operating
+systems, using predictable and ordinary-mode RNG states respectively. Together
+they occupy about 10 KB. These fixtures include synthetic RAM; they contain no
+downloaded game bytes, narrative, or copyrighted game content. The real-game
+ZIP archives described below continue to store measurements and hashes only.
+
+Regenerate these current-format fixtures from the repository root with:
+
+```sh
+uv run python -m tests.scripts.generate_checkpoint_fixtures
+```
+
+The codec tests run in the fast suite on every CI platform. They require no
+ROM download or reference interpreter. See [checkpoint format and portability](HOST_API.md#format-and-portability-policy).
+
 ## Story file metadata
 
 `tests/vectors/storyfiles.zip` contains **58 JSON members**: one manifest and
