@@ -8,6 +8,7 @@ from ._story import Story
 
 # Versions with the V4+ two-window screen model (§8); V6 has its own window model.
 LATE_SCREEN_VERSIONS = (4, 5, 7, 8)
+CHECKPOINT_VERSION = 5
 
 
 def _integer(value: int, minimum: int, maximum: int, name: str) -> None:
@@ -164,13 +165,39 @@ class GameState:
     input_request: InputRequest | None
     screen_enabled: bool
     halted: bool
-    format_version: int = 5
+    format_version: int = CHECKPOINT_VERSION
     game_over: bool = False
     victory: bool = False
     output: OutputState = OutputState()
 
+    def to_json(self) -> str:
+        """Encode this checkpoint as a portable, versioned JSON string.
+
+        Obtain the checkpoint through get_state(). The payload includes RAM,
+        RNG and display state, but no host callbacks or external resources.
+        Only RAM uses base64, in the explicitly named ram_base64 field.
+        Only the current format is supported; this is not a Quetzal save.
+        """
+        from ._checkpoint import dumps
+
+        return dumps(self)
+
+    @classmethod
+    def from_json(cls, payload: str, *, story: Story) -> "GameState":
+        """Decode a JSON string and validate it against its immutable Story.
+
+        Malformed data, unsupported versions, and a different story raise
+        ValueError. Wrong argument types raise TypeError. Validation neither
+        executes instructions nor changes an environment or draws randomness.
+        """
+        from ._checkpoint import loads
+
+        return loads(payload, story)
+
     def _validate(self, story: Story) -> None:
-        _integer(self.format_version, 5, 5, "Snapshot format version")
+        _integer(
+            self.format_version, CHECKPOINT_VERSION, CHECKPOINT_VERSION, "Snapshot format version"
+        )
         if self.story_sha256 != sha256(story.data[: story.size]).hexdigest():
             raise ValueError("Snapshot belongs to a different story image")
         if type(self.ram) is not bytes:

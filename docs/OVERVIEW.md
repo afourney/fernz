@@ -484,6 +484,11 @@ value is `None`. A checkpoint can be reused, restored after reset or execution
 failure, or loaded into a fresh environment for the same story before any reset.
 The current `env.memory` object keeps its identity during restore.
 
+`state.to_json()` and `GameState.from_json(payload, story=env.story)` provide
+public, versioned JSON serialization without private-dataclass imports. Only
+the current schema is accepted. See [host integration](HOST_API.md) for the
+format, validation, runtime portability, and lifecycle contracts.
+
 | Field | Meaning |
 | --- | --- |
 | `ram` | Immutable bytes from address zero up to the static-memory boundary, including the current header, globals, objects, and input buffers. Static story bytes are not duplicated. |
@@ -524,7 +529,7 @@ converts V3 input-boundary snapshots in both directions for the pinned Linux
 reference, including memory, frames, input continuation, and RNG state. It
 supplies a placeholder for the missing prior observation on export.
 
-These checkpoints currently support V3 and retain a separate contract from
+These checkpoints support V3, V4, V5 and V8 and retain a separate contract from
 story-level `save`/`restore` and their Quetzal files. Standard
 [§6.1](https://inform-fiction.org/zmachine/standards/z1point1/sect06.html)
 defines the VM's saved state and special header-restoration rules; its remarks
@@ -711,6 +716,7 @@ The deliberately small public contract is:
 | `from fernz import FernzEnv` | Public environment class; no Jericho runtime dependency. |
 | `FernzEnv(game_path, *, seed=None, save_handler=None, restore_handler=None, screen_width=80, screen_height=25)` | Accepts a string or text path-like object, stores a `Path` in `game_path`, and loads a raw V1-V8 story without executing it. Missing/inaccessible paths raise `OSError` subclasses; non-regular paths raise `ValueError`; invalid story data raises `StoryFormatError`. Optional synchronous callbacks supply storage; see [save and restore](SAVE_RESTORE.md). |
 | `env.story`, `env.memory` | Immutable story image and independent protected memory instance. |
+| `FernzEnv(story, **options)` | Reuse a loaded `Story` without file I/O or opening execution, with independent memory and the same options as path construction. `game_path` is `None`. |
 | `env.reset(*, max_steps=1_000_000)` | Run fresh V3 startup through input or quit and return `(observation: Observation, info: dict[str, object])`. The observation provides a plain transcript and an ordered display stream; see [its contract](OBSERVATIONS.md). Score games expose integer `score` and `moves`; time games expose `hours` and `minutes`. |
 | `env.seed(seed=None)` | Validate and return `int` in `0..2**31-1`, or `None` for automatic seeding, to apply on the next host reset. Does not change the active episode. An omitted argument selects automatic seeding. |
 | `env.copy()` | Fork mutable execution state and both active/pending seed policies without executing or reading files. Share immutable story data and host callback references. |
@@ -724,8 +730,10 @@ The deliberately small public contract is:
 | `env.step(action: str, *, max_steps=1_000_000)` | Complete a pending V3 read and return `(observation: Observation, reward: int, done: bool, info: dict[str, object])`. Reward is the signed score delta, or zero for time games. The observation contains only new output; `.stream` retains prompts and `.text` omits the recognized Zork command prompt. |
 | `env.get_state()` | Return an immutable `GameState` after reset, step, or a successful restore. Raises `RuntimeError` before initialization or after execution failure. |
 | `env.set_state(state)` | Validate and restore a Fernz checkpoint for the same story, including RNG and host seed; return `None`. May be called before reset, after quit, or after execution failure. Invalid input leaves the environment unchanged. |
+| `state.to_json()`, `GameState.from_json(payload, *, story)` | Encode or validate/decode a portable JSON string; retain all checkpoint fields, use base64 only for RAM, and exclude callbacks. See [host integration](HOST_API.md). |
+| `env.initialized` | True when an execution context exists, including after quit; false before initialization or after execution failure. |
 | `env.done` | True after the VM executes `quit`; false before reset. It does not infer death or victory while the story is still running. |
-| `env.awaiting_character` | True when the pending input is a single keypress (`read_char`) rather than a line; false before reset or after quit. |
+| `env.awaiting_character` | True when a live interpreter is waiting for a single keypress (`read_char`); false at a line prompt, before reset, after quit, or after execution failure. |
 | `env.close()` | Idempotent resource cleanup; currently a no-op because no resources are held. |
 
 The tuple shapes follow the permitted

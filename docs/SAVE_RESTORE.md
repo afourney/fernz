@@ -19,8 +19,13 @@ executables only.
 | Logical display state and geometry | Captured and restored (schema 5) | Recipient settings retained; V3 collapses the upper window |
 | Flags 2 | Saved value restored, with unavailable transcription kept off | Current value preserved, with unavailable transcription kept off |
 | Interpreter-owned header fields | Validated for a Fernz checkpoint | Adapted to the receiving interpreter |
-| Representation | Immutable Fernz GameState | Portable Quetzal bytes |
+| Representation | Immutable Fernz GameState, with public JSON string serialization | Portable Quetzal bytes |
 | Host callbacks and external files | Not captured or rolled back | Supplied by the host |
+
+Applications can persist checkpoints with `state.to_json()` and validate them
+with `GameState.from_json(payload, story=env.story)`. See the [host integration
+API](HOST_API.md) for lifecycle queries, Story-backed construction, and the
+checkpoint format contract.
 
 Both predictable and ordinary-mode Python RNG checkpoints support deterministic
 replay; see [random modes](RNG.md). Restoring a Quetzal

@@ -59,7 +59,8 @@ supplied path, then, only if it is missing and relative, the same path under
 `./games`. For example, `zork1.z5` falls back to
 `./games/zork1.z5`. There is no extension guessing or other
 search. Errors reading an existing path are reported without falling back.
-This lookup also applies to `--inspect`; the Python API uses explicit paths.
+This lookup also applies to `--inspect`; the Python API accepts explicit paths
+or an already-loaded `Story`.
 
 Try `look`, `open mailbox`, and `read leaflet`. Press **Ctrl+Q** to exit.
 Textual is selected automatically when installed; `--simple` selects plain text.

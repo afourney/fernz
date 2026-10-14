@@ -96,6 +96,12 @@ opcodes fail with their name and address. Undo and full V3
 execution support remain future work; `done` detects the `quit` opcode, not victory
 or death that leaves the story running.
 
+`env.initialized` reports whether an execution context exists, including after
+quit. `env.awaiting_character` distinguishes single-key input from line input;
+an empty action means Enter and a literal space means Space at a character
+prompt. Both properties are safe before reset and after errors. See the
+[host integration API](HOST_API.md) for error recovery and input conventions.
+
 V3, V4, V5 and V8 `restart` are supported through the game's own RESTART command and confirmation.
 It resets game memory, frames, and randomness while preserving Flags 2 and the
 current output stream selection. With an explicit host seed, the restarted
@@ -132,6 +138,13 @@ returns `None`, with no execution or output. Fernz uses its own named fields;
 Jericho tuples require conversion, and saved-game files use a separate format.
 The test suite includes a [V3 state converter](STATE_INTEROP.md) for the
 pinned Linux Jericho reference. It is not part of the installed package.
+
+For persistent checkpoints, use `payload = state.to_json()` and
+`GameState.from_json(payload, story=env.story)`, importing `GameState` from
+`fernz`. The public codec validates the versioned payload before restoration.
+`FernzEnv(env.story)` creates an independent environment without rereading the
+ROM, with `game_path` set to `None`. See [checkpoint storage and restore
+isolation](HOST_API.md#serializing-and-restoring-checkpoints).
 
 `copy()` forks mutable execution state without running the game or rereading its
 file. Copies share the immutable story and host callback references; external

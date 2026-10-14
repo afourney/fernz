@@ -22,6 +22,8 @@ class FernzEnv:
     """Load a story and expose a small text interaction interface.
 
     Construction reads a raw V1-V8 story and creates independent memory.
+    Passing an existing Story reuses its immutable image without reopening a
+    file and sets game_path to None. Construction never executes the opening.
     Successful loading does not establish that the story can be executed yet.
     A host seed in 0..2**31-1 selects a reproducible sequence; None uses entropy.
     Positive seeds match the tested Jericho/Frotz sequences. Explicit zero is
@@ -38,7 +40,7 @@ class FernzEnv:
 
     def __init__(
         self,
-        game_path: str | PathLike[str],
+        game_path: str | PathLike[str] | Story,
         *,
         seed: int | None = None,
         save_handler: SaveHandler | None = None,
@@ -46,12 +48,17 @@ class FernzEnv:
         screen_width: int = 80,
         screen_height: int = 25,
     ) -> None:
-        """Load a game, raising OSError for I/O or ValueError for invalid input."""
+        """Load a path or reuse a Story, creating independent mutable memory."""
         _integer(screen_width, 1, 255, "Screen width")
         _integer(screen_height, 1, 254, "Screen height")
         self._screen_width, self._screen_height = screen_width, screen_height
-        self.game_path = Path(game_path)
-        self.story = Story.from_file(self.game_path)
+        self.game_path: Path | None
+        if isinstance(game_path, Story):
+            self.game_path = None
+            self.story = game_path
+        else:
+            self.game_path = Path(game_path)
+            self.story = Story.from_file(self.game_path)
         self.memory = Memory(self.story)
         self._seed = validate_host_seed(seed)
         self._io = HostIO(save_handler, restore_handler)
@@ -351,11 +358,27 @@ class FernzEnv:
         return result
 
     @property
+    def initialized(self) -> bool:
+        """Whether an execution context exists, including after normal quit.
+
+        False before initialization and after execution failure; successful
+        reset() or set_state() makes it true. Query without taking a checkpoint,
+        executing instructions, or changing the environment.
+        """
+        return self._machine is not None
+
+    @property
     def awaiting_character(self) -> bool:
-        """Whether the pending input is a single keypress rather than a line."""
+        """Whether a live interpreter is waiting for a single keypress.
+
+        False at a line prompt, before initialization, after quit or execution
+        failure. No checkpoint, instruction execution, or RNG draw is involved.
+        Pass an empty action for Enter or a literal space for Space to step().
+        """
         machine = self._machine
         return (
             machine is not None
+            and not machine.halted
             and isinstance(machine.input_request, StoredInputRequest)
             and machine.input_request.character
         )
@@ -368,12 +391,17 @@ class FernzEnv:
     def step(
         self, action: str, *, max_steps: int = DEFAULT_MAX_STEPS
     ) -> tuple[Observation, int, bool, dict[str, object]]:
-        """Submit one line and run to the next input request or quit.
+        """Submit a line or character and run to the next input request or quit.
 
         Return new output, score delta (zero for time games), quit status, and
         status globals. Reset or restore a checkpoint before starting play and
         after quit or execution failure.
-        The action excludes its newline; unsupported characters raise ValueError.
+        Remove line terminators before submitting an action. At a character
+        prompt, an empty string means Enter and a literal space means Space;
+        only the first character is consumed. Unsupported characters raise
+        ValueError without invalidating the current episode. Invalid action
+        types and nonpositive/noninteger budgets also preserve it. Errors
+        during execution invalidate it; query initialized before recovery.
         """
         machine = self._machine
         if machine is None or machine.halted:
