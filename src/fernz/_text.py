@@ -65,7 +65,7 @@ class Text:
         address = self.memory.story.header.alphabet_table
         if not address:
             return _ALPHABETS
-        rows = []
+        rows: list[str] = []
         for row in range(3):
             rows.append(
                 "".join(
@@ -77,7 +77,7 @@ class Text:
                     for i in range(26)
                 )
             )
-        return tuple(rows)
+        return rows[0], rows[1], rows[2]
 
     def encode_output(self, text: str) -> bytes:
         """Convert stream-3 output to ZSCII, replacing unrepresentable Unicode."""
@@ -144,7 +144,7 @@ class Text:
         """Read a string, optionally bounded by an object's short-name length."""
         if words == 0:
             return ""
-        chars = []
+        chars: list[int] = []
         count = 0
         while True:
             if words is not None and count >= words:
@@ -155,7 +155,7 @@ class Text:
             if value & 0x8000:
                 break
 
-        output = []
+        output: list[str] = []
         alphabets = self._alphabets()
         alphabet = 0
         position = 0

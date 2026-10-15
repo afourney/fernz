@@ -57,7 +57,7 @@ class Objects:
         self.link_start = self.attributes // 8
         self.property_offset = self.entry_size - 2
         profile = profile_for(memory.story)
-        self._unordered_inspection = (
+        self._unordered_inspection: frozenset[int] = (
             profile.unordered_inspection_objects if profile else frozenset()
         )
 
@@ -158,7 +158,7 @@ class Objects:
         parent = self.parent(obj)
         if parent:
             link = self._entry(parent) + self.link_start + 2 * self.link_size
-            seen = set()
+            seen: set[int] = set()
             while (current := self._read_link(link)) != obj:
                 if current == 0 or current in seen:
                     raise ExecutionError(f"Broken sibling chain for object {obj}")

@@ -17,13 +17,14 @@ These are guardrails, not a reason to grow the suite to fill the available time.
 
 The automatic checks keep:
 
-- Formatting, lint, spelling, lockfile validation, and package build checks.
+- Formatting, lint, spelling, strict Pyright checking, lockfile validation, and package build checks.
 - All offline tests on Linux/Python 3.11–3.14 and on macOS, Windows Server 2025
   x64, and Windows 11 ARM with Python 3.12.
 - Loading, memory, and CLI inspection checks for all 57 retained stories.
 - Headless Textual frontend and rendering checks on Linux and all three portable
   platforms, with the optional `textual` extra installed. The isolated wheel
-  check and reference-smoke environment retain dependency-free CLI coverage.
+  check retains dependency-free CLI coverage. Development environments install
+  Textual so the optional frontend receives the same strict type checking.
 - Each of the 16 V3 games' opening and first five walkthrough commands, with
   full observation, VM-state, and object/query hashes. Short copy, restore,
   and reset checks reuse those same records.

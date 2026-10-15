@@ -27,7 +27,8 @@ jobs:
           enable-cache: true
       - run: uv lock --check
       - run: uv sync --frozen
-      - run: uv run --no-sync poe check
+      - name: Check formatting, lint, spelling, and strict types
+        run: uv run --no-sync poe check
         timeout-minutes: 2
 
   test:

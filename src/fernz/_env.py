@@ -5,6 +5,7 @@ from dataclasses import replace
 from operator import index
 from os import PathLike
 from pathlib import Path
+from typing import TypeAlias
 
 from ._errors import ExecutionError
 from ._host_io import HostIO, RestoreHandler, SaveHandler
@@ -16,6 +17,13 @@ from ._profiles import StoryProfile, profile_for
 from ._random import validate_host_seed
 from ._state import GameState, StoredInputRequest, _integer
 from ._story import Story
+
+StatusInfo: TypeAlias = dict[str, object]
+"""Mutable status globals: score/moves, hours/minutes, or no entries."""
+ResetResult: TypeAlias = tuple[Observation, StatusInfo]
+"""Observation and status returned by reset()."""
+StepResult: TypeAlias = tuple[Observation, int, bool, StatusInfo]
+"""Observation, score delta, done flag, and status returned by step()."""
 
 
 class FernzEnv:
@@ -88,7 +96,7 @@ class FernzEnv:
         """Return the configured display height in character rows."""
         return self._screen_height
 
-    def reset(self, *, max_steps: int = DEFAULT_MAX_STEPS) -> tuple[Observation, dict[str, object]]:
+    def reset(self, *, max_steps: int = DEFAULT_MAX_STEPS) -> ResetResult:
         """Run a fresh supported episode to its first input request or quit.
 
         Return an Observation with ordered display commands and a plain transcript,
@@ -109,7 +117,7 @@ class FernzEnv:
         observation = machine.run(max_steps=max_steps)
         self._machine = machine
         self._record_outcomes(machine.last_narrative)
-        return self._observation(observation), self._info()
+        return self._observation(observation), dict(self._info())
 
     def _observation(self, text: str) -> Observation:
         machine = self._require_machine()
@@ -262,7 +270,7 @@ class FernzEnv:
         """
         player = self.get_player_object()
         objects = self._require_machine().objects
-        inventory = []
+        inventory: list[ZObject] = []
         number = player.child
         seen = {player.num}
         while number:
@@ -388,9 +396,7 @@ class FernzEnv:
         """Whether the current episode has executed quit (not a victory detector)."""
         return self._machine is not None and self._machine.halted
 
-    def step(
-        self, action: str, *, max_steps: int = DEFAULT_MAX_STEPS
-    ) -> tuple[Observation, int, bool, dict[str, object]]:
+    def step(self, action: str, *, max_steps: int = DEFAULT_MAX_STEPS) -> StepResult:
         """Submit a line or character and run to the next input request or quit.
 
         Return new output, score delta (zero for time games), quit status, and
@@ -422,7 +428,7 @@ class FernzEnv:
         self._machine = machine
         self._record_outcomes(machine.last_narrative)
         info = self._info()
-        return self._observation(observation), info.get("score", 0) - before, self.done, info
+        return self._observation(observation), info.get("score", 0) - before, self.done, dict(info)
 
     def close(self) -> None:
         """Release resources; currently an idempotent no-op with no open resources."""

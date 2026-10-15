@@ -140,7 +140,7 @@ def read_line(memory: Memory, text_buffer: int, parse_buffer: int, line: str) ->
     for address, data in writes:
         _check_buffer(memory, address, data)
     if len(writes) == 2 and max(text_buffer, parse_buffer) < min(
-        text_buffer + 1 + len(text_data), parse_buffer + 1 + len(parsed)
+        text_buffer + 1 + len(text_data), parse_buffer + 1 + len(writes[1][1])
     ):
         raise ExecutionError("Text and parse buffers overlap")
     # Stage writes as well as bounds: a buffer may overlap a protected header

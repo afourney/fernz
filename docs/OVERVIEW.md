@@ -122,7 +122,8 @@ Run `uv sync --dev` to install the locked development tools, then use:
 
 | Command | Purpose |
 | --- | --- |
-| `uv run poe check` | Check formatting, lint, and spelling. |
+| `uv run poe check` | Check formatting, lint, spelling, and strict package types. |
+| `uv run poe typecheck` | Run Pyright over the entire shipped package and public typing examples. |
 | `uv run poe fix-all` | Apply formatting and automatic lint fixes. |
 | `uv run poe test` | Run synthetic and API tests without Jericho or ROM downloads. |
 | `uv run poe test-fast` | Run the fast PR selection: offline tests, all story files, and short portable gameplay. |
@@ -792,3 +793,34 @@ eight-byte packed addresses and file-length units. High-address synthetic
 tests and public-reference hashes cover those scenarios, plus full winning
 routes and query APIs for all six games. See [V8 compatibility](V8.md)
 for exact scope, counter probes and startup pause conventions.
+
+## Static type checking
+
+`uv sync --frozen` installs the locked developer tools, including Pyright and
+Textual. Run `uv run --no-sync poe typecheck` for just types, or
+`uv run --no-sync poe check` for formatting, lint, spelling, and types together.
+Both automatic PR CI and the manual comprehensive workflow run the latter.
+Textual remains an optional runtime extra; its development installation lets
+Pyright check the frontend against the real library declarations.
+
+Pyright uses **strict** mode, Python 3.11 (the minimum supported language
+version), and the local `.venv`. It checks every module in `src/`, including
+both CLIs, plus `tests/typing/` consumer examples. There are no package-file
+exclusions or blanket diagnostic ignores. Runtime tests and maintenance scripts
+are outside this initial static scope: they include deliberately malformed API
+inputs and optional black-box reference integrations. They retain linting and
+runtime validation; this is not a claim that the test harness is strictly typed.
+Two strict diagnostics are disabled deliberately: `reportPrivateUsage`, because
+private package modules cooperate through internal helpers, and
+`reportUnnecessaryIsInstance`, because public boundaries must still reject bad
+values from untyped callers. Unknown types and missing generic parameters remain
+errors. JSON decoding uses `object`, checks scalar/container types explicitly,
+and retains checkpoint range and story validation before returning a state.
+
+The public `ResetResult`, `StepResult`, and `StatusInfo` aliases name existing
+return shapes. `StatusInfo` deliberately retains `dict[str, object]` compatibility
+for callers that annotate or extend their metadata; Fernz itself supplies integer
+status globals. `Cursor`, `ColourPair`, `MemoryStream`, and `PythonRandomState`
+name nested checkpoint values. These are aliases, not replacement runtime
+classes: tuple layouts, mutable dictionaries, checkpoint schemas, and wire
+formats remain unchanged. No public API break is required.

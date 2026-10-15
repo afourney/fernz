@@ -23,8 +23,10 @@ textual = [
 dev = [
     "codespell",
     "poethepoet",
+    "pyright>=1.1.414",
     "pytest>=8",
     "ruff",
+    "textual>=8.2.8",
 ]
 reference = [
     "jericho==3.3.1",
@@ -115,6 +117,17 @@ check-vectors = "python -m tests.scripts.generate_vectors --check"
 build = "uv build --out-dir dist"
 check-dist = "python scripts/check_dist.py"
 build-check = ["build", "check-dist"]
-check = ["format", "lint", "spell"]
+typecheck = "pyright"
+check = ["format", "lint", "spell", "typecheck"]
 check-all = ["check", "test", "build-check"]
 fix-all = ["format-fix", "lint-fix"]
+
+[tool.pyright]
+include = ["src", "tests/typing"]
+pythonVersion = "3.11"
+typeCheckingMode = "strict"
+# Internal modules cooperate; public entry points still validate untyped callers.
+reportPrivateUsage = false
+reportUnnecessaryIsInstance = false
+venvPath = "."
+venv = ".venv"

@@ -85,7 +85,7 @@ def dumps(story: Story, state: SavedGame) -> bytes:
         stack.extend(len(frame.stack).to_bytes(2, "big"))
         for value in (*frame.locals, *frame.stack):
             stack.extend(value.to_bytes(2, "big"))
-        if number == 0 and stack[:6] != b"\x00" * 6:
+        if number == 0 and bytes(stack[:6]) != b"\x00" * 6:
             raise SaveFormatError("Invalid initial frame")
     header = _identity(story) + state.pc.to_bytes(3, "big")
     original = story.data[: story.header.static_memory]
@@ -95,7 +95,7 @@ def dumps(story: Story, state: SavedGame) -> bytes:
 
 
 def _frames(data: bytes, story: Story) -> tuple[FrameState, ...]:
-    frames = []
+    frames: list[FrameState] = []
     cursor = 0
     # V3 calls always store and take up to three arguments, later calls up to seven.
     early = story.header.version == 3

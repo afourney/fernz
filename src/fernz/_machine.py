@@ -33,8 +33,8 @@ def signed(value: int) -> int:
 class Frame:
     """A routine's locals and private evaluation stack (§6.3)."""
 
-    locals: list[int] = field(default_factory=list)
-    stack: list[int] = field(default_factory=list)
+    locals: list[int] = field(default_factory=list[int])
+    stack: list[int] = field(default_factory=list[int])
     return_address: int | None = None
     store: int | None = None
     argument_count: int = 0
@@ -453,7 +453,7 @@ class Machine:
             case "loadw" | "loadb":
                 width = 2 if name == "loadw" else 1
                 read = self.memory.read_word if width == 2 else self.memory.read_byte
-                store(read(self._array_address(*args, width)))
+                store(read(self._array_address(args[0], args[1], width)))
             case "storew" | "storeb":
                 width = 2 if name == "storew" else 1
                 address = self._array_address(args[0], args[1], width)
@@ -482,11 +482,11 @@ class Machine:
             case "test_attr":
                 # Historical V3 stories also query the absent object. Like
                 # jin, this opcode treats zero as empty without dereferencing it.
-                branch(self.objects.attribute(*args) if args[0] else False)
+                branch(self.objects.attribute(args[0], args[1]) if args[0] else False)
             case "set_attr" | "clear_attr":
                 ignored = self._profile and args[1] in self._profile.ignored_attribute_writes
                 if args[0] and not ignored:
-                    self.objects.attribute(*args, value=name == "set_attr")
+                    self.objects.attribute(args[0], args[1], value=name == "set_attr")
             case "insert_obj":
                 # Legacy games sometimes move to/from the absent object.
                 # Public executable probes leave the entire tree unchanged.

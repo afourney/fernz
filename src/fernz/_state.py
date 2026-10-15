@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from hashlib import sha256
+from typing import TypeAlias
 
 from ._observation import COLOURS
 from ._story import Story
@@ -10,8 +11,17 @@ from ._story import Story
 LATE_SCREEN_VERSIONS = (4, 5, 7, 8)
 CHECKPOINT_VERSION = 5
 
+Cursor: TypeAlias = tuple[int, int]
+"""One-based row and column of a logical window cursor."""
+ColourPair: TypeAlias = tuple[str, str]
+"""Foreground and background display colours."""
+MemoryStream: TypeAlias = tuple[int, int]
+"""Memory output table address and byte count."""
+PythonRandomState: TypeAlias = tuple[int, tuple[int, ...], None]
+"""Python integer generator version, words/index, and empty Gaussian cache."""
 
-def _integer(value: int, minimum: int, maximum: int, name: str) -> None:
+
+def _integer(value: object, minimum: int, maximum: int, name: str) -> None:
     if type(value) is not int:
         raise TypeError(f"{name} must be an integer")
     if not minimum <= value <= maximum:
@@ -52,13 +62,13 @@ class OutputState:
 
     window: int = 0
     split_lines: int = 0
-    cursors: tuple[tuple[int, int], ...] = ((1, 1), (1, 1))
+    cursors: tuple[Cursor, ...] = ((1, 1), (1, 1))
     fonts: tuple[int, int] = (1, 1)
-    memory_streams: tuple[tuple[int, int], ...] = ()
+    memory_streams: tuple[MemoryStream, ...] = ()
     width: int = 80
     height: int = 25
     styles: tuple[int, int] = (0, 0)
-    colours: tuple[tuple[str, str], ...] = (("white", "black"), ("white", "black"))
+    colours: tuple[ColourPair, ...] = (("white", "black"), ("white", "black"))
     buffered: bool = True
 
     def _validate(self, story: Story) -> None:
@@ -121,7 +131,7 @@ class RandomState:
     state: int
     period: int
     position: int
-    python_state: tuple[int, tuple[int, ...], None] | None = field(default=None, repr=False)
+    python_state: PythonRandomState | None = field(default=None, repr=False)
 
     def _validate(self) -> None:
         if self.host_seed is not None:
@@ -249,7 +259,10 @@ class GameState:
             if self.input_request is not None:
                 raise ValueError("A halted snapshot cannot have pending input")
         else:
-            if type(self.input_request) not in (InputRequest, StoredInputRequest):
+            if self.input_request is None or type(self.input_request) not in (
+                InputRequest,
+                StoredInputRequest,
+            ):
                 raise TypeError("A running snapshot must have a pending input request")
             if type(self.input_request) is StoredInputRequest:
                 _integer(self.input_request.store, 0, 255, "Input result variable")

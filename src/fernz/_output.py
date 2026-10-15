@@ -232,7 +232,7 @@ class Output:
             else:
                 raise ExecutionError("Unsupported text colour")
         colours = list(self.state.colours)
-        colours[self.state.window] = tuple(pair)
+        colours[self.state.window] = (pair[0], pair[1])
         self.state = replace(self.state, colours=tuple(colours))
         # Preserve operand intent for theme-aware consumers while keeping the
         # VM's resolved colour state and checkpoints unchanged.

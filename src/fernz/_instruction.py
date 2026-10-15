@@ -76,7 +76,7 @@ def decode(memory: Memory, address: int) -> Instruction:
     version = memory.story.header.version
     try:
         first = byte()
-        types = []
+        types: list[int] = []
         if first == 0xBE and version >= 5:
             group, number = "EXT", byte()
         elif first >= 0xC0:
