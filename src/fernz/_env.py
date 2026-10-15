@@ -60,6 +60,7 @@ class FernzEnv:
         _integer(screen_width, 1, 255, "Screen width")
         _integer(screen_height, 1, 254, "Screen height")
         self._screen_width, self._screen_height = screen_width, screen_height
+        self.story: Story
         self.game_path: Path | None
         if isinstance(game_path, Story):
             self.game_path = None
@@ -67,7 +68,7 @@ class FernzEnv:
         else:
             self.game_path = Path(game_path)
             self.story = Story.from_file(self.game_path)
-        self.memory = Memory(self.story)
+        self.memory: Memory = Memory(self.story)
         self._seed = validate_host_seed(seed)
         self._io = HostIO(save_handler, restore_handler)
         self._machine: Machine | None = None

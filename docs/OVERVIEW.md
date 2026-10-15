@@ -799,7 +799,9 @@ for exact scope, counter probes and startup pause conventions.
 `uv sync --frozen` installs the locked developer tools, including Pyright and
 Textual. Run `uv run --no-sync poe typecheck` for just types, or
 `uv run --no-sync poe check` for formatting, lint, spelling, and types together.
-Both automatic PR CI and the manual comprehensive workflow run the latter.
+`poe check` also runs `poe typecheck-api` to verify the exported package types
+with Pyright. Both automatic PR CI and the manual comprehensive workflow run
+these checks.
 Textual remains an optional runtime extra; its development installation lets
 Pyright check the frontend against the real library declarations.
 

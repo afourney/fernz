@@ -118,7 +118,8 @@ build = "uv build --out-dir dist"
 check-dist = "python scripts/check_dist.py"
 build-check = ["build", "check-dist"]
 typecheck = "pyright"
-check = ["format", "lint", "spell", "typecheck"]
+typecheck-api = "pyright --verifytypes fernz --ignoreexternal"
+check = ["format", "lint", "spell", "typecheck", "typecheck-api"]
 check-all = ["check", "test", "build-check"]
 fix-all = ["format-fix", "lint-fix"]
 
