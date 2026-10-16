@@ -25,3 +25,6 @@ venv/
 
 # Downloaded game suite; games are distributed separately
 /games/
+
+# Downloader archive staged beside any requested games directory
+**/.fernz-games-*/games.zip

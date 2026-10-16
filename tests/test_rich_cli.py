@@ -7,7 +7,7 @@ pytest.importorskip("textual")
 from textual import events
 from textual.widgets import Input
 
-from fernz import FernzEnv
+from fernz import FernzEnv, Story
 from fernz._rich_cli import ConfirmOverwrite, FilePrompt, RichCLI
 
 from .save_story import save_story
@@ -1165,5 +1165,24 @@ def test_backdrop_tracks_runtime_theme_and_visible_background(tmp_path, monkeypa
                 vm_style = next(segment.style for segment in row if "VM" in segment.text)
                 assert vm_style.color == Color.parse("#ff0000")
                 assert vm_style.bgcolor == Color.parse("#123456")
+
+    asyncio.run(run())
+
+
+def test_rich_player_accepts_in_memory_story():
+    story = Story(program_bytes(READ + b"\xba"))
+
+    def open_game(columns, rows):
+        return FernzEnv(story, screen_width=columns, screen_height=rows)
+
+    app = RichCLI(open_game)
+
+    async def run():
+        async with app.run_test(size=(100, 40)) as pilot:
+            await settled(app, pilot)
+            assert app.title == "Fernz · Story"
+            assert app.env.game_path is None
+            assert not app.query_one("#command", Input).disabled
+            await pilot.press("ctrl+q")
 
     asyncio.run(run())

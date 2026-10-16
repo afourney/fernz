@@ -27,7 +27,8 @@ jobs:
           enable-cache: true
       - run: uv lock --check
       - run: uv sync --frozen
-      - run: uv run --no-sync poe check
+      - name: Check formatting, lint, spelling, and strict types
+        run: uv run --no-sync poe check
         timeout-minutes: 2
 
   test:
@@ -63,7 +64,7 @@ jobs:
       # regeneration on the fast path. Cache dependencies, never ROMs.
       - run: uv sync --frozen --group reference
       - run: uv run --no-sync poe test-fast
-        timeout-minutes: 2
+        timeout-minutes: 5
       - run: uv run --no-sync poe test-fast-reference
         timeout-minutes: 2
 

@@ -4,13 +4,13 @@ from collections.abc import Callable
 from concurrent.futures import Future
 from dataclasses import replace
 from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar, TypeVar
 
 from rich.color import Color, ColorSystem
 from rich.segment import Segment
 from rich.style import Style
 from rich.text import Text
-from textual import events, work
+from textual import events, getters, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, Vertical
@@ -26,6 +26,8 @@ from ._env import FernzEnv
 from ._errors import ExecutionError
 from ._observation import Observation
 from ._screen import ScreenBuffer
+
+_DialogValue = TypeVar("_DialogValue")
 
 FERN_LOAM = Theme(
     name="fern-loam",
@@ -75,6 +77,7 @@ def _resolve_scrollbars(
     their space. canvas_size maps the space left by the bars to a canvas size.
     """
     horizontal = vertical = False
+    width = height = 0
     for _ in range(3):
         available_columns = columns - (viewport.styles.scrollbar_size_vertical if vertical else 0)
         available_rows = rows - (viewport.styles.scrollbar_size_horizontal if horizontal else 0)
@@ -84,8 +87,11 @@ def _resolve_scrollbars(
     return width, height, horizontal, vertical
 
 
-class PlayerScreen(Screen):
+class PlayerScreen(Screen[None]):
     """Paint unused space behind the opaque player and modal screens."""
+
+    if TYPE_CHECKING:
+        app = getters.app(App[object])
 
     def render_line(self, y: int) -> Strip:
         """Use dark-shade cells without changing game or theme colours."""
@@ -169,6 +175,9 @@ class ConfirmOverwrite(ModalScreen[bool]):
 class ClippingWarning(ModalScreen[bool]):
     """Explain clipped game output without consuming a pending story input."""
 
+    if TYPE_CHECKING:
+        app = getters.app(App[object])
+
     BINDINGS: ClassVar = [Binding("escape", "dismiss_once", "Dismiss", priority=True)]
 
     def __init__(self, width: int, height: int) -> None:
@@ -200,9 +209,10 @@ class ClippingWarning(ModalScreen[bool]):
         if event.key in ("tab", "shift+tab"):
             return  # Let Textual move focus between the dialog buttons.
         event.stop()
-        if event.key in ("enter", "space") and isinstance(self.app.focused, Button):
+        focused = self.app.focused
+        if event.key in ("enter", "space") and isinstance(focused, Button):
             event.prevent_default()
-            self.app.focused.press()
+            focused.press()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Return only the warning preference, never a story input."""
@@ -216,6 +226,9 @@ class ClippingWarning(ModalScreen[bool]):
 
 class HistoryBar(ScrollBar, can_focus=True):
     """Control lower-window history from the visible edge, outside the canvas."""
+
+    if TYPE_CHECKING:
+        app = getters.app(App[object])
 
     BINDINGS: ClassVar = [
         Binding("up", "history('up')", show=False),
@@ -343,12 +356,12 @@ class RichCLI(App[int]):
         self.draft = ""
         self._player_exit_code = 0
         self._player_closing = False
-        self._dialog_result: Future | None = None
+        self._cancel_dialog: Callable[[], None] | None = None
         self._game_size: tuple[int, int] | None = None
         self._clipping_warning_open = False
         self._mute_clipping_warnings = False
 
-    def get_default_screen(self) -> Screen:
+    def get_default_screen(self) -> Screen[None]:
         """Keep the outer texture below all player widgets and dialogs."""
         return PlayerScreen(id="_default")
 
@@ -400,7 +413,7 @@ class RichCLI(App[int]):
             self._load_error = error
             self.exit(2)
             return
-        self.title = f"Fernz · {self.env.game_path.name}"
+        self.title = f"Fernz · {self.env.game_path.name if self.env.game_path else 'Story'}"
         # Follow through every layout pass (including screen splits and resizes).
         # Textual releases this anchor on user scrolling and restores it when
         # the user returns to the bottom; output refreshes must not reset it.
@@ -609,19 +622,24 @@ class RichCLI(App[int]):
             )
             command.cursor_position = len(command.value)
 
-    def _ask(self, screen: ModalScreen):
-        result: Future = Future()
+    def _ask(self, screen: ModalScreen[_DialogValue]) -> _DialogValue | None:
+        result: Future[_DialogValue | None] = Future()
 
         def show() -> None:
             if self._player_closing:
                 result.set_result(None)
                 return
-            self._dialog_result = result
 
-            def complete(value) -> None:
+            def cancel() -> None:
+                if not result.done():
+                    result.set_result(None)
+
+            self._cancel_dialog = cancel
+
+            def complete(value: _DialogValue | None) -> None:
                 if not result.done():
                     result.set_result(value)
-                self._dialog_result = None
+                self._cancel_dialog = None
 
             self.push_screen(screen, complete)
 
@@ -658,8 +676,8 @@ class RichCLI(App[int]):
 
     def _release_dialog(self) -> None:
         self._player_closing = True
-        if self._dialog_result is not None and not self._dialog_result.done():
-            self._dialog_result.set_result(None)
+        if self._cancel_dialog is not None:
+            self._cancel_dialog()
 
     def action_leave(self) -> None:
         """Exit, cancelling any storage request still waiting for a response."""

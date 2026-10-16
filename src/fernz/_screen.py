@@ -53,7 +53,7 @@ class ScreenBuffer:
     def apply(self, stream: str) -> None:
         """Consume complete public stream commands and escaped literal text."""
         position = 0
-        text = []
+        text: list[str] = []
         while position < len(stream):
             if stream.startswith("<<", position):
                 text.append("<")
@@ -90,8 +90,12 @@ class ScreenBuffer:
             window = int(args[2] == "top") if len(args) == 3 else self.window
             self.cursors[window] = (int(args[0]) - 1, int(args[1]) - 1)
         elif name in ("bold", "italic", "invert"):
-            attribute = "reverse" if name == "invert" else name
-            self.styles[self.window] += Style(**{attribute: True})
+            style = {
+                "bold": Style(bold=True),
+                "italic": Style(italic=True),
+                "invert": Style(reverse=True),
+            }[name]
+            self.styles[self.window] += style
         elif name == "normal":
             style = self.styles[self.window]
             self.styles[self.window] = Style(color=style.color, bgcolor=style.bgcolor)
